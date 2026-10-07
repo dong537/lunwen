@@ -34,6 +34,7 @@ class Docx4jDocumentParserTest {
     assertEquals(1474, document.sections().get(1).topMarginTwips());
     assertEquals(200, document.paragraphs().get(0).firstLineChars());
     assertTrue(run.source().partName().equals("word/document.xml"));
+    assertEquals(java.util.List.of(0, 0), run.source().elementPath());
   }
 
   private Path fixture() throws Exception {

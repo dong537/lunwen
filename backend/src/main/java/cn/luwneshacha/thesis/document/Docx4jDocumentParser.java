@@ -1,9 +1,12 @@
 package cn.luwneshacha.thesis.document;
 
 import java.io.ByteArrayInputStream;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
 import org.docx4j.TraversalUtil;
 import org.docx4j.XmlUtils;
 import org.docx4j.finders.ClassFinder;
@@ -17,6 +20,8 @@ import org.docx4j.wml.RFonts;
 import org.docx4j.wml.RPr;
 import org.docx4j.wml.SectPr;
 import org.docx4j.wml.Text;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 
 public final class Docx4jDocumentParser {
   public ParsedDocument parse(RawDocx raw) {
@@ -28,9 +33,11 @@ public final class Docx4jDocumentParser {
       var sections = new ArrayList<SectionModel>();
       var finder = new ClassFinder(P.class);
       new TraversalUtil(main.getContent(), finder);
+      List<List<Integer>> paragraphPaths = paragraphPaths(raw.part("word/document.xml").bytes());
       for (int index = 0; index < finder.results.size(); index++) {
         P paragraph = (P) finder.results.get(index);
-        paragraphs.add(parseParagraph(pkg, paragraph, index));
+        List<Integer> path = index < paragraphPaths.size() ? paragraphPaths.get(index) : List.of(index);
+        paragraphs.add(parseParagraph(pkg, paragraph, index, path));
         if (paragraph.getPPr() != null && paragraph.getPPr().getSectPr() != null) {
           sections.add(parseSection(paragraph.getPPr().getSectPr(), sections.size()));
         }
@@ -43,7 +50,7 @@ public final class Docx4jDocumentParser {
     }
   }
 
-  private ParagraphModel parseParagraph(WordprocessingMLPackage pkg, P paragraph, int index) throws Exception {
+  private ParagraphModel parseParagraph(WordprocessingMLPackage pkg, P paragraph, int index, List<Integer> path) throws Exception {
     var resolver = pkg.getMainDocumentPart().getPropertyResolver();
     PPr effectivePPr = resolver.getEffectivePPr(paragraph.getPPr());
     PPrBase.Ind ind = effectivePPr == null ? null : effectivePPr.getInd();
@@ -66,7 +73,8 @@ public final class Docx4jDocumentParser {
           .reduce("", String::concat);
       RPr properties = resolver.getEffectiveRPr(run.getRPr(), paragraph.getPPr());
       RFonts fonts = properties == null ? null : properties.getRFonts();
-      var source = new SourceAddress("word/document.xml", List.of(index, runIndex++), 0, text.length());
+      var source = new SourceAddress("word/document.xml", path, 0, text.length());
+      runIndex++;
       runs.add(new RunModel(text,
           fonts == null ? null : fonts.getAscii(),
           fonts == null ? null : fonts.getEastAsia(),
@@ -80,7 +88,7 @@ public final class Docx4jDocumentParser {
         ind == null || ind.getRight() == null ? null : ind.getRight().intValue(),
         spacing == null || spacing.getLine() == null ? null : spacing.getLine().intValue(),
         spacing == null || spacing.getLineRule() == null ? null : spacing.getLineRule().value(),
-        new SourceAddress("word/document.xml", List.of(index), 0, runs.stream().mapToInt(r -> r.text().length()).sum()),
+        new SourceAddress("word/document.xml", path, 0, runs.stream().mapToInt(r -> r.text().length()).sum()),
         firstLineChars);
   }
 
@@ -92,5 +100,30 @@ public final class Docx4jDocumentParser {
         margins == null || margins.getBottom() == null ? null : margins.getBottom().intValue(),
         margins == null || margins.getLeft() == null ? null : margins.getLeft().intValue(),
         new SourceAddress("word/document.xml", List.of(index, 0), 0, 0));
+  }
+
+  private static List<List<Integer>> paragraphPaths(byte[] xml) throws Exception {
+    var factory = DocumentBuilderFactory.newInstance();
+    factory.setNamespaceAware(true);
+    factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+    factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+    factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+    Element root = factory.newDocumentBuilder().parse(new ByteArrayInputStream(xml)).getDocumentElement();
+    var paths = new ArrayList<List<Integer>>();
+    collectParagraphPaths(root, List.of(), paths);
+    return List.copyOf(paths);
+  }
+
+  private static void collectParagraphPaths(Element element, List<Integer> path, List<List<Integer>> paths) {
+    if ("http://schemas.openxmlformats.org/wordprocessingml/2006/main".equals(element.getNamespaceURI())
+        && "p".equals(element.getLocalName())) paths.add(path);
+    int index = 0;
+    for (Node child = element.getFirstChild(); child != null; child = child.getNextSibling()) {
+      if (child instanceof Element childElement) {
+        var childPath = new ArrayList<>(path);
+        childPath.add(index++);
+        collectParagraphPaths(childElement, List.copyOf(childPath), paths);
+      }
+    }
   }
 }
