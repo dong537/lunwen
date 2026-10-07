@@ -63,8 +63,13 @@ public final class Docx4jDocumentParser {
     PPrBase.Ind ind = effectivePPr == null ? null : effectivePPr.getInd();
     PPrBase.Ind directInd = paragraph.getPPr() == null ? null : paragraph.getPPr().getInd();
     Integer firstLineChars = null;
-    if (ind != null && ind.getFirstLineChars() != null) firstLineChars = ind.getFirstLineChars().intValue();
-    else if (directInd != null && directInd.getFirstLineChars() != null) firstLineChars = directInd.getFirstLineChars().intValue();
+    if (directInd != null && directInd.getFirstLine() != null) {
+      if (directInd.getFirstLineChars() != null) firstLineChars = directInd.getFirstLineChars().intValue();
+    } else if (ind != null && ind.getFirstLineChars() != null) {
+      firstLineChars = ind.getFirstLineChars().intValue();
+    } else if (directInd != null && directInd.getFirstLineChars() != null) {
+      firstLineChars = directInd.getFirstLineChars().intValue();
+    }
     PPrBase.Spacing spacing = effectivePPr == null ? null : effectivePPr.getSpacing();
     var runs = new ArrayList<RunModel>();
     TraversalUtil.visit(paragraph, new Callback() {

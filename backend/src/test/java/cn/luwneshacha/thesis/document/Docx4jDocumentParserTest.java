@@ -92,6 +92,24 @@ class Docx4jDocumentParserTest {
     assertEquals(List.of("新增"), document.paragraphs().get(0).runs().stream().map(RunModel::text).toList());
   }
 
+  @Test
+  void directTwipsIndentOverridesInheritedCharacterIndent() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + "><w:body><w:p><w:pPr><w:pStyle w:val=\"Normal\"/><w:ind w:firstLine=\"0\"/></w:pPr>"
+            + "<w:r><w:t>正文</w:t></w:r></w:p></w:body></w:document>"));
+    pkg.getMainDocumentPart().getStyleDefinitionsPart().setContents((Styles) XmlUtils.unmarshalString(
+        "<w:styles " + NS + "><w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/>"
+            + "<w:pPr><w:ind w:firstLineChars=\"200\"/></w:pPr></w:style></w:styles>"));
+    Path file = temp.resolve("direct-indent-override.docx");
+    pkg.save(file.toFile());
+
+    ParagraphModel paragraph = new Docx4jDocumentParser().parse(new DocxReader().read(file)).paragraphs().get(0);
+
+    assertEquals(0, paragraph.firstLineIndentTwips());
+    assertEquals(null, paragraph.firstLineChars());
+  }
+
   private Path nestedRunsFixture() throws Exception {
     var pkg = WordprocessingMLPackage.createPackage();
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
