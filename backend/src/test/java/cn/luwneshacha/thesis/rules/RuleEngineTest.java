@@ -1,0 +1,56 @@
+package cn.luwneshacha.thesis.rules;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import cn.luwneshacha.thesis.document.ParagraphModel;
+import cn.luwneshacha.thesis.document.ParsedDocument;
+import cn.luwneshacha.thesis.document.RunModel;
+import cn.luwneshacha.thesis.document.SectionModel;
+import cn.luwneshacha.thesis.document.SourceAddress;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+class RuleEngineTest {
+  private static final SourceAddress ADDRESS = new SourceAddress("word/document.xml", List.of(0), 0, 2);
+
+  @Test
+  void reportsPassForSchoolV1Formatting() {
+    var run = new RunModel("正文A", "Times New Roman", "宋体", null, 24, false, ADDRESS);
+    var paragraph = new ParagraphModel(List.of(run), 480, null, null, null, null, ADDRESS, 200);
+    var document = new ParsedDocument("source", List.of(paragraph),
+        List.of(new SectionModel(1474, 1474, 1474, 1474, ADDRESS)), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    assertTrue(results.stream().allMatch(result -> result.judgement() == Judgement.PASS));
+  }
+
+  @Test
+  void reportsFailForWrongMarginAndFontSize() {
+    var run = new RunModel("正文A", "Arial", "宋体", null, 22, false, ADDRESS);
+    var paragraph = new ParagraphModel(List.of(run), 480, null, null, null, null, ADDRESS, 200);
+    var document = new ParsedDocument("source", List.of(paragraph),
+        List.of(new SectionModel(1418, 1474, 1474, 1474, ADDRESS)), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    assertEquals(Judgement.FAIL, results.stream().filter(r -> r.ruleId().equals("PAGE-01")).findFirst().orElseThrow().judgement());
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("BODY-FONT") && r.judgement() == Judgement.FAIL));
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("BODY-SIZE") && r.judgement() == Judgement.FAIL));
+  }
+
+  @Test
+  void reportsReviewWhenRequiredIndentEvidenceIsMissing() {
+    var run = new RunModel("正文", "Times New Roman", "宋体", null, 24, false, ADDRESS);
+    var paragraph = new ParagraphModel(List.of(run), null, null, null, null, null, ADDRESS, null);
+    var document = new ParsedDocument("source", List.of(paragraph),
+        List.of(new SectionModel(1474, 1474, 1474, 1474, ADDRESS)), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    var result = results.stream().filter(r -> r.ruleId().equals("BODY-INDENT")).findFirst().orElseThrow();
+    assertEquals(ExecutionStatus.EXECUTED, result.executionStatus());
+    assertEquals(Judgement.REVIEW, result.judgement());
+  }
+}

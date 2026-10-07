@@ -32,13 +32,14 @@ class Docx4jDocumentParserTest {
     assertEquals(480, document.paragraphs().get(0).firstLineIndentTwips());
     assertEquals(1400, document.sections().get(0).topMarginTwips());
     assertEquals(1474, document.sections().get(1).topMarginTwips());
+    assertEquals(200, document.paragraphs().get(0).firstLineChars());
     assertTrue(run.source().partName().equals("word/document.xml"));
   }
 
   private Path fixture() throws Exception {
     var pkg = WordprocessingMLPackage.createPackage();
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
-        "<w:document " + NS + "><w:body><w:p><w:pPr><w:pStyle w:val=\"Normal\"/><w:ind w:firstLine=\"480\"/>"
+        "<w:document " + NS + "><w:body><w:p><w:pPr><w:pStyle w:val=\"Normal\"/><w:ind w:firstLine=\"480\" w:firstLineChars=\"200\"/>"
             + "<w:sectPr><w:pgMar w:top=\"1400\" w:right=\"1474\" w:bottom=\"1474\" w:left=\"1474\"/></w:sectPr></w:pPr>"
             + "<w:r><w:t>正文ABC</w:t></w:r></w:p><w:sectPr><w:pgMar w:top=\"1474\" w:right=\"1474\" w:bottom=\"1474\" w:left=\"1474\"/></w:sectPr></w:body></w:document>"));
     pkg.getMainDocumentPart().getStyleDefinitionsPart().setContents((Styles) XmlUtils.unmarshalString(

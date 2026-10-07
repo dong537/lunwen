@@ -47,6 +47,10 @@ public final class Docx4jDocumentParser {
     var resolver = pkg.getMainDocumentPart().getPropertyResolver();
     PPr effectivePPr = resolver.getEffectivePPr(paragraph.getPPr());
     PPrBase.Ind ind = effectivePPr == null ? null : effectivePPr.getInd();
+    PPrBase.Ind directInd = paragraph.getPPr() == null ? null : paragraph.getPPr().getInd();
+    Integer firstLineChars = null;
+    if (ind != null && ind.getFirstLineChars() != null) firstLineChars = ind.getFirstLineChars().intValue();
+    else if (directInd != null && directInd.getFirstLineChars() != null) firstLineChars = directInd.getFirstLineChars().intValue();
     PPrBase.Spacing spacing = effectivePPr == null ? null : effectivePPr.getSpacing();
     var runs = new ArrayList<RunModel>();
     int runIndex = 0;
@@ -76,7 +80,8 @@ public final class Docx4jDocumentParser {
         ind == null || ind.getRight() == null ? null : ind.getRight().intValue(),
         spacing == null || spacing.getLine() == null ? null : spacing.getLine().intValue(),
         spacing == null || spacing.getLineRule() == null ? null : spacing.getLineRule().value(),
-        new SourceAddress("word/document.xml", List.of(index), 0, runs.stream().mapToInt(r -> r.text().length()).sum()));
+        new SourceAddress("word/document.xml", List.of(index), 0, runs.stream().mapToInt(r -> r.text().length()).sum()),
+        firstLineChars);
   }
 
   private SectionModel parseSection(SectPr section, int index) {

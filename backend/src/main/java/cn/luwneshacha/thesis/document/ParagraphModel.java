@@ -9,7 +9,8 @@ public record ParagraphModel(
     Integer rightIndentTwips,
     Integer lineTwips,
     String lineRule,
-    SourceAddress source) {
+    SourceAddress source,
+    Integer firstLineChars) {
   public ParagraphModel {
     runs = List.copyOf(runs);
   }

@@ -1,5 +1,7 @@
 package cn.luwneshacha.thesis.inspection;
 
+import cn.luwneshacha.thesis.rules.RuleSet;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
