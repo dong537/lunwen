@@ -1,11 +1,11 @@
 package cn.luwneshacha.thesis.inspection;
 
 import cn.luwneshacha.thesis.rules.RuleSet;
+import cn.luwneshacha.thesis.document.Docx4jDocumentParser;
+import cn.luwneshacha.thesis.document.DocxReader;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.zip.ZipFile;
 
 public final class InspectionKernel {
   public InspectionReport inspect(Path source, RuleSet rules) {
@@ -13,10 +13,12 @@ public final class InspectionKernel {
         || !source.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".docx")) {
       throw new InspectionException("INVALID_DOCX", "input must be a .docx file");
     }
-    try (ZipFile ignored = new ZipFile(source.toFile())) {
-      throw new UnsupportedOperationException("parsing is implemented in the next task");
-    } catch (IOException error) {
-      throw new InspectionException("INVALID_DOCX", "input is not a readable DOCX package");
-    }
+    try {
+      var raw = new DocxReader().read(source);
+      var parsed = new Docx4jDocumentParser().parse(raw);
+      var results = new cn.luwneshacha.thesis.rules.RuleEngine().check(parsed, rules);
+      return new InspectionReport(raw.sourceSha256(), rules.id(), results, parsed.diagnostics());
+    } catch (InspectionException error) { throw error; }
+    catch (RuntimeException error) { throw new InspectionException("PARSER_FAILED", "DOCX parsing failed"); }
   }
 }

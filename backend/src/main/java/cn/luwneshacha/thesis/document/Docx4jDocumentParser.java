@@ -1,7 +1,6 @@
 package cn.luwneshacha.thesis.document;
 
 import java.io.ByteArrayInputStream;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -60,7 +59,6 @@ public final class Docx4jDocumentParser {
     else if (directInd != null && directInd.getFirstLineChars() != null) firstLineChars = directInd.getFirstLineChars().intValue();
     PPrBase.Spacing spacing = effectivePPr == null ? null : effectivePPr.getSpacing();
     var runs = new ArrayList<RunModel>();
-    int runIndex = 0;
     for (Object child : paragraph.getContent()) {
       Object unwrapped = XmlUtils.unwrap(child);
       if (!(unwrapped instanceof R run)) continue;
@@ -74,7 +72,6 @@ public final class Docx4jDocumentParser {
       RPr properties = resolver.getEffectiveRPr(run.getRPr(), paragraph.getPPr());
       RFonts fonts = properties == null ? null : properties.getRFonts();
       var source = new SourceAddress("word/document.xml", path, 0, text.length());
-      runIndex++;
       runs.add(new RunModel(text,
           fonts == null ? null : fonts.getAscii(),
           fonts == null ? null : fonts.getEastAsia(),

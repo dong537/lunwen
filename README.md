@@ -1,6 +1,8 @@
 # 毕业论文格式筛查研究
 
-当前阶段：开源与解析研究已形成证据，正在评审核心系统架构；尚未开始生产业务实现或页面视觉设计。
+当前阶段：开源与解析研究已形成证据；检测内核第一期已完成，尚未实现 API、worker、数据库和页面。
+
+检测内核第一期已在隔离分支 `feature/detection-kernel` 实现：Java 21 + docx4j 17.2.1，包含受限 DOCX 读取、原始部件哈希、有效字体/字号/缩进/分节边距解析、确定性规则和正文/表格批注副本。运行 `mvn -B -ntp verify -f backend/pom.xml` 可执行当前 11 项内核测试。
 
 - [核心系统架构设计稿](docs/superpowers/specs/2026-10-04-论文格式筛查核心系统设计.md)
 - [Word 批注副本试验](research-spikes/comments/README.md)
