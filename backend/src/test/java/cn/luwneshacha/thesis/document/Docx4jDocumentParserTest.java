@@ -37,6 +37,42 @@ class Docx4jDocumentParserTest {
     assertEquals(java.util.List.of(0, 0), run.source().elementPath());
   }
 
+  @Test
+  void collectsRunsNestedInHyperlinksAndContentControls() throws Exception {
+    Path source = nestedRunsFixture();
+
+    ParsedDocument document = new Docx4jDocumentParser().parse(new DocxReader().read(source));
+
+    assertEquals(1, document.paragraphs().size());
+    assertEquals("超链接控件正文", document.paragraphs().get(0).runs().stream()
+        .map(RunModel::text).reduce("", String::concat));
+    assertEquals(3, document.paragraphs().get(0).runs().size());
+  }
+
+  @Test
+  void ignoresRunsWithoutVisibleTextSuchAsImages() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + "><w:body><w:p><w:r><w:drawing/></w:r></w:p></w:body></w:document>"));
+    Path file = temp.resolve("image-run.docx");
+    pkg.save(file.toFile());
+
+    ParsedDocument document = new Docx4jDocumentParser().parse(new DocxReader().read(file));
+
+    assertTrue(document.paragraphs().get(0).runs().isEmpty());
+  }
+
+  private Path nestedRunsFixture() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + " xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:body>"
+            + "<w:p><w:hyperlink r:id=\"rId1\"><w:r><w:t>超链接</w:t></w:r></w:hyperlink>"
+            + "<w:sdt><w:sdtContent><w:r><w:t>控件</w:t></w:r></w:sdtContent></w:sdt>"
+            + "<w:r><w:t>正文</w:t></w:r></w:p></w:body></w:document>"));
+    Path file = temp.resolve("nested-runs.docx");
+    pkg.save(file.toFile());
+    return file;
+  }
   private Path fixture() throws Exception {
     var pkg = WordprocessingMLPackage.createPackage();
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(

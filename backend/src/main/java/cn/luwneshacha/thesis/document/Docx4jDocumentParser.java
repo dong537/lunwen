@@ -7,6 +7,7 @@ import java.util.Objects;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.docx4j.TraversalUtil;
+import org.docx4j.TraversalUtil.Callback;
 import org.docx4j.XmlUtils;
 import org.docx4j.finders.ClassFinder;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
@@ -62,26 +63,53 @@ public final class Docx4jDocumentParser {
     else if (directInd != null && directInd.getFirstLineChars() != null) firstLineChars = directInd.getFirstLineChars().intValue();
     PPrBase.Spacing spacing = effectivePPr == null ? null : effectivePPr.getSpacing();
     var runs = new ArrayList<RunModel>();
-    for (Object child : paragraph.getContent()) {
-      Object unwrapped = XmlUtils.unwrap(child);
-      if (!(unwrapped instanceof R run)) continue;
-      String text = run.getContent().stream()
-          .map(XmlUtils::unwrap)
-          .filter(Text.class::isInstance)
-          .map(Text.class::cast)
-          .map(Text::getValue)
-          .filter(Objects::nonNull)
-          .reduce("", String::concat);
-      RPr properties = resolver.getEffectiveRPr(run.getRPr(), paragraph.getPPr());
-      RFonts fonts = properties == null ? null : properties.getRFonts();
-      var source = new SourceAddress("word/document.xml", path, 0, text.length());
-      runs.add(new RunModel(text,
-          fonts == null ? null : fonts.getAscii(),
-          fonts == null ? null : fonts.getEastAsia(),
-          fonts == null ? null : fonts.getCs(),
-          properties == null || properties.getSz() == null ? null : properties.getSz().getVal().intValue(),
-          properties != null && properties.getB() != null && properties.getB().isVal(), source));
-    }
+    TraversalUtil.visit(paragraph, new Callback() {
+      @Override public void walkJAXBElements(Object element) {
+        List<Object> children = getChildren(element);
+        if (children == null) return;
+        for (Object child : children) {
+          apply(child);
+          if (shouldTraverse(child)) walkJAXBElements(child);
+        }
+      }
+
+      @Override public List<Object> getChildren(Object element) {
+        return TraversalUtil.getChildrenImpl(element);
+      }
+
+      @Override public boolean shouldTraverse(Object element) {
+        Object unwrapped = XmlUtils.unwrap(element);
+        return unwrapped == paragraph || !(unwrapped instanceof P);
+      }
+
+      @Override public List<Object> apply(Object element) {
+        Object unwrapped = XmlUtils.unwrap(element);
+        if (!(unwrapped instanceof R run)) return null;
+        String text = run.getContent().stream()
+            .map(XmlUtils::unwrap)
+            .filter(Text.class::isInstance)
+            .map(Text.class::cast)
+            .map(Text::getValue)
+            .filter(Objects::nonNull)
+            .reduce("", String::concat);
+        if (text.isEmpty()) return null;
+        RPr properties;
+        try {
+          properties = resolver.getEffectiveRPr(run.getRPr(), paragraph.getPPr());
+        } catch (Exception error) {
+          throw new IllegalArgumentException("unable to resolve run formatting", error);
+        }
+        RFonts fonts = properties == null ? null : properties.getRFonts();
+        var source = new SourceAddress("word/document.xml", path, 0, text.length());
+        runs.add(new RunModel(text,
+            fonts == null ? null : fonts.getAscii(),
+            fonts == null ? null : fonts.getEastAsia(),
+            fonts == null ? null : fonts.getCs(),
+            properties == null || properties.getSz() == null ? null : properties.getSz().getVal().intValue(),
+            properties != null && properties.getB() != null && properties.getB().isVal(), source));
+        return null;
+      }
+    });
     return new ParagraphModel(runs,
         ind == null || ind.getFirstLine() == null ? null : ind.getFirstLine().intValue(),
         ind == null || ind.getLeft() == null ? null : ind.getLeft().intValue(),
