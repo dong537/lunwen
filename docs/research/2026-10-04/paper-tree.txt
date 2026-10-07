@@ -1,0 +1,671 @@
+SOURCE: https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/main?recursive=1
+SHA: f17a9e4e7e01eb90085ac24c841e52a25a93ab06
+{
+  "sha": "f17a9e4e7e01eb90085ac24c841e52a25a93ab06",
+  "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/f17a9e4e7e01eb90085ac24c841e52a25a93ab06",
+  "tree": [
+    {
+      "path": ".github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "594fd5034699dccb782860987c70b082fedff8d9",
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/594fd5034699dccb782860987c70b082fedff8d9"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "844e7b00a0070d5d1b257ea875d86d342a6af3f8",
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/844e7b00a0070d5d1b257ea875d86d342a6af3f8"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dfd3fb85fd9576a22295ec07bbe708b226f6b09e",
+      "size": 321,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/dfd3fb85fd9576a22295ec07bbe708b226f6b09e"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/config.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9cc2e2e6827c807bbf55e1ee71a136a5df44bbdc",
+      "size": 394,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/9cc2e2e6827c807bbf55e1ee71a136a5df44bbdc"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "17050b3660ed925460f6d6a0720f27b9896c5ff3",
+      "size": 266,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/17050b3660ed925460f6d6a0720f27b9896c5ff3"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/format_rule_request.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "20987c800cfa4043bc43a0ccea00f93333d34eff",
+      "size": 883,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/20987c800cfa4043bc43a0ccea00f93333d34eff"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/good_first_issue.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "87df5a33e8dafcb9b8016e82cf2b13e1bfa2f5bf",
+      "size": 867,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/87df5a33e8dafcb9b8016e82cf2b13e1bfa2f5bf"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/reporting_improvement.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "be3aeedb7e20b8d99ad35ea40728ba7698151e68",
+      "size": 876,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/be3aeedb7e20b8d99ad35ea40728ba7698151e68"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/skill_workflow_request.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8e1dc302beef146652be1aa911690149b0636d6c",
+      "size": 581,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/8e1dc302beef146652be1aa911690149b0636d6c"
+    },
+    {
+      "path": ".github/PULL_REQUEST_TEMPLATE.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "725c62d3dc66521c56f56b28a8b297d3b13652eb",
+      "size": 869,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/725c62d3dc66521c56f56b28a8b297d3b13652eb"
+    },
+    {
+      "path": ".github/workflows",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0c2195917865f51210ea64f6067529783791e9a9",
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/0c2195917865f51210ea64f6067529783791e9a9"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fae786f62672b060a62a59a0484b2f65462933ce",
+      "size": 821,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/fae786f62672b060a62a59a0484b2f65462933ce"
+    },
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "444f65b5456aba152cafe7a0821a39c30b19b1e3",
+      "size": 415,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/444f65b5456aba152cafe7a0821a39c30b19b1e3"
+    },
+    {
+      "path": "AGENTS.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1bb788c20d3b611fc624ac7d8ba589c21c0c118c",
+      "size": 1023,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/1bb788c20d3b611fc624ac7d8ba589c21c0c118c"
+    },
+    {
+      "path": "CODE_OF_CONDUCT.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b297e2aadc5d3ea54b9a21a12f34dea225680657",
+      "size": 929,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/b297e2aadc5d3ea54b9a21a12f34dea225680657"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4398a07b27ca721984ebdc0d97c611165ad586bd",
+      "size": 4009,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/4398a07b27ca721984ebdc0d97c611165ad586bd"
+    },
+    {
+      "path": "LICENSE",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "00f4923f9f3a057554a8331393eadb692266b403",
+      "size": 1091,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/00f4923f9f3a057554a8331393eadb692266b403"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "125973e0173cff59909a19898c45b02a69b224b5",
+      "size": 3926,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/125973e0173cff59909a19898c45b02a69b224b5"
+    },
+    {
+      "path": "README.zh-CN.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "934d1dee55a79e8cfccfaa3f86c9672b242159c2",
+      "size": 3857,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/934d1dee55a79e8cfccfaa3f86c9672b242159c2"
+    },
+    {
+      "path": "ROADMAP.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ac37abcbe199273ab07b79305b46c70e145b8342",
+      "size": 2982,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/ac37abcbe199273ab07b79305b46c70e145b8342"
+    },
+    {
+      "path": "SDD.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b277433691cb800c69f2b2b3c1f886cc0171cfb1",
+      "size": 2716,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/b277433691cb800c69f2b2b3c1f886cc0171cfb1"
+    },
+    {
+      "path": "SECURITY.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3f9fee9bab5c7ef42a5648178ff476fe57060fb8",
+      "size": 468,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/3f9fee9bab5c7ef42a5648178ff476fe57060fb8"
+    },
+    {
+      "path": "SKILL.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fcc378015a8e985653306e0afa3ba338c637f167",
+      "size": 3572,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/fcc378015a8e985653306e0afa3ba338c637f167"
+    },
+    {
+      "path": "agents",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "356de26e418fe493dcc3c166292115621ec70bd7",
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/356de26e418fe493dcc3c166292115621ec70bd7"
+    },
+    {
+      "path": "agents/openai.yaml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bc19b827a155597b49d6652c6a16d2b966d64c1f",
+      "size": 276,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/bc19b827a155597b49d6652c6a16d2b966d64c1f"
+    },
+    {
+      "path": "docs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1d5bc70cb966075925aa98ede2b0d9b55f4bc8db",
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/1d5bc70cb966075925aa98ede2b0d9b55f4bc8db"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "98b0a7ee93b2a7e257c58201db85912965f9438c",
+      "size": 830,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/98b0a7ee93b2a7e257c58201db85912965f9438c"
+    },
+    {
+      "path": "docs/BENCHMARK.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4fc47d73b27fc119af8ec4ad98da3c45a257f81e",
+      "size": 2702,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/4fc47d73b27fc119af8ec4ad98da3c45a257f81e"
+    },
+    {
+      "path": "docs/CONTRIBUTOR_TASKS.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ca2686b3d3901515646019e7d41ecbcb73b6f715",
+      "size": 3310,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/ca2686b3d3901515646019e7d41ecbcb73b6f715"
+    },
+    {
+      "path": "docs/MCP.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8b7972597ace559571a19ea6c95d3ac7659633ab",
+      "size": 1956,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/8b7972597ace559571a19ea6c95d3ac7659633ab"
+    },
+    {
+      "path": "docs/TEMPLATE_PACKS.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "98ad58cd4ff270c63681b623a296f08d220e92b2",
+      "size": 2231,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/98ad58cd4ff270c63681b623a296f08d220e92b2"
+    },
+    {
+      "path": "docs/USAGE.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "925b3d806cce6cd84b28288b19caebc26707f6f2",
+      "size": 2502,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/925b3d806cce6cd84b28288b19caebc26707f6f2"
+    },
+    {
+      "path": "docs/regression_manifest.sample.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7eea5b88bbf0cd23f06e52bc06548b3a000b17e2",
+      "size": 412,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/7eea5b88bbf0cd23f06e52bc06548b3a000b17e2"
+    },
+    {
+      "path": "examples",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "a815deecf3c064fde60a1fd5ce44fde08460c849",
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/a815deecf3c064fde60a1fd5ce44fde08460c849"
+    },
+    {
+      "path": "examples/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5112c76686c6d41c14dcf9a24b7c9209da6513d4",
+      "size": 1115,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/5112c76686c6d41c14dcf9a24b7c9209da6513d4"
+    },
+    {
+      "path": "examples/sample_format_report.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b4a06c690fdae5891c0d1b2ed09379deb8a243ee",
+      "size": 1253,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/b4a06c690fdae5891c0d1b2ed09379deb8a243ee"
+    },
+    {
+      "path": "examples/sample_format_report.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c01f723fc9c0b4a5ff274ac85557d5e7d0c691cb",
+      "size": 817,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/c01f723fc9c0b4a5ff274ac85557d5e7d0c691cb"
+    },
+    {
+      "path": "examples/synthetic_format_guide.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "434c4c7f944dc6c1dd451c99e66e70606fc41ffe",
+      "size": 1066,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/434c4c7f944dc6c1dd451c99e66e70606fc41ffe"
+    },
+    {
+      "path": "paper_format_agent",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c84af5ffcdae8dae0c6f0f5c794d94c53e9c5313",
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/c84af5ffcdae8dae0c6f0f5c794d94c53e9c5313"
+    },
+    {
+      "path": "paper_format_agent/__init__.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d6f3c04c85edc78104ab4bbbcbc33e98372f5558",
+      "size": 83,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/d6f3c04c85edc78104ab4bbbcbc33e98372f5558"
+    },
+    {
+      "path": "paper_format_agent/__main__.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "004b0940ed70841a7b701cb09af88259126250d6",
+      "size": 96,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/004b0940ed70841a7b701cb09af88259126250d6"
+    },
+    {
+      "path": "paper_format_agent/batch.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f7f7887f38d9ba0132f46ea7d5220acda8da28e2",
+      "size": 3344,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/f7f7887f38d9ba0132f46ea7d5220acda8da28e2"
+    },
+    {
+      "path": "paper_format_agent/calibration.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "89c716abc4374f0d9b6e99b167f27e2c4b794498",
+      "size": 2086,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/89c716abc4374f0d9b6e99b167f27e2c4b794498"
+    },
+    {
+      "path": "paper_format_agent/cli.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4df41360f2bb75c59a3c98b2671ca7a4be152dd2",
+      "size": 6245,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/4df41360f2bb75c59a3c98b2671ca7a4be152dd2"
+    },
+    {
+      "path": "paper_format_agent/engines.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3e66c3020bba046bebdab1ebeb5875b618c4eeac",
+      "size": 4528,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/3e66c3020bba046bebdab1ebeb5875b618c4eeac"
+    },
+    {
+      "path": "paper_format_agent/gui.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "257eb87779f6b8290b6b41b2e0c6601d9c161f57",
+      "size": 25397,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/257eb87779f6b8290b6b41b2e0c6601d9c161f57"
+    },
+    {
+      "path": "paper_format_agent/llm.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0239944021564f791bacf6b7132fdd2465288ef2",
+      "size": 1192,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/0239944021564f791bacf6b7132fdd2465288ef2"
+    },
+    {
+      "path": "paper_format_agent/mcp_server.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "779f55e1d222ac2a027a957b754a29f61382ae66",
+      "size": 4561,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/779f55e1d222ac2a027a957b754a29f61382ae66"
+    },
+    {
+      "path": "paper_format_agent/ooxml.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2a247f8a1a650ca40066a3a5aa417b3ed19ef59e",
+      "size": 786,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/2a247f8a1a650ca40066a3a5aa417b3ed19ef59e"
+    },
+    {
+      "path": "paper_format_agent/pipeline.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1cbf17b0f0c28af565659d6f4ad640e19067b078",
+      "size": 38031,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/1cbf17b0f0c28af565659d6f4ad640e19067b078"
+    },
+    {
+      "path": "paper_format_agent/quality.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "70be1ca0abef02ac5c59c6c7788140896c331cc7",
+      "size": 919,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/70be1ca0abef02ac5c59c6c7788140896c331cc7"
+    },
+    {
+      "path": "paper_format_agent/release_audit.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1a5536b18bcef3ee6aaf45d30326085b3064cd87",
+      "size": 2279,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/1a5536b18bcef3ee6aaf45d30326085b3064cd87"
+    },
+    {
+      "path": "paper_format_agent/rules.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e58c26fb1fa14ccf8cf6cd367046209588788696",
+      "size": 7628,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/e58c26fb1fa14ccf8cf6cd367046209588788696"
+    },
+    {
+      "path": "paper_format_agent/scorer.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d0242b365d4c6f5946f83e65167f5c332702310c",
+      "size": 24818,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/d0242b365d4c6f5946f83e65167f5c332702310c"
+    },
+    {
+      "path": "paper_format_agent/service.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f097fcc5cd118a4b4491cd94785a88a3e5806772",
+      "size": 8133,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/f097fcc5cd118a4b4491cd94785a88a3e5806772"
+    },
+    {
+      "path": "pyproject.toml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "04399b5a7d0a58eba8bcda0ebcd6dcd9c84d8447",
+      "size": 1772,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/04399b5a7d0a58eba8bcda0ebcd6dcd9c84d8447"
+    },
+    {
+      "path": "requirements.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ed4e8d284a912ae70390bb80d427a380317da962",
+      "size": 48,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/ed4e8d284a912ae70390bb80d427a380317da962"
+    },
+    {
+      "path": "run_gui.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9f02875939613e16a35aaebe319270704f5811e7",
+      "size": 175,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/9f02875939613e16a35aaebe319270704f5811e7"
+    },
+    {
+      "path": "server.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d5490738e6f599e19182c192724a53bebbe696bb",
+      "size": 616,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/d5490738e6f599e19182c192724a53bebbe696bb"
+    },
+    {
+      "path": "templates",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c523518e0666360cc2edcde6b6d5969ae6512179",
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/c523518e0666360cc2edcde6b6d5969ae6512179"
+    },
+    {
+      "path": "templates/README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8b2fba9d5a261434df9a1280240a6f38b139a54b",
+      "size": 1696,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/8b2fba9d5a261434df9a1280240a6f38b139a54b"
+    },
+    {
+      "path": "templates/chinese-thesis-basic.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d071e64dace176b9947d187a53b5db11df0f4857",
+      "size": 1728,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/d071e64dace176b9947d187a53b5db11df0f4857"
+    },
+    {
+      "path": "templates/ieee-conference-basic.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cf1908645bde2cdd58c890dea6ca53de362ff356",
+      "size": 1894,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/cf1908645bde2cdd58c890dea6ca53de362ff356"
+    },
+    {
+      "path": "templates/journal-article-basic.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4b7f80597b7f4f8e55d4a26d3aa9b1f589c10ecc",
+      "size": 1767,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/4b7f80597b7f4f8e55d4a26d3aa9b1f589c10ecc"
+    },
+    {
+      "path": "tests",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "57357821dfdf7661898d5259ed61c4950e767658",
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/57357821dfdf7661898d5259ed61c4950e767658"
+    },
+    {
+      "path": "tests/test_abstract_variants.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b2a8d26b771f2fc0d618fe8f19cf78ed673ee40b",
+      "size": 4905,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/b2a8d26b771f2fc0d618fe8f19cf78ed673ee40b"
+    },
+    {
+      "path": "tests/test_batch.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cbc6983974990d71d3395c717a0dc87129654132",
+      "size": 2497,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/cbc6983974990d71d3395c717a0dc87129654132"
+    },
+    {
+      "path": "tests/test_benchmark_text_survival.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "da4508788a5a74a65ccd231a6a58f193bde92e60",
+      "size": 1545,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/da4508788a5a74a65ccd231a6a58f193bde92e60"
+    },
+    {
+      "path": "tests/test_ieee_synthetic.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2d42d19854f901f79cdb39706dd4725de4636304",
+      "size": 4672,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/2d42d19854f901f79cdb39706dd4725de4636304"
+    },
+    {
+      "path": "tests/test_pipeline_guard.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "12e66bac24e0184a8dffa3bd9b09afdeb8313068",
+      "size": 5499,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/12e66bac24e0184a8dffa3bd9b09afdeb8313068"
+    },
+    {
+      "path": "tests/test_quality.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a9761af5fb3cf832f07d224c5cf67909c1fbc732",
+      "size": 1173,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/a9761af5fb3cf832f07d224c5cf67909c1fbc732"
+    },
+    {
+      "path": "tests/test_release_audit.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e5bda389a6294dc723009548ffbfb685f8af7df8",
+      "size": 2028,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/e5bda389a6294dc723009548ffbfb685f8af7df8"
+    },
+    {
+      "path": "tests/test_rules.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "574b7e428ff337a835961164e8346ac73c1a36a0",
+      "size": 1827,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/574b7e428ff337a835961164e8346ac73c1a36a0"
+    },
+    {
+      "path": "tests/test_scorer_diagnostics.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4e42907e0d9e2c9eab0a080b56b9738ca2b750a3",
+      "size": 3019,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/4e42907e0d9e2c9eab0a080b56b9738ca2b750a3"
+    },
+    {
+      "path": "tests/test_service.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3cb106bf0414d5095f3b8f5193df284611ff9478",
+      "size": 2879,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/3cb106bf0414d5095f3b8f5193df284611ff9478"
+    },
+    {
+      "path": "tests/test_skill_metadata.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7a1506f4627d393cf48d7d5111eb007cff0bc4fa",
+      "size": 280,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/7a1506f4627d393cf48d7d5111eb007cff0bc4fa"
+    },
+    {
+      "path": "tests/test_templates.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0e20dd7c0bb9f854b0d67040a6269a7bd636f9f1",
+      "size": 1887,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/0e20dd7c0bb9f854b0d67040a6269a7bd636f9f1"
+    },
+    {
+      "path": "tools",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "a84268efcfe74c506446d32c1ebd651e71d2b84b",
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/trees/a84268efcfe74c506446d32c1ebd651e71d2b84b"
+    },
+    {
+      "path": "tools/benchmark_text_survival.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9b28f87a1921a9442edfa9c17764ee480ccf308b",
+      "size": 9114,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/9b28f87a1921a9442edfa9c17764ee480ccf308b"
+    },
+    {
+      "path": "tools/compile_check.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "720d7b18d11febfcfd17428e430c436a7fb046ca",
+      "size": 1002,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/720d7b18d11febfcfd17428e430c436a7fb046ca"
+    },
+    {
+      "path": "tools/demo_content_guard.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b5e4d6a594066ff55e50e90269b9dd473a70a219",
+      "size": 3309,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/b5e4d6a594066ff55e50e90269b9dd473a70a219"
+    },
+    {
+      "path": "tools/regression_runner.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1ffc6bc77ff2cb52d8f6bec73afa87ea50c5fd12",
+      "size": 3721,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/1ffc6bc77ff2cb52d8f6bec73afa87ea50c5fd12"
+    },
+    {
+      "path": "tools/release_audit.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f4e7d8696fe3f895c9f8bea98b37cedaca65c5cc",
+      "size": 2378,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/f4e7d8696fe3f895c9f8bea98b37cedaca65c5cc"
+    },
+    {
+      "path": "tools/validate_skill.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58873062f69197c508711d66aa614ec0d3c063cd",
+      "size": 2227,
+      "url": "https://api.github.com/repos/zxyasfas/paper_format_agent/git/blobs/58873062f69197c508711d66aa614ec0d3c063cd"
+    }
+  ],
+  "truncated": false
+}

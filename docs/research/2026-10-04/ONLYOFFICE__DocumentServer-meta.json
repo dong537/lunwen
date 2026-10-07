@@ -1,0 +1,16 @@
+{
+  "full_name": "ONLYOFFICE/DocumentServer",
+  "description": "ONLYOFFICE Docs is a free collaborative online office suite comprising viewers and editors for texts, spreadsheets and presentations, forms and PDF, fully compatible with Office Open XML formats: .docx, .xlsx, .pptx and enabling collaborative editing in real time.",
+  "default_branch": "master",
+  "archived": false,
+  "pushed_at": "2026-07-22T09:43:52Z",
+  "license": {
+    "key": "agpl-3.0",
+    "name": "GNU Affero General Public License v3.0",
+    "spdx_id": "AGPL-3.0",
+    "url": "https://api.github.com/licenses/agpl-3.0",
+    "node_id": "MDc6TGljZW5zZTE="
+  },
+  "stargazers_count": 6966,
+  "open_issues_count": 1152
+}

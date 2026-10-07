@@ -1,0 +1,13 @@
+{
+  "originalSha256": "3c9c3dc012b779b4ebd20ea35cb86142d73fb911c7733e3b0d1789ce2d6ac2b2",
+  "outputSha256": "72559f847a774f23667fcf8515440dea4bafbd79a03cb3f6a512a82ff26157b6",
+  "changedParts": [
+    "[Content_Types].xml",
+    "word/_rels/document.xml.rels",
+    "word/document.xml"
+  ],
+  "addedParts": [
+    "word/comments.xml"
+  ],
+  "wordOrWpsVerified": false
+}

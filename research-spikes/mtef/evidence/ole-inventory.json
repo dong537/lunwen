@@ -1,0 +1,53 @@
+{
+  "sourceSha256": "3c9c3dc012b779b4ebd20ea35cb86142d73fb911c7733e3b0d1789ce2d6ac2b2",
+  "objects": [
+    {
+      "part": "word/embeddings/oleObject1.bin",
+      "bytes": 3584,
+      "sha256": "d0b3ef6e89c076393193c57910baf8c6b77f7ce43a7e7116da1eaffe7506acae",
+      "streams": [
+        [
+          "\u0001CompObj"
+        ],
+        [
+          "\u0001Ole"
+        ],
+        [
+          "\u0003ObjInfo"
+        ],
+        [
+          "Equation Native"
+        ]
+      ],
+      "nativeBytes": 378,
+      "headerBytes": 28,
+      "payloadBytes": 350,
+      "mtefVersion": 5,
+      "nativeSha256": "8b30016db9250e5e1c4bac4c474d3543d03f4c69c78893c559f5e782f3b6f26e"
+    },
+    {
+      "part": "word/embeddings/oleObject2.bin",
+      "bytes": 3072,
+      "sha256": "299a36beda7b88b53c6da9f0b60ea4037cdb9dce1ea0fd964114c83ccfd5409c",
+      "streams": [
+        [
+          "\u0001CompObj"
+        ],
+        [
+          "\u0001Ole"
+        ],
+        [
+          "\u0003ObjInfo"
+        ],
+        [
+          "Equation Native"
+        ]
+      ],
+      "nativeBytes": 182,
+      "headerBytes": 28,
+      "payloadBytes": 154,
+      "mtefVersion": 3,
+      "nativeSha256": "2fb8e1fcc729217f18c71b283a9254a7fcf48a6ab4e0749238adb04038a2a9a7"
+    }
+  ]
+}

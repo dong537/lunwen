@@ -1,0 +1,77 @@
+{
+  "sourceSha256": "3c9c3dc012b779b4ebd20ea35cb86142d73fb911c7733e3b0d1789ce2d6ac2b2",
+  "parts": [
+    {
+      "part": "word/document.xml",
+      "allParagraphs": 263,
+      "directBodyParagraphs": 140,
+      "tableParagraphs": 51,
+      "textboxParagraphs": 72,
+      "textParagraphs": 237
+    },
+    {
+      "part": "word/footer1.xml",
+      "allParagraphs": 2,
+      "directBodyParagraphs": 0,
+      "tableParagraphs": 0,
+      "textboxParagraphs": 0,
+      "textParagraphs": 1
+    },
+    {
+      "part": "word/header1.xml",
+      "allParagraphs": 1,
+      "directBodyParagraphs": 0,
+      "tableParagraphs": 0,
+      "textboxParagraphs": 0,
+      "textParagraphs": 1
+    },
+    {
+      "part": "word/header2.xml",
+      "allParagraphs": 1,
+      "directBodyParagraphs": 0,
+      "tableParagraphs": 0,
+      "textboxParagraphs": 0,
+      "textParagraphs": 1
+    },
+    {
+      "part": "word/header3.xml",
+      "allParagraphs": 1,
+      "directBodyParagraphs": 0,
+      "tableParagraphs": 0,
+      "textboxParagraphs": 0,
+      "textParagraphs": 1
+    },
+    {
+      "part": "word/header4.xml",
+      "allParagraphs": 1,
+      "directBodyParagraphs": 0,
+      "tableParagraphs": 0,
+      "textboxParagraphs": 0,
+      "textParagraphs": 1
+    },
+    {
+      "part": "word/header5.xml",
+      "allParagraphs": 1,
+      "directBodyParagraphs": 0,
+      "tableParagraphs": 0,
+      "textboxParagraphs": 0,
+      "textParagraphs": 1
+    },
+    {
+      "part": "word/header6.xml",
+      "allParagraphs": 1,
+      "directBodyParagraphs": 0,
+      "tableParagraphs": 0,
+      "textboxParagraphs": 0,
+      "textParagraphs": 1
+    },
+    {
+      "part": "word/header7.xml",
+      "allParagraphs": 1,
+      "directBodyParagraphs": 0,
+      "tableParagraphs": 0,
+      "textboxParagraphs": 0,
+      "textParagraphs": 1
+    }
+  ]
+}

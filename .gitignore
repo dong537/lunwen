@@ -1,0 +1,12 @@
+# 研究运行产物；论文原件不纳入版本控制。
+**/target/
+*.log
+*.docx
+*.pdf
+.env
+.env.*
+!.env.example
+research-spikes/mtef/.deps/
+research-spikes/mtef/vendor/
+research-spikes/mtef/private-output/
+**/__pycache__/

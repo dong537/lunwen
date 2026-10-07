@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: research.thesis.EquationExteriorTest
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.159 s -- in research.thesis.EquationExteriorTest

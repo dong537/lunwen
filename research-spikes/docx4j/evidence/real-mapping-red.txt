@@ -1,0 +1,16 @@
+-------------------------------------------------------------------------------
+Test set: research.thesis.RealBinderMappingTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 2.050 s <<< FAILURE! -- in research.thesis.RealBinderMappingTest
+research.thesis.RealBinderMappingTest.selectedSchoolTextRetainsSourceIdentityAfterPreprocessing -- Time elapsed: 2.015 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: Working view must select one compatibility branch ==> expected: <611> but was: <742>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:150)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:563)
+	at research.thesis.RealBinderMappingTest.selectedSchoolTextRetainsSourceIdentityAfterPreprocessing(RealBinderMappingTest.java:49)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+

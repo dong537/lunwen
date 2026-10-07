@@ -1,0 +1,34 @@
+[
+  {
+    "source": "docx4j-current-readme",
+    "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)>"
+  },
+  {
+    "source": "docx4j-property-resolver",
+    "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)>"
+  },
+  {
+    "source": "poi-license",
+    "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)>"
+  },
+  {
+    "source": "jod-license",
+    "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)>"
+  },
+  {
+    "source": "format-comparator-readme",
+    "text": "# Word 文档格式规范检查工具 (win32com 版)\n\n肉眼检查word格式问题，又累又慢，交给本项目自动化解决吧！\n本项目是一个检查 Word 文档格式是否符合特定规范的Web应用（体检大夫）。它能生成图文并茂的检查报告和详细的带批注的 Word 文档。\n## ✨ 效果演示\n\n\n![主页](assets/app.png)\n_图1: 主页_\n\n![检查报告示例](assets/演示图2.png)\n_图2: 生成的格式检查报告_\n\n![检查报告示例](assets/演示图3.png)\n_图3: 格式错误细节报告_\n\n![带批注的Word文档示例](assets/批注word示例.png)\n_图4: 生成的带批注 Word 文档_\n\n## 🚀 快速上手流程\n\n<details>\n<summary>点击查看项目上手流程概览 (流程图)</summary>\n\n```mermaid\ngraph TD\n    A(开始) --> B[\"⚙️ 2. 安装指南\"];\n    B --> C[\"🛠️ 3. 配置说明\"];\n    C --> D[\"▶️ 4. 使用方法\"];\n    D --> E(完成);\n\n```\n**快速导航:**\n* [⚙️ 2. 安装指南](#2-安装指南)\n* [🛠️ 3. 配置说明](#3-配置说明)\n* [▶️ 4. 使用方法](#4-使用方法)\n</details>\n\n## 1. 功能特性\n\n*   **格式检查**: 用户上传 Word 文档，选择预设或自定义的样式模板（JSON 格式）。\n*   **智能样式映射 (LLM)**: 集成大型语言模型 (LLM) 对文档段落进行智能分析，辅助判断段落应匹配的模板样式，提高复杂文档的映射准确率。\n*   **报告生成**:\n    *   显示包含评分、评价和图表的格式检查报告。\n    *   可生成带详细批注的 Word 文档，指出不符合规范的具体位置。\n*   **模板管理**:\n    *   用户可以手动创建和保存自定义的样式模板。\n    *   模板以 JSON 文件形式存储，元数据通过 SQLite 数据库管理。\n*   **纯本地运行**: 无需服务器部署或复杂的后台任务队列，所有操作在用户本地计算机上同步执行。\n\n## 2. 安装指南\n\n### 2.1. 环境要求\n\n*   **操作系统**: Windows (因为依赖 `win32com` 和 Microsoft Word)\n*   **Microsoft Word**: 需要安装 Microsoft Word 2007 或更高版本。\n*   **Python**: 建议使用 Python 3.9 或更高版本。\n*   **大模型API**: 默认使用大模型来完成智能样式映射功能，需要能够访问大模型API的服务。如果不使用大模型需自行处理样式映射关系\n\n### 2.2. 安装步骤\n\n1.  **克隆或下载项目**:\n    ```\n    git clone https://github.com/Iberxilong-blackbox/format-comparator.git && cd format-comparator\n    ```\n   \n\n2.  **创建虚拟环境 (推荐)**:\n    在项目根目录打开命令行/终端，执行：\n    ```bash\n    python -m venv word\n    ```\n\n    ```\n    word\\Scripts\\activate  # Windows\n    ```\n    \n\n3.  **安装依赖库**:\n    确保 `requirements.txt` 文件在项目根目录，并包含以下核心依赖 (以及它们各自的依赖)：\n    *   `streamlit`\n    *   `pandas`\n    *   `plotly`\n    *   `pywin32` \n    *   `openai` \n    *   `fuzzywuzzy` (可选，用于 LLM 样式名模糊匹配)\n\n    在激活的虚拟环境中执行：\n    ```bash\n    pip install -r requirements.txt\n    ```\n    如果 `requirements.txt` 文件由于某种原因无法使用，您可以尝试手动安装核心依赖：\n    ```bash\n    pip install streamlit pandas plotly pywin32 openai fuzzywuzzy\n    ```\n\n## 3. 配置说明\n\n### 3.1. 用户文件目录\n\n应用运行时，会在根目录下自动创建 `user_files/` 子目录，用于存放：\n*   `user_files/templates_map.db`: 存储模板元数据的 SQLite 数据库。\n*   `user_files/templates/`: 存放用户创建的模板 JSON 文件。\n*   `user_files/commented_docs/`: 存放生成的带批注的 Word 文档。\n*   `user_files/tolerance_config.json`: 格式比较的容差配置文件。如果此文件不存在，应用首次运行时会自动创建一个包含默认值的版本。您可以根据需要修改此文件中的容差设置。\n\n### 3.2. LLM 服务配置 \n\n如果希望使用 LLM 进行智能样式映射，需要在项目根目录下创建一个 [`config.json`](config.json:0) 文件。可以参考同目录下的 `config_example.json` 文件进行创建。\n\n**[`config_example.json`](config_example.json:0) 内容示例:**\n```json\n{\n  \"llm\": {\n    \"provider\": \"deepseek\",\n    \"api_key\": \"<YOUR_API_KEY_HERE>\",\n    \"base_url\": \"<YOUR_LLM_API_URL_HERE>\",\n    \"model\": \"deepseek-chat\",\n    \"max_tokens\": 4096,\n    \"response_format\": {\"type\": \"text\"}\n  }\n}\n```\n**说明:**\n*   将 `<YOUR_API_KEY_HERE>` 替换为你的 LLM 服务 API 密钥。\n*   将 `<YOUR_LLM_API_URL_HERE>` 替换为你的 LLM 服务的基础 URL。\n*   `provider` 和 `model` 可以根据你使用的 LLM 服务进行调整。\n*   如果项目根目录下的 [`config.json`](config.json:0) 文件不存在或无法正确加载，LLM 功能将被跳过。\n\n### 3.3. 容差配置 (`user_files/tolerance_config.json`)\n\n此文件允许您为特定的格式属性设置比较时的容差。例如：\n```json\n{\n  \"pt_tolerance\": 0.1, // 默认磅值容差\n  \"multiple_tolerance\": 0.05, // 默认倍数行距容差\n  \"specific_tolerances\": {\n    \"段落.首行缩进.pt\": 1.0, // 首行缩进允许1磅的误差\n    \"字体.大小.pt\": 0.5     // 字体大小允许0.5磅的误差\n  }\n}\n```\n您可以根据实际需求调整这些值。属性键的格式为 `类别.属性名.单位`。\n\n## 4. 使用方法\n0.  **优先确保上述第三步已配置完成**\n1.  **启动应用**:\n    在已激活虚拟环境的命令行/终端中，确保您位于项目的根目录下，然后运行：\n    ```bash\n    streamlit run app.py\n    ```\n    应用将在浏览器中打开。\n**注意**: 首次运行应用时，请务必先通过“create template”页面 (在 `http://localhost:8501/create_template`) 创建并保存一个样式模板，之后才能进行格式检查。\n\n2.  **创建样式模板 (如果需要)**:\n    *   如果系统中没有合适的模板，请先通过应用内的“创建/编辑样式模板”页面 (通常在 `http://localhost:8501/create_template`) 创建新的模板。\n    *   填写模板名称、学校、专业等基本信息。\n    *   为正文、各级标题、图题、表题等主要样式配置详细的字体和段落属性。\n    *   （可选）配置目录和编号样式。\n    *   点击“保存模板”。\n\n3.  **进行格式检查**:\n    *   返回主应用页面 (`app.py`)。\n    *   点击“上传 Word 文档”按钮，选择要检查的 `.docx` 文件。\n    *   从下拉列表中选择一个已创建的样式模板。\n*   **关于“（可选）输入正文起始章节标题”**：如果您的输入文档是论文（如毕业论文、期刊文章等），建议在此处准确输入论文正文第一章的完整标题（例如：“第一章 引言”或“1 绪论”）。这有助于系统更精确地定位正文内容的起始位置，否则可能会影响部分检查功能的准确性。其他类型的文档可视情况填写。\n    *   点击“生成检查报告”按钮。\n    *   应用将分析文档（如果配置了 LLM，会尝试使用 LLM 进行样式映射），并在页面上显示包含评分、评价、图表和详细问题列表的报告。\n\n4.  **生成带批注的文档**:\n    *   在显示检查报告后，页面下方会出现“生成带批注的 Word 文档”按钮。\n    *   点击此按钮，应用会调用本地 Word 程序在后台处理文档并添加批注。此过程可能需要一些时间，请耐心等待。\n    *   完成后，会提供下载按钮，您可以下载包含详细格式问题批注的 Word 文档。\n\n## 5. 注意事项\n\n*   **Microsoft Word 依赖**: 本应用强依赖本地安装的 Microsoft Word。请确保 Word 程序可以正常运行。在处理文档期间，Word 可能会在后台启动。\n*   **LLM 配置**: 使用 LLM 功能，请确保已正确创建并配置项目根目录下的 [`config.json`](config.json:0) 文件。\n*   **性能**: 对于文字较多的文档，`win32com` 的处理速度可能会较慢。LLM 调用也可能需要额外时间。\n*   **错误处理**: 如果遇到 `win32com` 相关的错误，通常与 Word 环境或文档本身有关。尝试关闭所有word文档，或重启 Word 以及检查文档是否损坏。LLM 相关错误会打印到控制台。\n*   **安全性**: 由于使用 `win32com`，应用会直接与本地 Word 程序交互。请确保只处理来自可信来源的文档。\n\n\n## 6. 待办与未来改进\n\n*   完善 TOC 和多级列表编号的 UI 配置界面。\n*   增加模板编辑功能。\n*   提供更详细的错误日志和用户反馈界面。\n*   考虑打包为独立可执行文件 (如使用 PyInstaller)。\n*   优化 LLM Prompt 和解析逻辑，提高映射准确性和鲁棒性。\n\n---\n祝您使用愉快！"
+  },
+  {
+    "source": "paper-agent-readme",
+    "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)>"
+  },
+  {
+    "source": "search-docx-checker",
+    "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)>"
+  },
+  {
+    "source": "style-hierarchy",
+    "error": "<urlopen error [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1032)>"
+  }
+]

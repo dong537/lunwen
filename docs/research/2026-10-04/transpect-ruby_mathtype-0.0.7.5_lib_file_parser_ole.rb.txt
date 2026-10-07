@@ -1,0 +1,17 @@
+SOURCE: https://api.github.com/repos/transpect/mathtype-extension/contents/ruby/mathtype-0.0.7.5/lib/file_parser/ole.rb
+SHA: 1812fbff25e0013bd19f46eeaf7b0439b27769f9
+require "bindata"
+require "ole/storage"
+
+module Mathtype
+  class OleFileParser < FileParser
+    def initialize(path)
+      read_from_file(path)
+    end
+    def read_from_file(path)
+      ole = Ole::Storage.open(path, "rb+")
+      @equation = ole.file.read("Equation Native")[28..-1]
+      ole.close
+    end
+  end
+end

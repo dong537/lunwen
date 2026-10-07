@@ -1,0 +1,16 @@
+{
+  "full_name": "zxyasfas/paper_format_agent",
+  "description": "DOCX formatter for academic papers with a content-fingerprint guard: proves your text is never altered, only the formatting. Also installable as an agent skill. 毕业论文、学位论文的 Word 自动排版：按格式要求改字体字号、行距、缩进、标题和题注；指纹校验保证只改格式、不动正文，也可做格式检查评分。",
+  "default_branch": "main",
+  "archived": false,
+  "pushed_at": "2026-07-29T06:29:51Z",
+  "license": {
+    "key": "mit",
+    "name": "MIT License",
+    "spdx_id": "MIT",
+    "url": "https://api.github.com/licenses/mit",
+    "node_id": "MDc6TGljZW5zZTEz"
+  },
+  "stargazers_count": 81,
+  "open_issues_count": 17
+}

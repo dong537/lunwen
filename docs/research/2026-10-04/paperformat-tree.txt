@@ -1,0 +1,3742 @@
+SOURCE: https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/HEAD?recursive=1
+SHA: 8318e3c16b36d25616cf861077a9a51a50492198
+{
+  "sha": "8318e3c16b36d25616cf861077a9a51a50492198",
+  "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/8318e3c16b36d25616cf861077a9a51a50492198",
+  "tree": [
+    {
+      "path": "LICENSE",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6599ca1fc463cc2bac7d8cff8084d69d4a26932a",
+      "size": 1510,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/6599ca1fc463cc2bac7d8cff8084d69d4a26932a"
+    },
+    {
+      "path": "PaperDetect",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4d140b93d26ca9f4c7d349a36a87c1ea0bf71fdb",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/4d140b93d26ca9f4c7d349a36a87c1ea0bf71fdb"
+    },
+    {
+      "path": "PaperDetect/.classpath",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "408621a1bb05ee9440a9aa79283023757c6ee8c3",
+      "size": 3380,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/408621a1bb05ee9440a9aa79283023757c6ee8c3"
+    },
+    {
+      "path": "PaperDetect/.mymetadata",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fc8d161282f507e4eff5f733dd02c40ba6313388",
+      "size": 306,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/fc8d161282f507e4eff5f733dd02c40ba6313388"
+    },
+    {
+      "path": "PaperDetect/.project",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3235ed149dc7143d4c1237919b53c5c229bf6f30",
+      "size": 1694,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3235ed149dc7143d4c1237919b53c5c229bf6f30"
+    },
+    {
+      "path": "PaperDetect/.settings",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f70e49789f1aa28b33aad5ea0e9debd4c63cc63f",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/f70e49789f1aa28b33aad5ea0e9debd4c63cc63f"
+    },
+    {
+      "path": "PaperDetect/.settings/.jsdtscope",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "11dfb483c9f2a285298ac36cbb9abc09799fb8da",
+      "size": 500,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/11dfb483c9f2a285298ac36cbb9abc09799fb8da"
+    },
+    {
+      "path": "PaperDetect/.settings/com.genuitec.eclipse.core.prefs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f5d6f78738aef670a3941cc02098e00dd8edb930",
+      "size": 105,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f5d6f78738aef670a3941cc02098e00dd8edb930"
+    },
+    {
+      "path": "PaperDetect/.settings/com.genuitec.eclipse.j2eedt.core.prefs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0bf2f9b136e95b0746a276f1a59c229713a5590b",
+      "size": 1035,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0bf2f9b136e95b0746a276f1a59c229713a5590b"
+    },
+    {
+      "path": "PaperDetect/.settings/com.genuitec.eclipse.migration.prefs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "79ca54f1934a94031e368d9fb0d722cad878ba19",
+      "size": 247,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/79ca54f1934a94031e368d9fb0d722cad878ba19"
+    },
+    {
+      "path": "PaperDetect/.settings/org.eclipse.core.resources.prefs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "26d68ca9d8a9edbdf7c37e10c7361be0f57c2e97",
+      "size": 929,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/26d68ca9d8a9edbdf7c37e10c7361be0f57c2e97"
+    },
+    {
+      "path": "PaperDetect/.settings/org.eclipse.jdt.core.prefs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "060c5ee3d2e2fcf72ae2887c2466863daa79b399",
+      "size": 598,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/060c5ee3d2e2fcf72ae2887c2466863daa79b399"
+    },
+    {
+      "path": "PaperDetect/.settings/org.eclipse.wst.common.component",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "126ef1cd8db2311e8a393b009e437fe322b73456",
+      "size": 559,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/126ef1cd8db2311e8a393b009e437fe322b73456"
+    },
+    {
+      "path": "PaperDetect/.settings/org.eclipse.wst.common.project.facet.core.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "abe36ace136100327be7434b68d92e8a098a817f",
+      "size": 359,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/abe36ace136100327be7434b68d92e8a098a817f"
+    },
+    {
+      "path": "PaperDetect/.settings/org.eclipse.wst.jsdt.ui.superType.container",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3bd5d0a4803967bc0bf72a7dd66d7e292ed2e586",
+      "size": 49,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3bd5d0a4803967bc0bf72a7dd66d7e292ed2e586"
+    },
+    {
+      "path": "PaperDetect/.settings/org.eclipse.wst.jsdt.ui.superType.name",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "05bd71b6ec2c1982d1e8a5653073281994564ae8",
+      "size": 6,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/05bd71b6ec2c1982d1e8a5653073281994564ae8"
+    },
+    {
+      "path": "PaperDetect/WebRoot",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1304b5febdfbd14f77c2bc8bc37fb8c016927595",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/1304b5febdfbd14f77c2bc8bc37fb8c016927595"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "39fce0f804aa0acc33979833066377128ec5ca07",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/39fce0f804aa0acc33979833066377128ec5ca07"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/META-INF",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "2819dbea6f7d0698c9114eb7a4405798cf207f79",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/2819dbea6f7d0698c9114eb7a4405798cf207f79"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/META-INF/MANIFEST.MF",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "254272e1c0740423e25eb40be9a98ce1556474b1",
+      "size": 36,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/254272e1c0740423e25eb40be9a98ce1556474b1"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "bdc5a38018de4231640adbed402b71c7698545d4",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/bdc5a38018de4231640adbed402b71c7698545d4"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/META-INF",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c1a2ee97fc47426d0179f94d223405336b5cd075",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/c1a2ee97fc47426d0179f94d223405336b5cd075"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/META-INF/MANIFEST.MF",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58630c02ef423cffd6dd6aafd946eb8512040c37",
+      "size": 25,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/58630c02ef423cffd6dd6aafd946eb8512040c37"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/applicationContext.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6a76efefabcfe64a26de8967d9ed935b56ef9372",
+      "size": 7192,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/6a76efefabcfe64a26de8967d9ed935b56ef9372"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/log4j.properties",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c0e7891bf42aa9990864562d04d4dbc87dda79af",
+      "size": 251,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c0e7891bf42aa9990864562d04d4dbc87dda79af"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "e9051d6e8d4befc8bdb2ee694bff749a235b6d17",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/e9051d6e8d4befc8bdb2ee694bff749a235b6d17"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "390ebe35d684d45f95fcc629cf351f730bb49f6c",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/390ebe35d684d45f95fcc629cf351f730bb49f6c"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "8330e6fd8e59b6616fd0771c7db99dd04bf1c21d",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/8330e6fd8e59b6616fd0771c7db99dd04bf1c21d"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/AdviceAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "59c6e247ffafd67e369b9b96da471e5877b90aeb",
+      "size": 2474,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/59c6e247ffafd67e369b9b96da471e5877b90aeb"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/AdviceDeleteAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9b972c37ebc60a770bea3be76631f272f8c799f4",
+      "size": 1094,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9b972c37ebc60a770bea3be76631f272f8c799f4"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/AdviceshowAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6db170cc27f872e1e500c1407184c4374246da8b",
+      "size": 1839,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/6db170cc27f872e1e500c1407184c4374246da8b"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/AdviceshowFindAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "23e54e9c3ddc488ac9b8f10504a57db5da8d8e96",
+      "size": 2623,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/23e54e9c3ddc488ac9b8f10504a57db5da8d8e96"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/AllHistoryAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "98798e84ed89c1e184526ca245d06b9f6889a60b",
+      "size": 1856,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/98798e84ed89c1e184526ca245d06b9f6889a60b"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/AllHistoryFindAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "52b2140355fec1c210694c8da6a106eb803ccb49",
+      "size": 3530,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/52b2140355fec1c210694c8da6a106eb803ccb49"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/DownloadAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4baedb95deeffa0c86658f5b6308bc1c27ea5c6c",
+      "size": 3694,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/4baedb95deeffa0c86658f5b6308bc1c27ea5c6c"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/HistoryAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "984a695bd0fd6773fd45c07c229fd36c7dfeb987",
+      "size": 2154,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/984a695bd0fd6773fd45c07c229fd36c7dfeb987"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/LoginAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ad8012d357301ec30f530d139c9cf2ca90726751",
+      "size": 4799,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ad8012d357301ec30f530d139c9cf2ca90726751"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/LogoutAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ee667d59923cf5f5180ca6100488fe0afea465cd",
+      "size": 1289,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ee667d59923cf5f5180ca6100488fe0afea465cd"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/PaperDeleteAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d4d276c436ba86ed7cac57139ac2accb5e6d038a",
+      "size": 1379,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d4d276c436ba86ed7cac57139ac2accb5e6d038a"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/PassAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e199fe3b73aa2591aab3c38a85f36b7cd63ea4ae",
+      "size": 1229,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e199fe3b73aa2591aab3c38a85f36b7cd63ea4ae"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/PersonalAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2c37cc1b8c0f47dfa57cc02b1e3c3ff17d40c383",
+      "size": 2525,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/2c37cc1b8c0f47dfa57cc02b1e3c3ff17d40c383"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/RegisterAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0a54365f7da263891c54526bc225d81bc372408d",
+      "size": 4648,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0a54365f7da263891c54526bc225d81bc372408d"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/ReportAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "224a7be1716d05bd0a02cb64995bf8a1377a6dc3",
+      "size": 5938,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/224a7be1716d05bd0a02cb64995bf8a1377a6dc3"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/ResetAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0c6c409bda761adc59eb07993c7c8b8b30150af1",
+      "size": 6295,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0c6c409bda761adc59eb07993c7c8b8b30150af1"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/ResetPasswordAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1e0795af6dd175e018495691d45b4418435c6f56",
+      "size": 3992,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/1e0795af6dd175e018495691d45b4418435c6f56"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/SecurityAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "873547087543b04c494566258198956fecd3dd1b",
+      "size": 4994,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/873547087543b04c494566258198956fecd3dd1b"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/TimeOut.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "06c16931d9c5e2cd19634e806a3aa73819093f96",
+      "size": 730,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/06c16931d9c5e2cd19634e806a3aa73819093f96"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/TimeOut1.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "52feb18bee02afb41128ab7c81f2c7c57d0e6a51",
+      "size": 732,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/52feb18bee02afb41128ab7c81f2c7c57d0e6a51"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/UpdateAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cdff0ac30dcb65ac2f415858a70f12fb2a54487a",
+      "size": 3706,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/cdff0ac30dcb65ac2f415858a70f12fb2a54487a"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/action/UploadAction.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "806b32e45585a9652bfcb9b7b0f824757c71150a",
+      "size": 9057,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/806b32e45585a9652bfcb9b7b0f824757c71150a"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/dao",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3182529024c207f901ef171cc6459738b3321e14",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/3182529024c207f901ef171cc6459738b3321e14"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/dao/AdviceDao.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "142fa68a568e1adf3fb2c68a8f0f135918d07749",
+      "size": 547,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/142fa68a568e1adf3fb2c68a8f0f135918d07749"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/dao/PaperDao.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "57851084a7c8b92c40908469a8056242835e6238",
+      "size": 602,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/57851084a7c8b92c40908469a8056242835e6238"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/dao/StudentDao.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4ffd16347642583714b328d41f7eae5ef65a5159",
+      "size": 736,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/4ffd16347642583714b328d41f7eae5ef65a5159"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/dao/TeacherDao.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d5a0a0f231bef1a7429545f976d5df855731db24",
+      "size": 383,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d5a0a0f231bef1a7429545f976d5df855731db24"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/dao/impl",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "e1704a74214be973c3448cbc04f59c4ddf7c4c44",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/e1704a74214be973c3448cbc04f59c4ddf7c4c44"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/dao/impl/AdviceDaoHibernate.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d7f6e49aaa658e11cd4986abf628f17dcf0ecbeb",
+      "size": 2258,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d7f6e49aaa658e11cd4986abf628f17dcf0ecbeb"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/dao/impl/PaperDaoHibernate.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d75ef1cdea9ccac0454c8291b1c010f891d9d358",
+      "size": 3002,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d75ef1cdea9ccac0454c8291b1c010f891d9d358"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/dao/impl/StudentDaoHibernate.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58d1ccfe82166bb76c5085948a514ef47a7fd3ba",
+      "size": 3549,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/58d1ccfe82166bb76c5085948a514ef47a7fd3ba"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/dao/impl/TeacherDaoHibernate.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c15a3a44cf823523c2e6baf8bffeda2180f98425",
+      "size": 1987,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c15a3a44cf823523c2e6baf8bffeda2180f98425"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/po",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4d4537d8588cadfe4ebd60265e212bcb55970a12",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/4d4537d8588cadfe4ebd60265e212bcb55970a12"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/po/Advice.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ca002f2236c05f0feec4abe6443fa301c517fb34",
+      "size": 1580,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ca002f2236c05f0feec4abe6443fa301c517fb34"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/po/Advice.hbm.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "00b93e46291577bfa1698b05a7a36136dd8ad3dc",
+      "size": 578,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/00b93e46291577bfa1698b05a7a36136dd8ad3dc"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/po/Paper.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "78177c33c3e5f3fbbe940b2e27c472aee0eea9af",
+      "size": 1749,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/78177c33c3e5f3fbbe940b2e27c472aee0eea9af"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/po/Paper.hbm.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "20631738c3a4ace1fcdb1faed205602aab2bd2cd",
+      "size": 641,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/20631738c3a4ace1fcdb1faed205602aab2bd2cd"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/po/Student.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2b955865febdb786937a1fdc24d7b8c4e6e96dc9",
+      "size": 2679,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/2b955865febdb786937a1fdc24d7b8c4e6e96dc9"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/po/Student.hbm.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "85ff60918ac6bf50c72d30fcb1094276ebb7cf3b",
+      "size": 864,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/85ff60918ac6bf50c72d30fcb1094276ebb7cf3b"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/po/Teacher.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "75df73ea7caf102d7f1505be89373f7cef88d3ba",
+      "size": 1509,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/75df73ea7caf102d7f1505be89373f7cef88d3ba"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/po/Teacher.hbm.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c99b4aca3e9e75fd8a8f773fe080738502df7864",
+      "size": 601,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c99b4aca3e9e75fd8a8f773fe080738502df7864"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/service",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "a4758341b1034c85755d44213bb9a13d2b625c8a",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/a4758341b1034c85755d44213bb9a13d2b625c8a"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/service/AdviceService.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "30e0bfdb6b76cddfcebef39fe03d6a284d26d5eb",
+      "size": 533,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/30e0bfdb6b76cddfcebef39fe03d6a284d26d5eb"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/service/PaperService.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eca26ad842f3c5fec946b7d6068bae9ab22c2ca5",
+      "size": 792,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/eca26ad842f3c5fec946b7d6068bae9ab22c2ca5"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/service/StudentService.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cbd4002516e3bb49a7963eeb8709683b53652e90",
+      "size": 1133,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/cbd4002516e3bb49a7963eeb8709683b53652e90"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/service/TeacherService.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1c14c893b7b206ef083cde17630e741fbf97349c",
+      "size": 552,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/1c14c893b7b206ef083cde17630e741fbf97349c"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/service/impl",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3037d7cf60a7cf4753009f426987a66e5e5df235",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/3037d7cf60a7cf4753009f426987a66e5e5df235"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/service/impl/AdviceServiceImpl.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e8a734b4268e093ab65a349ecf8c3e38a034fcf0",
+      "size": 3263,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e8a734b4268e093ab65a349ecf8c3e38a034fcf0"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/service/impl/PaperServiceImpl.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ec9593216462c516af21d0c1f6fbee82eda6e21d",
+      "size": 5371,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ec9593216462c516af21d0c1f6fbee82eda6e21d"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/service/impl/StudentServiceImpl.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "92cf6d2a8f07959fcc274ca6e894932129be753d",
+      "size": 4888,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/92cf6d2a8f07959fcc274ca6e894932129be753d"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/service/impl/TeacherServiceImpl.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "07cba6078d1cdddb9a65258b21b69052f4e87f7a",
+      "size": 2433,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/07cba6078d1cdddb9a65258b21b69052f4e87f7a"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/util",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5c96efbf3b525edcb8f9eaeacd47366d30f4456d",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/5c96efbf3b525edcb8f9eaeacd47366d30f4456d"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/util/AuthorityFilter.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a276022bb058c1b70923eb5c69edb147f679b271",
+      "size": 2679,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/a276022bb058c1b70923eb5c69edb147f679b271"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/util/AuthorityInterceptor.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c48e1f736a4047a41013403b93eb7f19c35eb668",
+      "size": 1974,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c48e1f736a4047a41013403b93eb7f19c35eb668"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/util/JsonUtil.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e934f40761457cce627d8df0d8f359d34800ff0f",
+      "size": 2857,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e934f40761457cce627d8df0d8f359d34800ff0f"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/util/RefowardAuthorityFilter.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a0a9b6d9dd1621c4255eaf89c71c415e290ef252",
+      "size": 2706,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/a0a9b6d9dd1621c4255eaf89c71c415e290ef252"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/util/StudentAuthorityFilter.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "99a42d1fe096318d36312414bdf29004c1971bc7",
+      "size": 2688,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/99a42d1fe096318d36312414bdf29004c1971bc7"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/util/TeacherAuthorityFilter.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0811f1bb428ace18cdc78241892d486aabbc081c",
+      "size": 2622,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0811f1bb428ace18cdc78241892d486aabbc081c"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/red/ant/util/WebLogger.class",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "09c283a0467b2dbdd1fc2e56c700e510b670982d",
+      "size": 2337,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/09c283a0467b2dbdd1fc2e56c700e510b670982d"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/struts.properties",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "25baec5a3c6fc3ecf61f77267ce29f8ae0b264b9",
+      "size": 265,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/25baec5a3c6fc3ecf61f77267ce29f8ae0b264b9"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/classes/struts.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "db0048b34649b4566ae4c1c3f793e35e521d03bb",
+      "size": 6886,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/db0048b34649b4566ae4c1c3f793e35e521d03bb"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "50b819be0c7fa05004bda12290f562fb1880f1b1",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/50b819be0c7fa05004bda12290f562fb1880f1b1"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/Copy of sqljdbc.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bcc4da35fddb65558bcc6eaf7e985eae030301ad",
+      "size": 583286,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/bcc4da35fddb65558bcc6eaf7e985eae030301ad"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/activation.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "29a59a9ee1941ed9f37af8af68b2b16e12938b4d",
+      "size": 56290,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/29a59a9ee1941ed9f37af8af68b2b16e12938b4d"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/antlr-2.7.6.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3702b645fc79efd712fac2c73c43df747ab1aeb0",
+      "size": 443432,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3702b645fc79efd712fac2c73c43df747ab1aeb0"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/aspectjweaver.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e0087fbc38c8a5675f383a4cb08e9f7c84ff5535",
+      "size": 1545023,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e0087fbc38c8a5675f383a4cb08e9f7c84ff5535"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/c3p0-0.9.1.2.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0f42d60e316c0cb25c8a24b6c2b20918b132fd1d",
+      "size": 610790,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0f42d60e316c0cb25c8a24b6c2b20918b132fd1d"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/classes12.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "232fb8de9ca73cd746b1499afa63411b4627fa91",
+      "size": 1590041,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/232fb8de9ca73cd746b1499afa63411b4627fa91"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/commons-beanutils-1.7.0.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b1b89c9c921f16af22a88db3ff28975a8e40d886",
+      "size": 188671,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b1b89c9c921f16af22a88db3ff28975a8e40d886"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/commons-collections-3.1.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "41e230feeaa53618b6ac5f8d11792c2eecf4d4fd",
+      "size": 559366,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/41e230feeaa53618b6ac5f8d11792c2eecf4d4fd"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/commons-dbcp.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "faea05626bc312190f704b40c51382aa380f3ce7",
+      "size": 121757,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/faea05626bc312190f704b40c51382aa380f3ce7"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/commons-fileupload-1.2.1.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7db423edc24f4f0aa4666dec019eb2da82607b47",
+      "size": 57779,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/7db423edc24f4f0aa4666dec019eb2da82607b47"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/commons-io-1.3.2.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "865c9e41cee5e3f65a734965aa1c2699b069b08e",
+      "size": 87776,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/865c9e41cee5e3f65a734965aa1c2699b069b08e"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/commons-lang-2.5.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ae491da8c9d5333315509bc8fb0d1cf12733171a",
+      "size": 279193,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ae491da8c9d5333315509bc8fb0d1cf12733171a"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/commons-logging-1.1.1.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8758a96b70cfba9466bacca19c0d99b87cf53734",
+      "size": 60841,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8758a96b70cfba9466bacca19c0d99b87cf53734"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/commons-logging.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "51036199fc305df548ffcdcd4a10e1ae2d08388f",
+      "size": 45405,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/51036199fc305df548ffcdcd4a10e1ae2d08388f"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/commons-pool.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e8de3275c585f23e4e1cdbb6d4641f9e3d761a91",
+      "size": 62103,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e8de3275c585f23e4e1cdbb6d4641f9e3d761a91"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/dom4j-1.6.1.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c8c4dbb92d6c23a7fbb2813eb721eb4cce91750c",
+      "size": 313898,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c8c4dbb92d6c23a7fbb2813eb721eb4cce91750c"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/ezmorph-1.0.3.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "179b8d6f1e7c251b34a2d28162b0ff36c2c61709",
+      "size": 77826,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/179b8d6f1e7c251b34a2d28162b0ff36c2c61709"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/freemarker-2.3.16.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "968c1d31494c832653264ffe89608c71169e0a79",
+      "size": 880993,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/968c1d31494c832653264ffe89608c71169e0a79"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/hibernate3.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "51791253b03dbb89485051686414cf9790ef1046",
+      "size": 2421736,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/51791253b03dbb89485051686414cf9790ef1046"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/javassist-3.7.ga.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "44d16dacbeb0c7eafd39607fa87d5285c44a60a8",
+      "size": 544021,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/44d16dacbeb0c7eafd39607fa87d5285c44a60a8"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/javassist-3.9.0.GA.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0316422e7f248dd57fda8f58a9507dfa530558c5",
+      "size": 597476,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0316422e7f248dd57fda8f58a9507dfa530558c5"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/json-lib-2.4-jdk15.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "68d4f3b09c7632b30280980f22704e13212c743a",
+      "size": 159123,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/68d4f3b09c7632b30280980f22704e13212c743a"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/jta-1.1.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "40a2cbdf83fcd9783930fc25364f514095664f92",
+      "size": 13236,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/40a2cbdf83fcd9783930fc25364f514095664f92"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/log4j-1.2.15.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c930a6ab4d4b73c1a6feb9e929091205664bb340",
+      "size": 391834,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c930a6ab4d4b73c1a6feb9e929091205664bb340"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/mail.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e4159c39d7cb6d693dedd23e4dc85870f99d66dd",
+      "size": 521000,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e4159c39d7cb6d693dedd23e4dc85870f99d66dd"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/ognl-3.0.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b64b5bbdaac8e974bf2cb8e2a898575af2737701",
+      "size": 229145,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b64b5bbdaac8e974bf2cb8e2a898575af2737701"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/slf4j-api-1.5.8.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "20d1d37180b60ee37257b0dd43b4ff61fde3abda",
+      "size": 23445,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/20d1d37180b60ee37257b0dd43b4ff61fde3abda"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/slf4j-nop-1.5.2.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7469aee0f7f766b9e27ced131eddb165983a0a54",
+      "size": 6133,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/7469aee0f7f766b9e27ced131eddb165983a0a54"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/spring.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "52736700562dde3c132a6bbb400464b0fcd4b686",
+      "size": 2949500,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/52736700562dde3c132a6bbb400464b0fcd4b686"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/sqljdbc.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bcc4da35fddb65558bcc6eaf7e985eae030301ad",
+      "size": 583286,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/bcc4da35fddb65558bcc6eaf7e985eae030301ad"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/struts2-core-2.2.1.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "65b9c3f4e2e4a9ca8d2b8c19dc0649e2e1440cae",
+      "size": 772997,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/65b9c3f4e2e4a9ca8d2b8c19dc0649e2e1440cae"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/struts2-json-plugin-2.2.1.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8c8d1392457de9d57a07210152d5145b2cf3073e",
+      "size": 56607,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8c8d1392457de9d57a07210152d5145b2cf3073e"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/struts2-spring-plugin-2.2.1.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "40c51bb07db8dc05b944a71dcc1e95acdcd7fc38",
+      "size": 21655,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/40c51bb07db8dc05b944a71dcc1e95acdcd7fc38"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/lib/xwork-core-2.2.1.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8fb2c81d776ce835e295bfe6de2f402a04f01cb9",
+      "size": 1021265,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8fb2c81d776ce835e295bfe6de2f402a04f01cb9"
+    },
+    {
+      "path": "PaperDetect/WebRoot/WEB-INF/web.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f7b697e1394287dca9c41e6e9b3646d66eb5995d",
+      "size": 2424,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f7b697e1394287dca9c41e6e9b3646d66eb5995d"
+    },
+    {
+      "path": "PaperDetect/WebRoot/advice.jsp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dc3883100c1293d4c9b45437ae1601b7aaac3d4e",
+      "size": 3424,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/dc3883100c1293d4c9b45437ae1601b7aaac3d4e"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "404d8f9fe0d1b240ae84f7d37f67ac89f1d32811",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/404d8f9fe0d1b240ae84f7d37f67ac89f1d32811"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/advice.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8db2913f48dad772430d6047e3d63256e56d3604",
+      "size": 1727,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8db2913f48dad772430d6047e3d63256e56d3604"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/bootstrap-dialog.min.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c9000fc15eb5f706541aa90beaa4f954b0631c48",
+      "size": 1837,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c9000fc15eb5f706541aa90beaa4f954b0631c48"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/bootstrap.min.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d65c66b1ba297eeb3b5976b71c64c736b41bb763",
+      "size": 122540,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d65c66b1ba297eeb3b5976b71c64c736b41bb763"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/datepicker.min.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "67c298de5e9f4b01753d92f82a1cca7b7b2c92f1",
+      "size": 16915,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/67c298de5e9f4b01753d92f82a1cca7b7b2c92f1"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/login.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "940e5a81d92f5429f16e57a0b983f41e3dd7fd16",
+      "size": 950,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/940e5a81d92f5429f16e57a0b983f41e3dd7fd16"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/menu_red.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6e3d5181c664c60f31adfb01adf3510f2343a22e",
+      "size": 5437,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/6e3d5181c664c60f31adfb01adf3510f2343a22e"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/more.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e0e3911a61480f4c3028e94273c1dbfbc065abcd",
+      "size": 1204,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e0e3911a61480f4c3028e94273c1dbfbc065abcd"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/mricode.pagination.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "db1945e897c8c2af6ac7d69f57e4d88aedf63a0c",
+      "size": 3620,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/db1945e897c8c2af6ac7d69f57e4d88aedf63a0c"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/pagecontent.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5ee92164a3f50e5c515e08cc7dd70f19e60f656e",
+      "size": 424,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/5ee92164a3f50e5c515e08cc7dd70f19e60f656e"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/register.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7e45249f0f767be9809245cb994fc1da82679b20",
+      "size": 1038,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/7e45249f0f767be9809245cb994fc1da82679b20"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/reset.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ffbef14c4f376a794fb0fbd68a1210f042327c85",
+      "size": 989,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ffbef14c4f376a794fb0fbd68a1210f042327c85"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/security.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f9cb5edb7fcfbdd1e38e74f3ce9e48175765ec07",
+      "size": 662,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f9cb5edb7fcfbdd1e38e74f3ce9e48175765ec07"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/security_01.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "51cfad96921e6ff12602b76ccfc5dc66e21a8f70",
+      "size": 730,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/51cfad96921e6ff12602b76ccfc5dc66e21a8f70"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/students.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "044a41f26303677b25c187257d1185cafec19577",
+      "size": 2232,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/044a41f26303677b25c187257d1185cafec19577"
+    },
+    {
+      "path": "PaperDetect/WebRoot/css/teacher.css",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8dff7f15e61453914db99f8a0f04fd703be50235",
+      "size": 1710,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8dff7f15e61453914db99f8a0f04fd703be50235"
+    },
+    {
+      "path": "PaperDetect/WebRoot/demo.html",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1058dbc76d598f2db954fb75578ca7c37fd7856e",
+      "size": 648,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/1058dbc76d598f2db954fb75578ca7c37fd7856e"
+    },
+    {
+      "path": "PaperDetect/WebRoot/details.html",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bf663f9981b00f28be3583f47a487af1c568e11d",
+      "size": 37890,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/bf663f9981b00f28be3583f47a487af1c568e11d"
+    },
+    {
+      "path": "PaperDetect/WebRoot/fonts",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "14032aabd85b43a058cfc7025dd4fa9dd325ea97",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/14032aabd85b43a058cfc7025dd4fa9dd325ea97"
+    },
+    {
+      "path": "PaperDetect/WebRoot/fonts/glyphicons-halflings-regular.eot",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b93a4953fff68df523aa7656497ee339d6026d64",
+      "size": 20127,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b93a4953fff68df523aa7656497ee339d6026d64"
+    },
+    {
+      "path": "PaperDetect/WebRoot/fonts/glyphicons-halflings-regular.svg",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "94fb5490a2ed10b2c69a4a567a4fd2e4f706d841",
+      "size": 108738,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/94fb5490a2ed10b2c69a4a567a4fd2e4f706d841"
+    },
+    {
+      "path": "PaperDetect/WebRoot/fonts/glyphicons-halflings-regular.ttf",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1413fc609ab6f21774de0cb7e01360095584f65b",
+      "size": 45404,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/1413fc609ab6f21774de0cb7e01360095584f65b"
+    },
+    {
+      "path": "PaperDetect/WebRoot/fonts/glyphicons-halflings-regular.woff",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9e612858f802245ddcbf59788a0db942224bab35",
+      "size": 23424,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9e612858f802245ddcbf59788a0db942224bab35"
+    },
+    {
+      "path": "PaperDetect/WebRoot/fonts/glyphicons-halflings-regular.woff2",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "64539b54c3751a6d9adb44c8e3a45ba5a73b77f0",
+      "size": 18028,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/64539b54c3751a6d9adb44c8e3a45ba5a73b77f0"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "62f6745877ca7f9b2d3db9d6bda4e7910b9f3d5b",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/62f6745877ca7f9b2d3db9d6bda4e7910b9f3d5b"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/053101.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4f64db287212505749968da128aec2865438711d",
+      "size": 52310,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/4f64db287212505749968da128aec2865438711d"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/053102.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9ac7df38a6edd3f7fdf885e141ca1e8129713e9c",
+      "size": 485670,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9ac7df38a6edd3f7fdf885e141ca1e8129713e9c"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/053103.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0d852275402cef8bcfb1a74507d70586aa408c51",
+      "size": 41965,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0d852275402cef8bcfb1a74507d70586aa408c51"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/053104.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e510e3d0cc74be65745c0c50b72d89235934dd5f",
+      "size": 343184,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e510e3d0cc74be65745c0c50b72d89235934dd5f"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/360.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "137d3dc450cff240bfc3160578a3ef64a3a652d2",
+      "size": 8546,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/137d3dc450cff240bfc3160578a3ef64a3a652d2"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/4_30_01.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4a34e9ea18296e0acec25c3a702aba92b5bd5bd1",
+      "size": 208253,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/4a34e9ea18296e0acec25c3a702aba92b5bd5bd1"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/4_30_02.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f6438d02bf9a4a2323b6f69742a6eaa3fd058f04",
+      "size": 215763,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f6438d02bf9a4a2323b6f69742a6eaa3fd058f04"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/Thumbs.db",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "622151893cac68af3e27718f44658ffb1e525ba7",
+      "size": 98816,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/622151893cac68af3e27718f44658ffb1e525ba7"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/chrome.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a81d43b1a488bab8b14609b37208a2e33e2f39e1",
+      "size": 4118,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/a81d43b1a488bab8b14609b37208a2e33e2f39e1"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/class.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2613140054761ab3c830ab6c96f66b3e34191d44",
+      "size": 2705,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/2613140054761ab3c830ab6c96f66b3e34191d44"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/firefox.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5f6b75fa9da0f612227f96f527a92f1d5300d816",
+      "size": 7541,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/5f6b75fa9da0f612227f96f527a92f1d5300d816"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/gender.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "97da19d484858b480aef5931b65ba1e7ff1947bf",
+      "size": 7534,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/97da19d484858b480aef5931b65ba1e7ff1947bf"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/ie.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "57126d974fc3b1571acfa90b7689bfa41feddae2",
+      "size": 5742,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/57126d974fc3b1571acfa90b7689bfa41feddae2"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/redant.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3d3fa3f95789136aa15d64a436c97e4f7d51f770",
+      "size": 7563,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3d3fa3f95789136aa15d64a436c97e4f7d51f770"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/redant_icon.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "95e998338757215b1444bceab71fa43ef801f9e0",
+      "size": 7650,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/95e998338757215b1444bceab71fa43ef801f9e0"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/sex.jpeg",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9b885fe0621b8a558c75fb3c4156d019aa0e75f0",
+      "size": 4352,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9b885fe0621b8a558c75fb3c4156d019aa0e75f0"
+    },
+    {
+      "path": "PaperDetect/WebRoot/images/studentid.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4091c11c3215f98e692a1152f1d31f6ba6563407",
+      "size": 16431,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/4091c11c3215f98e692a1152f1d31f6ba6563407"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ccce9ce7e861c41541c6020098b93ca52571d547",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/ccce9ce7e861c41541c6020098b93ca52571d547"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/advice.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4f235d2f90068c78c6af189672cfc179d4a67c39",
+      "size": 987,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/4f235d2f90068c78c6af189672cfc179d4a67c39"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/alertTool.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "af0ac6c7291436aa4168018491f5ee7c30c60b6b",
+      "size": 725,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/af0ac6c7291436aa4168018491f5ee7c30c60b6b"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/bootstrap-dialog.min.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f5c89c56796e58440b957203d6b9ba2f867d45d3",
+      "size": 20749,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f5c89c56796e58440b957203d6b9ba2f867d45d3"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/bootstrap-filestyle.min.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9885a1dcbc400d4bd60cbf7d9233d1c98535d7fd",
+      "size": 7190,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9885a1dcbc400d4bd60cbf7d9233d1c98535d7fd"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/bootstrap.min.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "133aeecb98aa2b05d2dc1fcd623afcb37204828a",
+      "size": 36816,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/133aeecb98aa2b05d2dc1fcd623afcb37204828a"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/datepicker.min.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c1c0327ae06dd2b94e5a4e693dd8b471d79393e0",
+      "size": 73830,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c1c0327ae06dd2b94e5a4e693dd8b471d79393e0"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/jquery-1.12.4.min.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e836475870da67f3c72f64777c6e0f37d9f4c87b",
+      "size": 97163,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e836475870da67f3c72f64777c6e0f37d9f4c87b"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/jquery.cookie.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8218817b9492926c8ddb832f7793bd31afb7e609",
+      "size": 3140,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8218817b9492926c8ddb832f7793bd31afb7e609"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/jquery.hoverIntent.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "372ad21e81fc569d4fbc990c63ca75d118449302",
+      "size": 5127,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/372ad21e81fc569d4fbc990c63ca75d118449302"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/jquery.metadata.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "49019e37bdafaa95f393be043b21060d0c3e5a82",
+      "size": 4165,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/49019e37bdafaa95f393be043b21060d0c3e5a82"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/jsTool.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e2c9c1043a6395cf783c9f21fb3749326e75647f",
+      "size": 1975,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e2c9c1043a6395cf783c9f21fb3749326e75647f"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/login.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cf9eab9d77c356a0d3fe3bf56ab71c55d18e1efc",
+      "size": 4377,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/cf9eab9d77c356a0d3fe3bf56ab71c55d18e1efc"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/mbMenu.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2ebe108fb8c432094963b03d610715e10b30d68e",
+      "size": 22930,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/2ebe108fb8c432094963b03d610715e10b30d68e"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/more.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3a064eae4f7ae8efad2e910de84b658f38e9afde",
+      "size": 277,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3a064eae4f7ae8efad2e910de84b658f38e9afde"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/mricode.pagination.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b62d08a0d26fa4848f9520c4a90a17fa0dbaa0b6",
+      "size": 22253,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b62d08a0d26fa4848f9520c4a90a17fa0dbaa0b6"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/register.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "87076dd03dbde627b270d3b05a9a86a3e0b74f6b",
+      "size": 7960,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/87076dd03dbde627b270d3b05a9a86a3e0b74f6b"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/reset.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7dd2b7e3aeb4d2bdc3622abf4a7a8a239ca9caa2",
+      "size": 4359,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/7dd2b7e3aeb4d2bdc3622abf4a7a8a239ca9caa2"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/security.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a1f0c4b1c58a3e79e785f23899d5d00985d2e3e4",
+      "size": 1638,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/a1f0c4b1c58a3e79e785f23899d5d00985d2e3e4"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/security_01.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b85ffe9a9fe039494c98c588943de91c9ea72df2",
+      "size": 3114,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b85ffe9a9fe039494c98c588943de91c9ea72df2"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/students.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8158a1c24b06f8ed1aa580b4c9c72b641aaadfe9",
+      "size": 14479,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8158a1c24b06f8ed1aa580b4c9c72b641aaadfe9"
+    },
+    {
+      "path": "PaperDetect/WebRoot/js/teacher.js",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c26cace327013f6b88a3d98a810ffec705fa19cf",
+      "size": 16516,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c26cace327013f6b88a3d98a810ffec705fa19cf"
+    },
+    {
+      "path": "PaperDetect/WebRoot/login.jsp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "396164398159678fe7dbb8a4ce4fa299f672a64c",
+      "size": 3803,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/396164398159678fe7dbb8a4ce4fa299f672a64c"
+    },
+    {
+      "path": "PaperDetect/WebRoot/more.jsp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "998196ec6d653d4e5e0245d4a4ed5a221dc0b147",
+      "size": 4468,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/998196ec6d653d4e5e0245d4a4ed5a221dc0b147"
+    },
+    {
+      "path": "PaperDetect/WebRoot/register.jsp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "63b5f923671d01322617a14ebab39905cf4d5591",
+      "size": 8858,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/63b5f923671d01322617a14ebab39905cf4d5591"
+    },
+    {
+      "path": "PaperDetect/WebRoot/reset.jsp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1df8098d20a823e772e9a37c7faafa3f6371c7ea",
+      "size": 4250,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/1df8098d20a823e772e9a37c7faafa3f6371c7ea"
+    },
+    {
+      "path": "PaperDetect/WebRoot/security.jsp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0ad9794f1b8013443ee20613b7f8996667b51bec",
+      "size": 2905,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0ad9794f1b8013443ee20613b7f8996667b51bec"
+    },
+    {
+      "path": "PaperDetect/WebRoot/security_01.jsp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e33015181ee539c5a699fc4febc56678cd8346e6",
+      "size": 3420,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e33015181ee539c5a699fc4febc56678cd8346e6"
+    },
+    {
+      "path": "PaperDetect/WebRoot/students.jsp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "71fe578a0190d10cbdf86571ec469ae068fc8a54",
+      "size": 13534,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/71fe578a0190d10cbdf86571ec469ae068fc8a54"
+    },
+    {
+      "path": "PaperDetect/WebRoot/teacher.jsp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "03e8a424038ac6e2275db4c15d609961f6823f7b",
+      "size": 14417,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/03e8a424038ac6e2275db4c15d609961f6823f7b"
+    },
+    {
+      "path": "PaperDetect/WebRoot/welcome.jsp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b56c061d59e86ebc473ebd6547cff0f17ec798c6",
+      "size": 1251,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b56c061d59e86ebc473ebd6547cff0f17ec798c6"
+    },
+    {
+      "path": "PaperDetect/src",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5708d45debef84d7a5bfe4bb102d3e84492da7fa",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/5708d45debef84d7a5bfe4bb102d3e84492da7fa"
+    },
+    {
+      "path": "PaperDetect/src/META-INF",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c1a2ee97fc47426d0179f94d223405336b5cd075",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/c1a2ee97fc47426d0179f94d223405336b5cd075"
+    },
+    {
+      "path": "PaperDetect/src/META-INF/MANIFEST.MF",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58630c02ef423cffd6dd6aafd946eb8512040c37",
+      "size": 25,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/58630c02ef423cffd6dd6aafd946eb8512040c37"
+    },
+    {
+      "path": "PaperDetect/src/applicationContext.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6a76efefabcfe64a26de8967d9ed935b56ef9372",
+      "size": 7192,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/6a76efefabcfe64a26de8967d9ed935b56ef9372"
+    },
+    {
+      "path": "PaperDetect/src/log4j.properties",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c0e7891bf42aa9990864562d04d4dbc87dda79af",
+      "size": 251,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c0e7891bf42aa9990864562d04d4dbc87dda79af"
+    },
+    {
+      "path": "PaperDetect/src/red",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "7aab190aeea87e31745eabd6aed191f631eb34d0",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/7aab190aeea87e31745eabd6aed191f631eb34d0"
+    },
+    {
+      "path": "PaperDetect/src/red/ant",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4f8853ffb6e3fd10391c671f36f46647d17f1ce3",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/4f8853ffb6e3fd10391c671f36f46647d17f1ce3"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "04ac1fed58821748ba88e5c9571454ed2dc5e6fe",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/04ac1fed58821748ba88e5c9571454ed2dc5e6fe"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/AdviceAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "148939f790689a59f915b63c78bd35a9e8fe8dc2",
+      "size": 1431,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/148939f790689a59f915b63c78bd35a9e8fe8dc2"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/AdviceDeleteAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "575820e61d3ac3f3b3d2f37d2394f9caadd11326",
+      "size": 699,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/575820e61d3ac3f3b3d2f37d2394f9caadd11326"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/AdviceshowAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8738237a5663d34c596793f3d383165fff597883",
+      "size": 1069,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8738237a5663d34c596793f3d383165fff597883"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/AdviceshowFindAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0611cf44c858f6713b767b403c14bf1de05c9095",
+      "size": 1697,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0611cf44c858f6713b767b403c14bf1de05c9095"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/AllHistoryAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9f9e3987abad1b59909b4917f9c7310eef083cd5",
+      "size": 1036,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9f9e3987abad1b59909b4917f9c7310eef083cd5"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/AllHistoryFindAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8bf4bbcad3f7a2fc95dc03d20274b1f7b95c3ba8",
+      "size": 2552,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8bf4bbcad3f7a2fc95dc03d20274b1f7b95c3ba8"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/DownloadAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "91a0c377b6fb2acdf14d2faf27a7bedcb82bedc9",
+      "size": 3063,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/91a0c377b6fb2acdf14d2faf27a7bedcb82bedc9"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/HistoryAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9af11f598504042d9902ca577c46071d78b5c26b",
+      "size": 1284,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9af11f598504042d9902ca577c46071d78b5c26b"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/LoginAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0fce5e0efa024b89d79d90fbf748249863f6541c",
+      "size": 4092,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0fce5e0efa024b89d79d90fbf748249863f6541c"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/LogoutAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "55f6477fbd71f65cd92871a82cb32c48fe4de53f",
+      "size": 670,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/55f6477fbd71f65cd92871a82cb32c48fe4de53f"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/PaperDeleteAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a01038cc2fd13ec000383bbc044922a1b219666d",
+      "size": 842,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/a01038cc2fd13ec000383bbc044922a1b219666d"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/PassAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "434cb6c18dabd9c6d4e7043653a521de4a7f0f7f",
+      "size": 882,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/434cb6c18dabd9c6d4e7043653a521de4a7f0f7f"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/PersonalAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e4fd413006eee03690326e1e0a3a1b31d13a1fcf",
+      "size": 1495,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e4fd413006eee03690326e1e0a3a1b31d13a1fcf"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/RegisterAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6b34a60457f1d5744b4996100d519cea707e76f8",
+      "size": 3508,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/6b34a60457f1d5744b4996100d519cea707e76f8"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/ReportAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0c64504431be7479308959f5b19ffd52da0425e2",
+      "size": 5491,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0c64504431be7479308959f5b19ffd52da0425e2"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/ResetAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7cc057413df48c96b292d0a6330927a69d207ed0",
+      "size": 5312,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/7cc057413df48c96b292d0a6330927a69d207ed0"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/ResetPasswordAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "75cae55cd2dc2f7920025414ed7b6a0e4dce108c",
+      "size": 3144,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/75cae55cd2dc2f7920025414ed7b6a0e4dce108c"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/SecurityAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "50e738fdcbea72506e12b9885528b366c6402a24",
+      "size": 4486,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/50e738fdcbea72506e12b9885528b366c6402a24"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/UpdateAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1881ce8991e7d09d1658ba440a73fe59543e7e88",
+      "size": 3097,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/1881ce8991e7d09d1658ba440a73fe59543e7e88"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/action/UploadAction.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c8d5bb2483a69615a3c3fc44ca361f515d8c369a",
+      "size": 9582,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c8d5bb2483a69615a3c3fc44ca361f515d8c369a"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/dao",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c4e924371f233540c8c74841994eda24037f81cd",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/c4e924371f233540c8c74841994eda24037f81cd"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/dao/AdviceDao.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aaca2da5648ced94f55295be0cfb90563bf8abd6",
+      "size": 510,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/aaca2da5648ced94f55295be0cfb90563bf8abd6"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/dao/PaperDao.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f0ad930c604e7d635ede675afe08e7dd99eef89e",
+      "size": 655,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f0ad930c604e7d635ede675afe08e7dd99eef89e"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/dao/StudentDao.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1fd94ba0076eb2d1ebad8378181114768ad866ce",
+      "size": 809,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/1fd94ba0076eb2d1ebad8378181114768ad866ce"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/dao/TeacherDao.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3f881e2a1636678db48d3bca9afd0bd6f1c6088a",
+      "size": 470,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3f881e2a1636678db48d3bca9afd0bd6f1c6088a"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/dao/impl",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d141b74c6c1efbc44023b1aa241c72b4f1049a5c",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/d141b74c6c1efbc44023b1aa241c72b4f1049a5c"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/dao/impl/AdviceDaoHibernate.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "49ea7c37c5b4f81dcf90adbc88eaf10f5564ed9d",
+      "size": 1477,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/49ea7c37c5b4f81dcf90adbc88eaf10f5564ed9d"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/dao/impl/PaperDaoHibernate.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3ec1feb55d2c6450945da6808032e8d58785c6d6",
+      "size": 2244,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3ec1feb55d2c6450945da6808032e8d58785c6d6"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/dao/impl/StudentDaoHibernate.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b24ca607a84934cc183a453f83e09fa0b6669ad4",
+      "size": 2462,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b24ca607a84934cc183a453f83e09fa0b6669ad4"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/dao/impl/TeacherDaoHibernate.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "987c7504ae729e81e72c3ef200e4e97e980513d7",
+      "size": 1321,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/987c7504ae729e81e72c3ef200e4e97e980513d7"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/po",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "6b3b52315c118f02bbfbce80239f556a9446d26a",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/6b3b52315c118f02bbfbce80239f556a9446d26a"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/po/Advice.hbm.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "00b93e46291577bfa1698b05a7a36136dd8ad3dc",
+      "size": 578,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/00b93e46291577bfa1698b05a7a36136dd8ad3dc"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/po/Advice.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "72925e7bd8a1f92cd2a5629a51b5283af6925280",
+      "size": 1030,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/72925e7bd8a1f92cd2a5629a51b5283af6925280"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/po/Paper.hbm.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "20631738c3a4ace1fcdb1faed205602aab2bd2cd",
+      "size": 641,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/20631738c3a4ace1fcdb1faed205602aab2bd2cd"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/po/Paper.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4b8960544d98ba4f7223ac977d5f5db305db754e",
+      "size": 1326,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/4b8960544d98ba4f7223ac977d5f5db305db754e"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/po/Student.hbm.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "85ff60918ac6bf50c72d30fcb1094276ebb7cf3b",
+      "size": 864,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/85ff60918ac6bf50c72d30fcb1094276ebb7cf3b"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/po/Student.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "143e5bbc2f6794767aae66d75aa69face51fe36e",
+      "size": 2090,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/143e5bbc2f6794767aae66d75aa69face51fe36e"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/po/Teacher.hbm.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c99b4aca3e9e75fd8a8f773fe080738502df7864",
+      "size": 601,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c99b4aca3e9e75fd8a8f773fe080738502df7864"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/po/Teacher.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "94aa445a42f49c77ac99405155a9fc755ed0fec0",
+      "size": 1116,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/94aa445a42f49c77ac99405155a9fc755ed0fec0"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/service",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1c50a3a9a20bcec817d8073db03dce2746a64983",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/1c50a3a9a20bcec817d8073db03dce2746a64983"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/service/AdviceService.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d0ef5c345d9e83b131f4efe79ecb7db6b41c8b8b",
+      "size": 473,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d0ef5c345d9e83b131f4efe79ecb7db6b41c8b8b"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/service/PaperService.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bf054a693b3bdc7d443237e3b5ce6f5bb8be7b5d",
+      "size": 875,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/bf054a693b3bdc7d443237e3b5ce6f5bb8be7b5d"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/service/StudentService.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ee78a13fb787fdefdb158d4e6c661801f532cad6",
+      "size": 1734,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ee78a13fb787fdefdb158d4e6c661801f532cad6"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/service/TeacherService.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cd2896f178cfbc98bad54ad83fc955a991cd4d59",
+      "size": 717,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/cd2896f178cfbc98bad54ad83fc955a991cd4d59"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/service/impl",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "af40c0ec0e97491e51f9169c6d421ebeac9ac522",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/af40c0ec0e97491e51f9169c6d421ebeac9ac522"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/service/impl/AdviceServiceImpl.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "330202c37701141656bf4f4f94df36473cb512bc",
+      "size": 1787,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/330202c37701141656bf4f4f94df36473cb512bc"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/service/impl/PaperServiceImpl.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6b3a5bf7bd150f9673b4fda7c9cecff2e0a2e964",
+      "size": 4182,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/6b3a5bf7bd150f9673b4fda7c9cecff2e0a2e964"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/service/impl/StudentServiceImpl.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b1a87c5875ef94bfb1d8b5cc57fb04247421a3d9",
+      "size": 3787,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b1a87c5875ef94bfb1d8b5cc57fb04247421a3d9"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/service/impl/TeacherServiceImpl.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "90a591c6ce47291850208f02c98c86a7e69de1a4",
+      "size": 1875,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/90a591c6ce47291850208f02c98c86a7e69de1a4"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/util",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1e9b4fec1c2ffdbcf7521647c4d5368a30359bad",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/1e9b4fec1c2ffdbcf7521647c4d5368a30359bad"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/util/AuthorityFilter.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b77079b44eb5ac020dd50bb7297b011ca4b1c216",
+      "size": 3119,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b77079b44eb5ac020dd50bb7297b011ca4b1c216"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/util/AuthorityInterceptor.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b9237fa57996faeb5de83b5b72c1e8c4b1eeb9b2",
+      "size": 1263,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b9237fa57996faeb5de83b5b72c1e8c4b1eeb9b2"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/util/JsonUtil.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "63744e4e1bd3d1fa5468c86c6deff60ff0b7ae04",
+      "size": 3734,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/63744e4e1bd3d1fa5468c86c6deff60ff0b7ae04"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/util/RefowardAuthorityFilter.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d68a641a43cd62c409de143825611a384345b4a5",
+      "size": 3330,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d68a641a43cd62c409de143825611a384345b4a5"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/util/StudentAuthorityFilter.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d0a86d36d898b2e81702f9fe0c8fa2fe31b66fb5",
+      "size": 3137,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d0a86d36d898b2e81702f9fe0c8fa2fe31b66fb5"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/util/TeacherAuthorityFilter.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "668bde043df7fbedd358f665a0789b8a7be4cc5d",
+      "size": 3075,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/668bde043df7fbedd358f665a0789b8a7be4cc5d"
+    },
+    {
+      "path": "PaperDetect/src/red/ant/util/WebLogger.java",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "789ed26383fe1583b866f02523f6bf601a36ddc1",
+      "size": 1373,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/789ed26383fe1583b866f02523f6bf601a36ddc1"
+    },
+    {
+      "path": "PaperDetect/src/struts.properties",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "25baec5a3c6fc3ecf61f77267ce29f8ae0b264b9",
+      "size": 265,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/25baec5a3c6fc3ecf61f77267ce29f8ae0b264b9"
+    },
+    {
+      "path": "PaperDetect/src/struts.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "db0048b34649b4566ae4c1c3f793e35e521d03bb",
+      "size": 6886,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/db0048b34649b4566ae4c1c3f793e35e521d03bb"
+    },
+    {
+      "path": "PaperFormatDetection",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "2fb3e44296e4f2a4116b57a930b619be703f9bb4",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/2fb3e44296e4f2a4116b57a930b619be703f9bb4"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "48eb96c86f086d6fb4035b7ed4063195d2f5fd69",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/48eb96c86f086d6fb4035b7ed4063195d2f5fd69"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/.vs",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "01ef201c9a148433699468fc239456f9db3c4681",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/01ef201c9a148433699468fc239456f9db3c4681"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/.vs/PaperFormatDetection",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "99dab3aaec33add47c6f00b59d609cfa31b1d3dc",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/99dab3aaec33add47c6f00b59d609cfa31b1d3dc"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/.vs/PaperFormatDetection/v14",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0955b98fcbfe0fec38f8984cff8d67dc867ec6b2",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/0955b98fcbfe0fec38f8984cff8d67dc867ec6b2"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/.vs/PaperFormatDetection/v14/.suo",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d3124efb533fb4c172fdec3a0d148940ae5e701d",
+      "size": 171520,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d3124efb533fb4c172fdec3a0d148940ae5e701d"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/.vs/PaperFormatDetection/v15",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "012ee837beb804c714d95b189e22ffc4bae0b744",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/012ee837beb804c714d95b189e22ffc4bae0b744"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/.vs/PaperFormatDetection/v15/.suo",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "beaceee76b9e9ae3e03a65d321e8ebdc485a8738",
+      "size": 182272,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/beaceee76b9e9ae3e03a65d321e8ebdc485a8738"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/.vs/PaperFormatDetection/v15/Server",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9d4b6e719e0c7e266772c3c7aa784f327fa4dc27",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/9d4b6e719e0c7e266772c3c7aa784f327fa4dc27"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/.vs/PaperFormatDetection/v15/Server/sqlite3",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "88813aa0edcffd6c437dffc5b5e500221a6a44ab",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/88813aa0edcffd6c437dffc5b5e500221a6a44ab"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/.vs/PaperFormatDetection/v15/Server/sqlite3/db.lock",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/.vs/PaperFormatDetection/v15/Server/sqlite3/storage.ide",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bbd1c977e6c7e2e7e7ce1c34b39c40aa21bf0c50",
+      "size": 4108288,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/bbd1c977e6c7e2e7e7ce1c34b39c40aa21bf0c50"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection.sln",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "379b787f96c30661b12f30412c8d56f59ccff9c5",
+      "size": 820,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/379b787f96c30661b12f30412c8d56f59ccff9c5"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection.v12.suo",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "96f6048d1ba8db96a049d1f38ee6a09efde3e6c1",
+      "size": 107008,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/96f6048d1ba8db96a049d1f38ee6a09efde3e6c1"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "510d35624fcd211b6f234bf3553808e8bf5b45d6",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/510d35624fcd211b6f234bf3553808e8bf5b45d6"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/App.config",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "320c28a3fc0bdef6b7822ff2be04e4e0c2213748",
+      "size": 167,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/320c28a3fc0bdef6b7822ff2be04e4e0c2213748"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "052a0cee864989ff2abee4616d984780270642c3",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/052a0cee864989ff2abee4616d984780270642c3"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/Abstract.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "83ecbccffbf84b2953c26df8ee8d8b6301106e33",
+      "size": 2606,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/83ecbccffbf84b2953c26df8ee8d8b6301106e33"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/Achievements.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5490ce5138e43464b3fcc3fa45ba9dac644e2232",
+      "size": 4361,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/5490ce5138e43464b3fcc3fa45ba9dac644e2232"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/Appendix.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "421096871c5dabf4533e4e3c48194562fbc6c171",
+      "size": 1327,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/421096871c5dabf4533e4e3c48194562fbc6c171"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/AuthorIntroduction.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f7626bfb5678f79119440b65e4ab0e5386826706",
+      "size": 6048,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f7626bfb5678f79119440b65e4ab0e5386826706"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/Catalog.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "452e319695220a70d1f88e74e6d53678a4ca17ab",
+      "size": 1331,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/452e319695220a70d1f88e74e6d53678a4ca17ab"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/ChartCatalog.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c9cf62b93e912bee2348167f5c3e3e623749f5a8",
+      "size": 1472,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c9cf62b93e912bee2348167f5c3e3e623749f5a8"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/ConclusionAndThanks.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4431f1a605cec6e8722cf6193db19592c8d72e13",
+      "size": 4316,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/4431f1a605cec6e8722cf6193db19592c8d72e13"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/CopyrightAndOriginstmt.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "36b4664862991b68bf2170230a607637cdca3bbe",
+      "size": 786,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/36b4664862991b68bf2170230a607637cdca3bbe"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/CoverStyle.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8ec4108333c161212eda98b243875bf0d215cdc6",
+      "size": 24710,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8ec4108333c161212eda98b243875bf0d215cdc6"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/Figure.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2946ebf9e98355c111bc8b6d55a96bd177762f1a",
+      "size": 2706,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/2946ebf9e98355c111bc8b6d55a96bd177762f1a"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/Formula.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "34bdc5ef67b61688b16a69aa98a52a43f4bad581",
+      "size": 1121,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/34bdc5ef67b61688b16a69aa98a52a43f4bad581"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/HeaderFooter.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f8701e437a9deb32ca6d87cd77e68820eda92393",
+      "size": 3281,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f8701e437a9deb32ca6d87cd77e68820eda92393"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/PaperDetection.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f3ec7b3099011a82b42b0f2ea11d6c0b31c934a0",
+      "size": 1059,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f3ec7b3099011a82b42b0f2ea11d6c0b31c934a0"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/Punctuation.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "847100ca156371f337b3ff99864a9e1d8aeced10",
+      "size": 526,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/847100ca156371f337b3ff99864a9e1d8aeced10"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/Reference.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f9538565396d1a5638f9212530a1f984389a51e3",
+      "size": 6975,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f9538565396d1a5638f9212530a1f984389a51e3"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Doctor/TableStyle.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "42d75aa252fbc3df002b8014abf0738f24931abc",
+      "size": 3261,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/42d75aa252fbc3df002b8014abf0738f24931abc"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "eaaacc5369f865a5d0f1501a2b28e927913fd5a0",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/eaaacc5369f865a5d0f1501a2b28e927913fd5a0"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/Abstract.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9f4dba2c1a218b8196183ef629ac0a98575ff1bb",
+      "size": 3589,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9f4dba2c1a218b8196183ef629ac0a98575ff1bb"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/Achievements.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4fa05918d53ca3f66071d09332fa799847826129",
+      "size": 2878,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/4fa05918d53ca3f66071d09332fa799847826129"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/Appendix.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3d31eef674e290f7fb48ecca3d248811b5b66da5",
+      "size": 1726,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3d31eef674e290f7fb48ecca3d248811b5b66da5"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/Catalog.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "576b67ee1318cbf177df80a2ed4bccb0c3e463ad",
+      "size": 1730,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/576b67ee1318cbf177df80a2ed4bccb0c3e463ad"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/ConclusionAndThanks.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "001d01badfd04dbc7b311d4ec7d5b93d891ada43",
+      "size": 3070,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/001d01badfd04dbc7b311d4ec7d5b93d891ada43"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/Copyright.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "297df89b09830b7fa8e339f46ab214cc30cd0d78",
+      "size": 1202,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/297df89b09830b7fa8e339f46ab214cc30cd0d78"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/CoverStyle.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4f2d75ddb21d37261374fceb6d5ef2f38bfd3283",
+      "size": 28186,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/4f2d75ddb21d37261374fceb6d5ef2f38bfd3283"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/Figure.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "06c0fa25b704443075027ae660843d2ca97249ae",
+      "size": 2779,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/06c0fa25b704443075027ae660843d2ca97249ae"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/Formula.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3e30daa074e99bf7782f93bdc97b78bad6064ea7",
+      "size": 1515,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3e30daa074e99bf7782f93bdc97b78bad6064ea7"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/HeaderFooter.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b177d5d770d81c73d1a9395cefdbdbcb48336846",
+      "size": 4293,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b177d5d770d81c73d1a9395cefdbdbcb48336846"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/Originstmt.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8761c8ecf5f4223881a2c4e6c5340cc285019241",
+      "size": 1180,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8761c8ecf5f4223881a2c4e6c5340cc285019241"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/PaperDetection.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e0b2ac69bbea78269b2865320eee8bca5787ec6e",
+      "size": 1718,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e0b2ac69bbea78269b2865320eee8bca5787ec6e"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/Punctuation.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d16476f6b4b9ce73c21616b4ba99ace9429288a0",
+      "size": 910,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d16476f6b4b9ce73c21616b4ba99ace9429288a0"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/Reference.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ea5e1013cf3d4300f96a20a0e8570d82d74c47ea",
+      "size": 3994,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ea5e1013cf3d4300f96a20a0e8570d82d74c47ea"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/TableStyle.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f7d0487042fcd0560b8bb0b7356f938f18a3c51f",
+      "size": 3263,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f7d0487042fcd0560b8bb0b7356f938f18a3c51f"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Master/Text.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8559c9f4d1248969d438e6dea1e9fae6ecfed813",
+      "size": 4784,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8559c9f4d1248969d438e6dea1e9fae6ecfed813"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/PaperFormatDetection.csproj",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "734b7cae2c693231c30b853232c9b274a51152f9",
+      "size": 7361,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/734b7cae2c693231c30b853232c9b274a51152f9"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d444193146d58762c3b673e16ff1c07f4b2d6013",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/d444193146d58762c3b673e16ff1c07f4b2d6013"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/Abstract.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8c0c0023b002486182546cd07f70f2fb99312ea9",
+      "size": 21818,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8c0c0023b002486182546cd07f70f2fb99312ea9"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/Achievements.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "14be1eceae3332ee71ecaf87f1a1b0955b63f9b3",
+      "size": 8309,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/14be1eceae3332ee71ecaf87f1a1b0955b63f9b3"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/Appendix.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b28d0f510a8c2fa877a7e187e884bc0bfd16696a",
+      "size": 10089,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b28d0f510a8c2fa877a7e187e884bc0bfd16696a"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/Catalog.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b519a01f274acccc34433da4237fef03199a4bf7",
+      "size": 14183,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b519a01f274acccc34433da4237fef03199a4bf7"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/ChartCatalog.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "84f419e61b371a157b991f4585f431337230b797",
+      "size": 9704,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/84f419e61b371a157b991f4585f431337230b797"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/ConclusionAndThanks.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3d73efb816b77186d2cd39a65a57854976d1b905",
+      "size": 9198,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3d73efb816b77186d2cd39a65a57854976d1b905"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/CopyrightAndOriginstmt.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0cd623e66dd44cffca110c9a4dee3ec8042d5556",
+      "size": 14304,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0cd623e66dd44cffca110c9a4dee3ec8042d5556"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/CoverStyle.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6dfaeeee32d9e434f2423c8157d68f45299baa34",
+      "size": 20204,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/6dfaeeee32d9e434f2423c8157d68f45299baa34"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/Figure.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ab2b727795d1f761bb5ae0abb36ba03a006ffa8d",
+      "size": 35210,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ab2b727795d1f761bb5ae0abb36ba03a006ffa8d"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/Formula.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "03862f5eac9caf9c0c68af5e7f6de633d0347c85",
+      "size": 11360,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/03862f5eac9caf9c0c68af5e7f6de633d0347c85"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/HeaderFooter.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "69b728e1af49aa81180ab756c7c2e90830032fdd",
+      "size": 20045,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/69b728e1af49aa81180ab756c7c2e90830032fdd"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/Punctuation.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5f0434ad12ca00f72d0b4e9f18a9d44d3c276bc2",
+      "size": 21683,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/5f0434ad12ca00f72d0b4e9f18a9d44d3c276bc2"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/Reference.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eba23951e5a04c89ffd01a8657614522c9a61761",
+      "size": 74511,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/eba23951e5a04c89ffd01a8657614522c9a61761"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/TableStyle.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bbd978678d85ad340f3befbb61de6eee4be0e00f",
+      "size": 74123,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/bbd978678d85ad340f3befbb61de6eee4be0e00f"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/Text.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3715c75f866f516a40d72b38793d602f33ffd0b1",
+      "size": 25016,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3715c75f866f516a40d72b38793d602f33ffd0b1"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Paperbase/headerfooters.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "82067527e07d7c23a247be16911f332b3e36c27c",
+      "size": 19276,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/82067527e07d7c23a247be16911f332b3e36c27c"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Program.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "31a4084c5addccb26e3aa8b7b2f87790e16bbba3",
+      "size": 2252,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/31a4084c5addccb26e3aa8b7b2f87790e16bbba3"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Properties",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c769fca9750ddcaea7a3249542f4f4ecba5856b0",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/c769fca9750ddcaea7a3249542f4f4ecba5856b0"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Properties/AssemblyInfo.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7f939c74c7141ed8a034af193beb18154642237a",
+      "size": 1348,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/7f939c74c7141ed8a034af193beb18154642237a"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Tools",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "23d731694c13abfa9e6e2dee6d04fdac2ea9c384",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/23d731694c13abfa9e6e2dee6d04fdac2ea9c384"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Tools/ErrorReport.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8d64528cf1d35ea00b97025797eac589f53243d7",
+      "size": 7700,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8d64528cf1d35ea00b97025797eac589f53243d7"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Tools/MSWord.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bd273717f340496f94b248b31352b1477f7ed673",
+      "size": 11243,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/bd273717f340496f94b248b31352b1477f7ed673"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Tools/PageLocator.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "93b583ae0e57f5670e6aae906ec68c26fead4d92",
+      "size": 4837,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/93b583ae0e57f5670e6aae906ec68c26fead4d92"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Tools/Tool.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fb66c9d8142edf396d31bcefa122a14f09f87bf5",
+      "size": 143015,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/fb66c9d8142edf396d31bcefa122a14f09f87bf5"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Tools/Util.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ff309fe13b5ff2ebc5ed1e5ff06c5afd5f8d803e",
+      "size": 62129,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ff309fe13b5ff2ebc5ed1e5ff06c5afd5f8d803e"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d919e33e5c2a775568103c3b62519245784c840a",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/d919e33e5c2a775568103c3b62519245784c840a"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/Abstract.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "73f15efb70a75a47f512837f9defcbe8a2a3bb36",
+      "size": 2609,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/73f15efb70a75a47f512837f9defcbe8a2a3bb36"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/Appendix.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "481aed65a15abc5b10a98704c9d384e334ea3b71",
+      "size": 1339,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/481aed65a15abc5b10a98704c9d384e334ea3b71"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/Catalog.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d38796b46118f6b3f94c692cd074ad48755c604d",
+      "size": 1345,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d38796b46118f6b3f94c692cd074ad48755c604d"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/ConclusionAndThanks.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2d30566150a0287f31012a6a71867f4d0f488859",
+      "size": 2455,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/2d30566150a0287f31012a6a71867f4d0f488859"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/CoverStyle.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aab64de0dc0ba18af1460aedf06a495056188c0b",
+      "size": 5208,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/aab64de0dc0ba18af1460aedf06a495056188c0b"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/Figure.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "57d0999f68fa8912ed74cf46a936e95cd2e6a80e",
+      "size": 2234,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/57d0999f68fa8912ed74cf46a936e95cd2e6a80e"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/Formula.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9d4380a86e83691d103ba33855f61a5ceb0cfe35",
+      "size": 1135,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9d4380a86e83691d103ba33855f61a5ceb0cfe35"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/HeaderFooter.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d7e75c2272683d82d830ee6c89eae7b935bee2bb",
+      "size": 7055,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d7e75c2272683d82d830ee6c89eae7b935bee2bb"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/PaperDetection.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "929811bb44e7115c8205a8cc195c47eebce790cf",
+      "size": 1005,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/929811bb44e7115c8205a8cc195c47eebce790cf"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/Punctuation.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e5f5e8130e6643c5adf1674210bafeb607186fec",
+      "size": 520,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e5f5e8130e6643c5adf1674210bafeb607186fec"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/Reference.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "edb7bb39d469e6708b4ccb363bc66f2c2c1634e1",
+      "size": 3769,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/edb7bb39d469e6708b4ccb363bc66f2c2c1634e1"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/TableStyle.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "031f0547055c922ad07847c39194cdb5f7548967",
+      "size": 2763,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/031f0547055c922ad07847c39194cdb5f7548967"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/Undergraduate/Text.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "36ef587851bcd02f0fddb68f7f7ec204f8c2c94f",
+      "size": 19596,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/36ef587851bcd02f0fddb68f7f7ec204f8c2c94f"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5fa19028b335a7b4f5c9a5e9895208a36114e2e2",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/5fa19028b335a7b4f5c9a5e9895208a36114e2e2"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5366149c0ae147376347a43eb0137a8de1b05cc9",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/5366149c0ae147376347a43eb0137a8de1b05cc9"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Auto.bat",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "936d83f5a155aae12eeb8e2e4bda8d2c5df8dee7",
+      "size": 190,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/936d83f5a155aae12eeb8e2e4bda8d2c5df8dee7"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Auto.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3973f2932aa656b758d2efb0d79728940bc6e998",
+      "size": 6286,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/3973f2932aa656b758d2efb0d79728940bc6e998"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/AutoDt.bat",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d64618a099794f7d98960c8f89c720df20f10f93",
+      "size": 192,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/d64618a099794f7d98960c8f89c720df20f10f93"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/AutoDt.jar",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "93f9a116949a9162ed9845bd506915444779f79b",
+      "size": 18969,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/93f9a116949a9162ed9845bd506915444779f79b"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Config",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "63e802340c0910ef50d3533301c952aa77dc92f6",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/63e802340c0910ef50d3533301c952aa77dc92f6"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Config/Abstract.config",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cd648dcd2fd69c1f808f593d70af7daf8387afb2",
+      "size": 2987,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/cd648dcd2fd69c1f808f593d70af7daf8387afb2"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Config/Contents.config",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b74f18ed5cd6273be406d66c347d06b7107d04d6",
+      "size": 1133,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b74f18ed5cd6273be406d66c347d06b7107d04d6"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Config/CoverStyle.config",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "04215adcfa4595837e8e161db60570135b4dfde6",
+      "size": 782,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/04215adcfa4595837e8e161db60570135b4dfde6"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Config/Figure.config",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b74f18ed5cd6273be406d66c347d06b7107d04d6",
+      "size": 1133,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b74f18ed5cd6273be406d66c347d06b7107d04d6"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Config/HeaderFooter.config",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7a430fda9a3cc8d2fea2714de280310ffd289352",
+      "size": 1249,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/7a430fda9a3cc8d2fea2714de280310ffd289352"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Config/Paragraph.config",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b74f18ed5cd6273be406d66c347d06b7107d04d6",
+      "size": 1133,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b74f18ed5cd6273be406d66c347d06b7107d04d6"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Config/Table.config",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b74f18ed5cd6273be406d66c347d06b7107d04d6",
+      "size": 1133,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b74f18ed5cd6273be406d66c347d06b7107d04d6"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/DocumentFormat.OpenXml.dll",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a3249c102175ae95aacd8ded5848749701753a69",
+      "size": 5233512,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/a3249c102175ae95aacd8ded5848749701753a69"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/DocumentFormat.OpenXml.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "84c59c0a07ce744dde4b069c552acbe8f4bbeede",
+      "size": 14781484,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/84c59c0a07ce744dde4b069c552acbe8f4bbeede"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/IKVM.Runtime.dll",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "de4b76de5c18738703ff38f811cda24cde7869dc",
+      "size": 729088,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/de4b76de5c18738703ff38f811cda24cde7869dc"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Microsoft.Office.Interop.Word.dll",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6292f366aaaffe8aeabd21389b733471e1afa537",
+      "size": 940728,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/6292f366aaaffe8aeabd21389b733471e1afa537"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Microsoft.Vbe.Interop.dll",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6c91b03086e360d06f67475d3a0e90e2a9f532e4",
+      "size": 64112,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/6c91b03086e360d06f67475d3a0e90e2a9f532e4"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/PaperFormatDetection.exe",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "09c9681f22b0db1b2c7a9179e0edbaddefb5db9e",
+      "size": 244224,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/09c9681f22b0db1b2c7a9179e0edbaddefb5db9e"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/PaperFormatDetection.exe.config",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "320c28a3fc0bdef6b7822ff2be04e4e0c2213748",
+      "size": 167,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/320c28a3fc0bdef6b7822ff2be04e4e0c2213748"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/PaperFormatDetection.pdb",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c7f7ff83bc07f8126d3d814590102994e6a4b9e0",
+      "size": 538112,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c7f7ff83bc07f8126d3d814590102994e6a4b9e0"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/PaperFormatDetection.vshost.exe",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "681ab771eb267aad9397bb2eaf7889c5ac0e15e6",
+      "size": 22696,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/681ab771eb267aad9397bb2eaf7889c5ac0e15e6"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/PaperFormatDetection.vshost.exe.config",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "320c28a3fc0bdef6b7822ff2be04e4e0c2213748",
+      "size": 167,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/320c28a3fc0bdef6b7822ff2be04e4e0c2213748"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/PaperFormatDetection.vshost.exe.manifest",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f96b1d6b3fa078c224681c663f485501b44f10c1",
+      "size": 490,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f96b1d6b3fa078c224681c663f485501b44f10c1"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "df6106121af150e9fc2f107bb0c2605eef7e82e2",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/df6106121af150e9fc2f107bb0c2605eef7e82e2"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "edc37a86393e10f73ac17d19410eeee8329a758c",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/edc37a86393e10f73ac17d19410eeee8329a758c"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/Abstract.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "928bc1064dbaf123dd5c2b2aa2bdc4e3714f7d71",
+      "size": 1591,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/928bc1064dbaf123dd5c2b2aa2bdc4e3714f7d71"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/Achievements.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5555fc4515413dc7d5745f7676282ccfaf3bd44a",
+      "size": 614,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/5555fc4515413dc7d5745f7676282ccfaf3bd44a"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/Appendix.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "77bb392330d21832d516973d7c9ed47b66299459",
+      "size": 640,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/77bb392330d21832d516973d7c9ed47b66299459"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/AuthorIntroduction.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9a2d15a4c0f3063ee015e2b71f988684016ce531",
+      "size": 612,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9a2d15a4c0f3063ee015e2b71f988684016ce531"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/Catalog.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "712646d64f9a40376185ac7a220886db632d93ce",
+      "size": 688,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/712646d64f9a40376185ac7a220886db632d93ce"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/ChartCatalog.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ae6d7f11a6e3dc7cdf438a3cbcd85fe9ceeaf0d2",
+      "size": 638,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ae6d7f11a6e3dc7cdf438a3cbcd85fe9ceeaf0d2"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/ConclusionAndThanks.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6c83a987218071b98005ff64ad41f068c19c5afa",
+      "size": 634,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/6c83a987218071b98005ff64ad41f068c19c5afa"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/CopyrightAndOringinstmt.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4f5cc57ba0f7a00b1ffcddc9cb89a11e0965d12a",
+      "size": 1335,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/4f5cc57ba0f7a00b1ffcddc9cb89a11e0965d12a"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/Coverstyle.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b8f7d2f3a14a00bb5edba4881bdce18bbe491c21",
+      "size": 1637,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b8f7d2f3a14a00bb5edba4881bdce18bbe491c21"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/Figure.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e73db2a66935a4177d8acc963691c288387550e6",
+      "size": 617,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e73db2a66935a4177d8acc963691c288387550e6"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/Formula.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b4c502840314dedf10fcd800c9569cd9c4ae0e52",
+      "size": 199,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b4c502840314dedf10fcd800c9569cd9c4ae0e52"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/HeaderFooter.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "164f480381d0a16787c466aca50970bfc9cf161f",
+      "size": 497,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/164f480381d0a16787c466aca50970bfc9cf161f"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/Reference.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fbdb9012af9897b0fdc07162a78c62a86f79c971",
+      "size": 603,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/fbdb9012af9897b0fdc07162a78c62a86f79c971"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/TableStyle.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a9896b6317384ec8246ebcee503a4c87f9626fad",
+      "size": 642,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/a9896b6317384ec8246ebcee503a4c87f9626fad"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Doctor/Text.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7d953a7f77ab22bd77b4a3a63ca2f2a9d9591906",
+      "size": 1792,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/7d953a7f77ab22bd77b4a3a63ca2f2a9d9591906"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4758e4a7ead3de9ffdc32a2ae716c0605f151ec5",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/4758e4a7ead3de9ffdc32a2ae716c0605f151ec5"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/Abstract.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "928bc1064dbaf123dd5c2b2aa2bdc4e3714f7d71",
+      "size": 1591,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/928bc1064dbaf123dd5c2b2aa2bdc4e3714f7d71"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/Achievements.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0dcfce606c5886a157aa8d6a554ef6324d219077",
+      "size": 616,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0dcfce606c5886a157aa8d6a554ef6324d219077"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/Appendix.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "77bb392330d21832d516973d7c9ed47b66299459",
+      "size": 640,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/77bb392330d21832d516973d7c9ed47b66299459"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/Catalog.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "712646d64f9a40376185ac7a220886db632d93ce",
+      "size": 688,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/712646d64f9a40376185ac7a220886db632d93ce"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/ConclusionAndThanks.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0c67f5a240ef0deb86c7fc40aceddd85d0e9fcd1",
+      "size": 1192,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0c67f5a240ef0deb86c7fc40aceddd85d0e9fcd1"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/CopyrightAndOringinstmt.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5c031d8dde4e738de08b17bd2ef9bec92c81bd8a",
+      "size": 1351,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/5c031d8dde4e738de08b17bd2ef9bec92c81bd8a"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/Coverstyle.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dc9b54bc2896dffcdf8f829174595c974fa7da9c",
+      "size": 1631,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/dc9b54bc2896dffcdf8f829174595c974fa7da9c"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/Figure.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e73db2a66935a4177d8acc963691c288387550e6",
+      "size": 617,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e73db2a66935a4177d8acc963691c288387550e6"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/Formula.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b4c502840314dedf10fcd800c9569cd9c4ae0e52",
+      "size": 199,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b4c502840314dedf10fcd800c9569cd9c4ae0e52"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/HeaderFooter.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "164f480381d0a16787c466aca50970bfc9cf161f",
+      "size": 497,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/164f480381d0a16787c466aca50970bfc9cf161f"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/Reference.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2c3f1638e2562e7ed0b00b4a33f01b8935291ebd",
+      "size": 632,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/2c3f1638e2562e7ed0b00b4a33f01b8935291ebd"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/TableStyle.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58b1bdabe526c53ef82e54d9bef401064669add9",
+      "size": 642,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/58b1bdabe526c53ef82e54d9bef401064669add9"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Master/Text.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b282f8e3d9c52787e1c894e7050ccb90b9bbc763",
+      "size": 1117,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b282f8e3d9c52787e1c894e7050ccb90b9bbc763"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "23c91aea592f79f2a2a8b7b295b21ca65b447b38",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/23c91aea592f79f2a2a8b7b295b21ca65b447b38"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate/Abstract.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "928bc1064dbaf123dd5c2b2aa2bdc4e3714f7d71",
+      "size": 1591,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/928bc1064dbaf123dd5c2b2aa2bdc4e3714f7d71"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate/Appendix.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "77bb392330d21832d516973d7c9ed47b66299459",
+      "size": 640,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/77bb392330d21832d516973d7c9ed47b66299459"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate/Catalog.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "712646d64f9a40376185ac7a220886db632d93ce",
+      "size": 688,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/712646d64f9a40376185ac7a220886db632d93ce"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate/ConclusionAndThanks.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "12f0701dd5ebb7354880fcc9ef09ea872b202269",
+      "size": 1204,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/12f0701dd5ebb7354880fcc9ef09ea872b202269"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate/Coverstyle.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e87d193fc43b34136579c55888b37930edc80efe",
+      "size": 1649,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e87d193fc43b34136579c55888b37930edc80efe"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate/Figure.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8ef9a35c739464cb3fcc8a3381dab59b29d73bcd",
+      "size": 434,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8ef9a35c739464cb3fcc8a3381dab59b29d73bcd"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate/Formula.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b4c502840314dedf10fcd800c9569cd9c4ae0e52",
+      "size": 199,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b4c502840314dedf10fcd800c9569cd9c4ae0e52"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate/HeaderFooter.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "164f480381d0a16787c466aca50970bfc9cf161f",
+      "size": 497,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/164f480381d0a16787c466aca50970bfc9cf161f"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate/Reference.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9dcde1786042ae702b48a71d600d987d61559fd3",
+      "size": 631,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9dcde1786042ae702b48a71d600d987d61559fd3"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate/TableStyle.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8dadd6dff0f39532ca1547dbd0dd50c58b0bb9bd",
+      "size": 447,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/8dadd6dff0f39532ca1547dbd0dd50c58b0bb9bd"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/Template/Undergraduate/Text.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0021c3717b623c50363a5a44026556806111ace8",
+      "size": 1791,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0021c3717b623c50363a5a44026556806111ace8"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/modules.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f93a080dedff1256d221acf0fc8b79d17242b311",
+      "size": 1364,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f93a080dedff1256d221acf0fc8b79d17242b311"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/mscorlib.dll",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c9e1c4ea9dc6deb9d239873f29bea5109fa73145",
+      "size": 5359784,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c9e1c4ea9dc6deb9d239873f29bea5109fa73145"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/normidna.nlp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5a69df17a6db3a9ce04b6b8826eed68b6871b2a9",
+      "size": 59342,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/5a69df17a6db3a9ce04b6b8826eed68b6871b2a9"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/normnfc.nlp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f19814472672a2e3fbb26aa0812e8b6fdd6843b1",
+      "size": 47076,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f19814472672a2e3fbb26aa0812e8b6fdd6843b1"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/normnfd.nlp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "16e88e12488145877f7bf73b28ad7e2ad2321899",
+      "size": 40566,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/16e88e12488145877f7bf73b28ad7e2ad2321899"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/normnfkc.nlp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "55406db5c320385133bc11ba20a02af50c79b5a9",
+      "size": 67808,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/55406db5c320385133bc11ba20a02af50c79b5a9"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/normnfkd.nlp",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b7386c4c83946d3b8a707ab8864986a1f474ef6d",
+      "size": 61718,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/b7386c4c83946d3b8a707ab8864986a1f474ef6d"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/office.dll",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1c8296171d84109033207ada468d584d044ac54c",
+      "size": 457328,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/1c8296171d84109033207ada468d584d044ac54c"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/saxon9.dll",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ddc4f3165748a90e9ae74d6959c8c9f8a4841b5e",
+      "size": 2887680,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ddc4f3165748a90e9ae74d6959c8c9f8a4841b5e"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/saxon9api.dll",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "992d229849166da14f1a02a3256d6215c8e75daf",
+      "size": 4608,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/992d229849166da14f1a02a3256d6215c8e75daf"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/saxon9api.netmodule",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "61393d846c9e0e3ed014768d988dd6bff13a5f95",
+      "size": 57344,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/61393d846c9e0e3ed014768d988dd6bff13a5f95"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/stdole.dll",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "11e37de7b9f7f59624d8330e8544b98eba72aebc",
+      "size": 32416,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/11e37de7b9f7f59624d8330e8544b98eba72aebc"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/temp.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "15cb0ecb3e219d1701294bfdf0fe3f5cb5d208e7",
+      "size": 22,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/15cb0ecb3e219d1701294bfdf0fe3f5cb5d208e7"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/zh-Hans",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "80573ddf4f9344e51bfa60853aecb326ee41b82c",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/80573ddf4f9344e51bfa60853aecb326ee41b82c"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/zh-Hans/mscorlib.resources.dll",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bf981d9761bfcce13c07fb1b0bc69776b1e260cd",
+      "size": 999624,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/bf981d9761bfcce13c07fb1b0bc69776b1e260cd"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/城市合集.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5623ff6e64dbfb7a3b6722a60b9fe9a43dcf34d9",
+      "size": 46,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/5623ff6e64dbfb7a3b6722a60b9fe9a43dcf34d9"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/常用期刊合集.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c6acb88104cfd6dee54c1c59dfee381227d2403b",
+      "size": 1611,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c6acb88104cfd6dee54c1c59dfee381227d2403b"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/bin/Debug/标准测试文件20180128.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1c6dfc56383c4c36670caeb5120510224df20050",
+      "size": 971993,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/1c6dfc56383c4c36670caeb5120510224df20050"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f59b0aeeaf823ae23b569f24f5ce3d4f1db5bfb0",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/f59b0aeeaf823ae23b569f24f5ce3d4f1db5bfb0"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4b9770de2477ce305b0b46ecb41e606648939f99",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/4b9770de2477ce305b0b46ecb41e606648939f99"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug/CoreCompileInputs.cache",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "da944ff56f180e72c5ee323019dd9db7958a609f",
+      "size": 42,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/da944ff56f180e72c5ee323019dd9db7958a609f"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug/DesignTimeResolveAssemblyReferences.cache",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "67296a451bd4505e99968dfa531be48a8b832dbf",
+      "size": 2819,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/67296a451bd4505e99968dfa531be48a8b832dbf"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug/DesignTimeResolveAssemblyReferencesInput.cache",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "edf3dae812551b8ced68ff319cc143a26ee0b182",
+      "size": 7517,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/edf3dae812551b8ced68ff319cc143a26ee0b182"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug/PaperFormatDetection.csproj.FileListAbsolute.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "61d316bf3d79a5786c5dbc78d617058485c69056",
+      "size": 1529,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/61d316bf3d79a5786c5dbc78d617058485c69056"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug/PaperFormatDetection.csproj.ResolveComReference.cache",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aab5126572ccf24f63bb927c608e1b3c6328f3cb",
+      "size": 725,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/aab5126572ccf24f63bb927c608e1b3c6328f3cb"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug/PaperFormatDetection.csprojResolveAssemblyReference.cache",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "99d4ac88a9ae4d63ba09afbca59f1fee3cd59b32",
+      "size": 29811,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/99d4ac88a9ae4d63ba09afbca59f1fee3cd59b32"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug/PaperFormatDetection.exe",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "09c9681f22b0db1b2c7a9179e0edbaddefb5db9e",
+      "size": 244224,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/09c9681f22b0db1b2c7a9179e0edbaddefb5db9e"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug/PaperFormatDetection.pdb",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c7f7ff83bc07f8126d3d814590102994e6a4b9e0",
+      "size": 538112,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c7f7ff83bc07f8126d3d814590102994e6a4b9e0"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug/TemporaryGeneratedFile_036C0B5B-1481-4323-8D20-8F5ADCB23D92.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug/TemporaryGeneratedFile_5937a670-0e60-4077-877b-f7221da3dda1.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Debug/TemporaryGeneratedFile_E7A71F73-0F8D-4B9B-B56E-8E70B10BC5D3.cs",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Release",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "fdce1af238d407f6a4b753419361e78cded56b79",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/fdce1af238d407f6a4b753419361e78cded56b79"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Release/DesignTimeResolveAssemblyReferencesInput.cache",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "821f95ea9cba84c9b75265078569254ab90e32e9",
+      "size": 7168,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/821f95ea9cba84c9b75265078569254ab90e32e9"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Release/PaperFormatDetection.csproj.FileListAbsolute.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "348cbe8a3504898d2d65ef12121a28cb5aed6dae",
+      "size": 1454,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/348cbe8a3504898d2d65ef12121a28cb5aed6dae"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Release/PaperFormatDetection.csprojResolveAssemblyReference.cache",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c3e5a3569122b517c006f40bb9e8ce86b098278b",
+      "size": 24498,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/c3e5a3569122b517c006f40bb9e8ce86b098278b"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Release/PaperFormatDetection.exe",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a63c1c7886609e08ca2f41e8852e6e1fb4cbf41a",
+      "size": 74752,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/a63c1c7886609e08ca2f41e8852e6e1fb4cbf41a"
+    },
+    {
+      "path": "PaperFormatDetection/PaperFormatDetection/PaperFormatDetection/obj/Release/PaperFormatDetection.pdb",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "721fbe98eb7fdfa35aa99536def3dbf8c7b3fe27",
+      "size": 130560,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/721fbe98eb7fdfa35aa99536def3dbf8c7b3fe27"
+    },
+    {
+      "path": "Papers",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "84f95a39e06b8dc86c841dae03296413d74620d8",
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/trees/84f95a39e06b8dc86c841dae03296413d74620d8"
+    },
+    {
+      "path": "Papers/21414000_21414000_（李斌）晶澳太阳能SPC软件系统的设计与实现_2018-03-17-10-19-50.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f5dd8e2cd77fe8167e221a3676958da4eaa58625",
+      "size": 1192770,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/f5dd8e2cd77fe8167e221a3676958da4eaa58625"
+    },
+    {
+      "path": "Papers/21414000_21414000_（梁晓琦）基于HTML5的移动学习平台设计与实现_2018-03-17-16-43-37.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "80a86fe5131c9a3b6cfe9dc71d9eaacb7e7f819e",
+      "size": 653536,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/80a86fe5131c9a3b6cfe9dc71d9eaacb7e7f819e"
+    },
+    {
+      "path": "Papers/21414000_21414000_（钟晓龙）天津临港亚行贷款项目管理系统的设计与实现_2018-03-17-16-48-58.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1fbc4ef103bfa3ae9df3e9bfe78ea4a64e9a2d34",
+      "size": 723341,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/1fbc4ef103bfa3ae9df3e9bfe78ea4a64e9a2d34"
+    },
+    {
+      "path": "Papers/~$414000_21414000_李建华-中铁十八局协同办公系统的设计与实现（论文）_2018-03-16-17-31-31.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1f0234a00def827e8763677139e1d952394f7091",
+      "size": 162,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/1f0234a00def827e8763677139e1d952394f7091"
+    },
+    {
+      "path": "Papers/~$414000_21414000_顾呈龙【41117361】【18999935919】（初稿）_2018-03-16-19-01-37.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0019f23b999a634b1d5e571af341bc8750133472",
+      "size": 162,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0019f23b999a634b1d5e571af341bc8750133472"
+    },
+    {
+      "path": "Papers/~$414000_21414000_（杨普臣）印刷行业信息管理系统设计与实现_2018-03-16-15-23-09.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "04be009e7e85d1eb32d0ea9655b23390c85005a7",
+      "size": 162,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/04be009e7e85d1eb32d0ea9655b23390c85005a7"
+    },
+    {
+      "path": "Papers/~$414000_21414000_（杨普臣）印刷行业信息管理系统设计与实现_2018-03-16-18-12-41.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9369fc5fe9691bcb423be18e3a10c54e89c5f000",
+      "size": 162,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/9369fc5fe9691bcb423be18e3a10c54e89c5f000"
+    },
+    {
+      "path": "Papers/~$414000_21414000_（杨普臣）印刷行业信息管理系统设计与实现_2018-03-17-09-31-37.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0a0324fbdbe0fe77c0932bd3efc1768d9a1f057e",
+      "size": 162,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/0a0324fbdbe0fe77c0932bd3efc1768d9a1f057e"
+    },
+    {
+      "path": "Papers/~$414000_21414000_（杨普臣）印刷行业信息管理系统设计与实现_2018-03-17-09-34-54.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7c358b951bab0ee4206525eca69c4955cf0568d2",
+      "size": 162,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/7c358b951bab0ee4206525eca69c4955cf0568d2"
+    },
+    {
+      "path": "Papers/~$414000_21414000_（梁晓琦）基于HTML5的移动学习平台设计与实现_2018-03-16-19-49-14.docx",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7b6aec6ecd0fcd18f666d99e0f803989cd1ed9c8",
+      "size": 162,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/7b6aec6ecd0fcd18f666d99e0f803989cd1ed9c8"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ccda13f8b125a2e112ba58e7252acf1ee344f45a",
+      "size": 2423,
+      "url": "https://api.github.com/repos/siyuanzhou/PaperFormatDetect/git/blobs/ccda13f8b125a2e112ba58e7252acf1ee344f45a"
+    }
+  ],
+  "truncated": false
+}

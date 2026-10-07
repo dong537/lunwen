@@ -1,0 +1,460 @@
+{
+  "file": "oleObject1.mtef.json",
+  "version": 5,
+  "counts": {
+    "19": 2,
+    "17": 5,
+    "18": 1,
+    "10": 3,
+    "1": 9,
+    "2": 15,
+    "3": 4,
+    "11": 3,
+    "0": 11
+  },
+  "formatRecords": [
+    {
+      "record_type": 19,
+      "payload": {
+        "name": "WinAllBasicCodePages"
+      }
+    },
+    {
+      "record_type": 17,
+      "payload": {
+        "enc_def_index": "5",
+        "font_name": "Times New Roman"
+      }
+    },
+    {
+      "record_type": 17,
+      "payload": {
+        "enc_def_index": "3",
+        "font_name": "Symbol"
+      }
+    },
+    {
+      "record_type": 17,
+      "payload": {
+        "enc_def_index": "5",
+        "font_name": "Courier New"
+      }
+    },
+    {
+      "record_type": 17,
+      "payload": {
+        "enc_def_index": "4",
+        "font_name": "MT Extra"
+      }
+    },
+    {
+      "record_type": 19,
+      "payload": {
+        "name": "WinAllCodePages"
+      }
+    },
+    {
+      "record_type": 17,
+      "payload": {
+        "enc_def_index": "6",
+        "font_name": {
+          "raw_string_hex": "cbcecce5",
+          "ruby_encoding": "ASCII-8BIT"
+        }
+      }
+    },
+    {
+      "record_type": 18,
+      "payload": {
+        "options": 0,
+        "sizes_count": 8,
+        "sizes": [
+          {
+            "unit": 2,
+            "nibbles": [
+              1,
+              2,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              5,
+              8,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              4,
+              2,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              5,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              0,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              7,
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              5,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 2,
+            "nibbles": [
+              1,
+              15
+            ]
+          }
+        ],
+        "spaces_count": 30,
+        "spaces": [
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              5,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              5,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              0,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              4,
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              2,
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              8,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              2,
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              0,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              0,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              3,
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              0,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              8,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              2,
+              10,
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              8,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              8,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              0,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              0,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              8,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              7,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              8,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              0,
+              0,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              2,
+              10,
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              4,
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              5,
+              15
+            ]
+          },
+          {
+            "unit": 4,
+            "nibbles": [
+              1,
+              0,
+              15
+            ]
+          }
+        ],
+        "styles_count": 12,
+        "styles": [
+          {
+            "font_def": 1,
+            "font_style": 0
+          },
+          {
+            "font_def": 1,
+            "font_style": 0
+          },
+          {
+            "font_def": 1,
+            "font_style": 2
+          },
+          {
+            "font_def": 2,
+            "font_style": 2
+          },
+          {
+            "font_def": 2,
+            "font_style": 0
+          },
+          {
+            "font_def": 2,
+            "font_style": 0
+          },
+          {
+            "font_def": 1,
+            "font_style": 1
+          },
+          {
+            "font_def": 1,
+            "font_style": 0
+          },
+          {
+            "font_def": 3,
+            "font_style": 0
+          },
+          {
+            "font_def": 1,
+            "font_style": 0
+          },
+          {
+            "font_def": 4,
+            "font_style": 0
+          },
+          {
+            "font_def": 5,
+            "font_style": 0
+          }
+        ]
+      }
+    },
+    {
+      "record_type": 10,
+      "payload": {}
+    },
+    {
+      "record_type": 11,
+      "payload": {}
+    },
+    {
+      "record_type": 10,
+      "payload": {}
+    },
+    {
+      "record_type": 11,
+      "payload": {}
+    },
+    {
+      "record_type": 10,
+      "payload": {}
+    },
+    {
+      "record_type": 11,
+      "payload": {}
+    }
+  ]
+}

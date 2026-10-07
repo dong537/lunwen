@@ -1,0 +1,30 @@
+-------------------------------------------------------------------------------
+Test set: research.thesis.FontResolutionTest
+-------------------------------------------------------------------------------
+Tests run: 4, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 1.982 s <<< FAILURE! -- in research.thesis.FontResolutionTest
+research.thesis.FontResolutionTest.eastAsiaTimesNewRomanWithEqualLatinSlotsUsesLatinFace -- Time elapsed: 1.822 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <Arial> but was: <Times New Roman>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:182)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:177)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:1145)
+	at research.thesis.FontResolutionTest.eastAsiaTimesNewRomanWithEqualLatinSlotsUsesLatinFace(FontResolutionTest.java:73)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+
+research.thesis.FontResolutionTest.themeReferencesOverrideCoexistingLiteralNames -- Time elapsed: 0.035 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: expected: <Calibri> but was: <null>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:197)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:182)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:177)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:1145)
+	at research.thesis.FontResolutionTest.themeReferencesOverrideCoexistingLiteralNames(FontResolutionTest.java:52)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1597)
+

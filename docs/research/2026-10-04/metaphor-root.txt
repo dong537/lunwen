@@ -1,0 +1,83 @@
+SOURCE: https://api.github.com/repos/danielrendall/Metaphor/contents/
+[
+  {
+    "name": ".gitignore",
+    "path": ".gitignore",
+    "sha": "1f79ef2b06a70e62593c5704f4d9cd49722be1d0",
+    "size": 22,
+    "url": "https://api.github.com/repos/danielrendall/Metaphor/contents/.gitignore?ref=master",
+    "html_url": "https://github.com/danielrendall/Metaphor/blob/master/.gitignore",
+    "git_url": "https://api.github.com/repos/danielrendall/Metaphor/git/blobs/1f79ef2b06a70e62593c5704f4d9cd49722be1d0",
+    "download_url": "https://raw.githubusercontent.com/danielrendall/Metaphor/master/.gitignore",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/danielrendall/Metaphor/contents/.gitignore?ref=master",
+      "git": "https://api.github.com/repos/danielrendall/Metaphor/git/blobs/1f79ef2b06a70e62593c5704f4d9cd49722be1d0",
+      "html": "https://github.com/danielrendall/Metaphor/blob/master/.gitignore"
+    }
+  },
+  {
+    "name": "CREDITS",
+    "path": "CREDITS",
+    "sha": "bc05aabbec51967afceaa83d9cf12feb77f4c59a",
+    "size": 65,
+    "url": "https://api.github.com/repos/danielrendall/Metaphor/contents/CREDITS?ref=master",
+    "html_url": "https://github.com/danielrendall/Metaphor/blob/master/CREDITS",
+    "git_url": "https://api.github.com/repos/danielrendall/Metaphor/git/blobs/bc05aabbec51967afceaa83d9cf12feb77f4c59a",
+    "download_url": "https://raw.githubusercontent.com/danielrendall/Metaphor/master/CREDITS",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/danielrendall/Metaphor/contents/CREDITS?ref=master",
+      "git": "https://api.github.com/repos/danielrendall/Metaphor/git/blobs/bc05aabbec51967afceaa83d9cf12feb77f4c59a",
+      "html": "https://github.com/danielrendall/Metaphor/blob/master/CREDITS"
+    }
+  },
+  {
+    "name": "INSTALL",
+    "path": "INSTALL",
+    "sha": "aa6a000db4ad07830d2f9507d5964f7172489f69",
+    "size": 18,
+    "url": "https://api.github.com/repos/danielrendall/Metaphor/contents/INSTALL?ref=master",
+    "html_url": "https://github.com/danielrendall/Metaphor/blob/master/INSTALL",
+    "git_url": "https://api.github.com/repos/danielrendall/Metaphor/git/blobs/aa6a000db4ad07830d2f9507d5964f7172489f69",
+    "download_url": "https://raw.githubusercontent.com/danielrendall/Metaphor/master/INSTALL",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/danielrendall/Metaphor/contents/INSTALL?ref=master",
+      "git": "https://api.github.com/repos/danielrendall/Metaphor/git/blobs/aa6a000db4ad07830d2f9507d5964f7172489f69",
+      "html": "https://github.com/danielrendall/Metaphor/blob/master/INSTALL"
+    }
+  },
+  {
+    "name": "README",
+    "path": "README",
+    "sha": "032f6f057d18c7dd5e80c716f7eea5ad6b03ef05",
+    "size": 1230,
+    "url": "https://api.github.com/repos/danielrendall/Metaphor/contents/README?ref=master",
+    "html_url": "https://github.com/danielrendall/Metaphor/blob/master/README",
+    "git_url": "https://api.github.com/repos/danielrendall/Metaphor/git/blobs/032f6f057d18c7dd5e80c716f7eea5ad6b03ef05",
+    "download_url": "https://raw.githubusercontent.com/danielrendall/Metaphor/master/README",
+    "type": "file",
+    "_links": {
+      "self": "https://api.github.com/repos/danielrendall/Metaphor/contents/README?ref=master",
+      "git": "https://api.github.com/repos/danielrendall/Metaphor/git/blobs/032f6f057d18c7dd5e80c716f7eea5ad6b03ef05",
+      "html": "https://github.com/danielrendall/Metaphor/blob/master/README"
+    }
+  },
+  {
+    "name": "code",
+    "path": "code",
+    "sha": "412c8e0bdc2ea6eaf94452f6ca819e06b5b39a6c",
+    "size": 0,
+    "url": "https://api.github.com/repos/danielrendall/Metaphor/contents/code?ref=master",
+    "html_url": "https://github.com/danielrendall/Metaphor/tree/master/code",
+    "git_url": "https://api.github.com/repos/danielrendall/Metaphor/git/trees/412c8e0bdc2ea6eaf94452f6ca819e06b5b39a6c",
+    "download_url": null,
+    "type": "dir",
+    "_links": {
+      "self": "https://api.github.com/repos/danielrendall/Metaphor/contents/code?ref=master",
+      "git": "https://api.github.com/repos/danielrendall/Metaphor/git/trees/412c8e0bdc2ea6eaf94452f6ca819e06b5b39a6c",
+      "html": "https://github.com/danielrendall/Metaphor/tree/master/code"
+    }
+  }
+]
