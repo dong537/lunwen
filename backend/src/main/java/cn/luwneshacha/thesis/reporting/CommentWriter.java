@@ -6,6 +6,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -138,12 +139,12 @@ public final class CommentWriter {
   private static Element comment(Document comments, int id, CheckResult result) {
     Element c = comments.createElementNS(W, "w:comment");
     c.setAttributeNS(W, "w:id", String.valueOf(id));
-    c.setAttributeNS(W, "w:author", "论文格式筛查");
+    c.setAttributeNS(W, "w:author", "\u8bba\u6587\u683c\u5f0f\u7b5b\u67e5");
     c.setAttributeNS(W, "w:date", "2026-01-01T00:00:00Z");
     Element p = comments.createElementNS(W, "w:p");
     Element r = comments.createElementNS(W, "w:r");
     Element t = comments.createElementNS(W, "w:t");
-    t.setTextContent("修改意见：规则 " + result.ruleId() + "，期望 " + result.expected() + "，实际 " + result.actual());
+    t.setTextContent("\u4fee\u6539\u610f\u89c1\uff1a\u89c4\u5219 " + result.ruleId() + "\uff0c\u671f\u671b " + result.expected() + "\uff0c\u5b9e\u9645 " + result.actual());
     r.appendChild(t); p.appendChild(r); c.appendChild(p);
     return c;
   }
@@ -151,8 +152,12 @@ public final class CommentWriter {
   private static byte[] addRelationship(byte[] bytes) throws IOException {
     Document doc = parse(bytes);
     Element root = doc.getDocumentElement();
+    var existing = root.getElementsByTagNameNS(REL, "Relationship");
+    for (int i = 0; i < existing.getLength(); i++) {
+      if (COMMENTS_TYPE.equals(((Element) existing.item(i)).getAttribute("Type"))) return serialize(doc);
+    }
     int max = 0;
-    var nodes = root.getElementsByTagNameNS(REL, "Relationship");
+    var nodes = existing;
     for (int i = 0; i < nodes.getLength(); i++) {
       String id = ((Element) nodes.item(i)).getAttribute("Id");
       if (id.startsWith("rId")) try { max = Math.max(max, Integer.parseInt(id.substring(3))); } catch (NumberFormatException ignored) { }
@@ -212,12 +217,13 @@ public final class CommentWriter {
 
   private static byte[] serialize(Document doc) throws IOException {
     try {
-      var output = new ByteArrayOutputStream();
       var transformer = TransformerFactory.newInstance().newTransformer();
       transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
       transformer.setOutputProperty(OutputKeys.INDENT, "no");
+      transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+      var output = new StringWriter();
       transformer.transform(new DOMSource(doc), new StreamResult(output));
-      return output.toByteArray();
+      return output.toString().getBytes(StandardCharsets.UTF_8);
     } catch (Exception error) { throw new IOException("cannot serialize XML", error); }
   }
 
