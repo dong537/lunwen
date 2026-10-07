@@ -51,9 +51,8 @@ public final class InspectionService {
         Path target = requestDir.resolve("annotated.docx");
         AnnotationReport annotation = commentWriter.writeCopy(source, target, raw.sourceSha256(), report.results().stream()
             .filter(InspectionService::needsAnnotation)
-            .collect(Collectors.groupingBy(CheckResult::ruleId, java.util.LinkedHashMap::new, Collectors.collectingAndThen(Collectors.toList(), values -> values.stream().limit(3).toList())))
-            .values().stream().flatMap(java.util.Collection::stream)
-            .toList());
+            .collect(Collectors.toMap(InspectionService::annotationKey, java.util.function.UnaryOperator.identity(), (first, ignored) -> first, java.util.LinkedHashMap::new))
+            .values().stream().toList());
         available = annotation.outputWritten();
         if (available) annotations.put(requestId, new StoredAnnotation(requestId, raw.sourceSha256(), target));
       }
@@ -85,6 +84,10 @@ public final class InspectionService {
     return result.judgement() != cn.luwneshacha.thesis.rules.Judgement.PASS
         || result.applicability() == cn.luwneshacha.thesis.rules.Applicability.UNKNOWN
         || result.executionStatus() != cn.luwneshacha.thesis.rules.ExecutionStatus.EXECUTED;
+  }
+
+  private static String annotationKey(CheckResult result) {
+    return result.ruleId() + "|" + result.source().partName() + "|" + result.source().elementPath();
   }
 
   private Path createRequestDir(String requestId) {
