@@ -10,3 +10,4 @@ research-spikes/mtef/.deps/
 research-spikes/mtef/vendor/
 research-spikes/mtef/private-output/
 **/__pycache__/
+.worktrees/
