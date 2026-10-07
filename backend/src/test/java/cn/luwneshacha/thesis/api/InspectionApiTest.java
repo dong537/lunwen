@@ -56,7 +56,8 @@ class InspectionApiTest {
     java.nio.file.Files.write(annotated, download.getResponse().getContentAsByteArray());
     var pkg = WordprocessingMLPackage.load(annotated.toFile());
     var comments = (CommentsPart) pkg.getParts().getParts().get(new PartName("/word/comments.xml"));
-    assertTrue(comments.getContents().getComment().size() > 0);
+    int resultCount = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response).get("report").get("results").size();
+    assertTrue(comments.getContents().getComment().size() < resultCount);
   }
 
   @Test
