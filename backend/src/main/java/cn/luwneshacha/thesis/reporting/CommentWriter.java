@@ -65,6 +65,7 @@ public final class CommentWriter {
           String text = paragraph.getTextContent();
           if (text == null || text.isBlank()) throw new AnchorException("EMPTY_ANCHOR");
           addRange(paragraph, nextId);
+          highlight(paragraph, result.ruleId());
           commentsRoot.appendChild(comment(comments, nextId, result));
           written.add(result);
           rejected.add(new AnnotationItem(result.ruleId(), AnnotationStatus.WRITTEN, ""));
@@ -136,6 +137,29 @@ public final class CommentWriter {
     paragraph.appendChild(referenceRun);
   }
 
+  private static void highlight(Element paragraph, String ruleId) {
+    String color = switch (ruleId) {
+      case "BODY-SIZE" -> "yellow";
+      case "BODY-FONT" -> "cyan";
+      case "BODY-INDENT" -> "brightGreen";
+      case "PAGE-01" -> "magenta";
+      default -> "lightGray";
+    };
+    Document doc = paragraph.getOwnerDocument();
+    var runs = paragraph.getElementsByTagNameNS(W, "r");
+    for (int i = 0; i < runs.getLength(); i++) {
+      Element run = (Element) runs.item(i);
+      Element properties = null;
+      for (Node node = run.getFirstChild(); node != null; node = node.getNextSibling()) {
+        if (node instanceof Element child && "rPr".equals(child.getLocalName())) { properties = child; break; }
+      }
+      if (properties == null) { properties = doc.createElementNS(W, "w:rPr"); run.insertBefore(properties, run.getFirstChild()); }
+      Element mark = doc.createElementNS(W, "w:highlight");
+      mark.setAttributeNS(W, "w:val", color);
+      properties.appendChild(mark);
+    }
+  }
+
   private static Element comment(Document comments, int id, CheckResult result) {
     Element c = comments.createElementNS(W, "w:comment");
     c.setAttributeNS(W, "w:id", String.valueOf(id));
@@ -144,9 +168,19 @@ public final class CommentWriter {
     Element p = comments.createElementNS(W, "w:p");
     Element r = comments.createElementNS(W, "w:r");
     Element t = comments.createElementNS(W, "w:t");
-    t.setTextContent("\u4fee\u6539\u610f\u89c1\uff1a\u89c4\u5219 " + result.ruleId() + "\uff0c\u671f\u671b " + result.expected() + "\uff0c\u5b9e\u9645 " + result.actual());
+    t.setTextContent(suggestion(result));
     r.appendChild(t); p.appendChild(r); c.appendChild(p);
     return c;
+  }
+
+  private static String suggestion(CheckResult result) {
+    return switch (result.ruleId()) {
+      case "PAGE-01" -> "页边距不符合要求，请按规范调整为 2.6 cm。";
+      case "BODY-FONT" -> "字体不符合要求，请检查中文字体和英文字体。";
+      case "BODY-SIZE" -> "字号不符合要求，请按规范调整。";
+      case "BODY-INDENT" -> "首行缩进不符合要求，请调整为 2 字符。";
+      default -> "格式不符合要求，请核对学校规范。";
+    };
   }
 
   private static byte[] addRelationship(byte[] bytes) throws IOException {

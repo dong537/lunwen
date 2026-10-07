@@ -35,7 +35,7 @@ class CommentWriterTest {
       String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
       assertTrue(document.contains("commentRangeStart"));
       assertTrue(document.contains("commentReference"));
-      assertTrue(comments.contains("规则 PAGE-01"));
+      assertTrue(comments.contains("页边距不符合要求，请按规范调整为 2.6 cm。"));
       assertTrue(zip.getEntry("word/_rels/document.xml.rels") != null);
     }
   }

@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -50,6 +51,8 @@ public final class InspectionService {
         Path target = requestDir.resolve("annotated.docx");
         AnnotationReport annotation = commentWriter.writeCopy(source, target, raw.sourceSha256(), report.results().stream()
             .filter(InspectionService::needsAnnotation)
+            .collect(Collectors.groupingBy(CheckResult::ruleId, java.util.LinkedHashMap::new, Collectors.collectingAndThen(Collectors.toList(), values -> values.stream().limit(3).toList())))
+            .values().stream().flatMap(java.util.Collection::stream)
             .toList());
         available = annotation.outputWritten();
         if (available) annotations.put(requestId, new StoredAnnotation(requestId, raw.sourceSha256(), target));
