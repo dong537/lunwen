@@ -48,7 +48,7 @@ public final class DocxReader {
         parts.put(entry.getName(), new RawPart(entry.getName(), sha256(bytes), bytes, xml));
       }
       if (!parts.containsKey("[Content_Types].xml")) invalid("missing [Content_Types].xml");
-      return new RawDocx(sha256(sourceBytes), parts, entries);
+      return new RawDocx(sha256(sourceBytes), sourceBytes, parts, entries);
     } catch (InspectionException e) { throw e; }
     catch (IOException | RuntimeException e) {
       throw new InspectionException("INVALID_DOCX", "input is not a readable DOCX package");
