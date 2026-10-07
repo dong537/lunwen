@@ -54,24 +54,31 @@ public final class CommentWriter {
       Document comments = parts.containsKey("word/comments.xml") ? parse(parts.get("word/comments.xml")) : newCommentsDocument();
       Element commentsRoot = comments.getDocumentElement();
       List<CheckResult> written = new ArrayList<>();
+      Map<String, List<CheckResult>> grouped = new LinkedHashMap<>();
       for (CheckResult result : results) {
         if (!"word/document.xml".equals(result.source().partName())) {
           rejected.add(new AnnotationItem(result.ruleId(), AnnotationStatus.UNSUPPORTED_ANCHOR, "PART_NOT_SUPPORTED"));
           continue;
         }
+        grouped.computeIfAbsent(result.source().elementPath().toString(), ignored -> new ArrayList<>()).add(result);
+      }
+      for (List<CheckResult> group : grouped.values()) {
+        CheckResult result = group.get(0);
         try {
           Element paragraph = resolve(document, result.source());
           if (!"p".equals(paragraph.getLocalName()) || !W.equals(paragraph.getNamespaceURI())) throw new AnchorException("ANCHOR_NOT_PARAGRAPH");
           String text = paragraph.getTextContent();
           if (text == null || text.isBlank()) throw new AnchorException("EMPTY_ANCHOR");
           addRange(paragraph, nextId);
-          highlight(paragraph, result.ruleId());
-          commentsRoot.appendChild(comment(comments, nextId, result));
-          written.add(result);
-          rejected.add(new AnnotationItem(result.ruleId(), AnnotationStatus.WRITTEN, ""));
+          highlight(paragraph, group.size() == 1 ? result.ruleId() : "MULTIPLE");
+          commentsRoot.appendChild(comment(comments, nextId, group));
+          for (CheckResult item : group) {
+            written.add(item);
+            rejected.add(new AnnotationItem(item.ruleId(), AnnotationStatus.WRITTEN, ""));
+          }
           nextId++;
         } catch (AnchorException error) {
-          rejected.add(new AnnotationItem(result.ruleId(), AnnotationStatus.UNSUPPORTED_ANCHOR, error.getMessage()));
+          for (CheckResult item : group) rejected.add(new AnnotationItem(item.ruleId(), AnnotationStatus.UNSUPPORTED_ANCHOR, error.getMessage()));
         }
       }
       if (written.isEmpty()) return new AnnotationReport(rejected, false);
@@ -122,14 +129,17 @@ public final class CommentWriter {
 
   private static void addRange(Element paragraph, int id) throws AnchorException {
     List<Element> children = elementChildren(paragraph);
-    if (children.isEmpty()) throw new AnchorException("EMPTY_ANCHOR");
+    Element firstContent = children.stream().filter(child -> !"pPr".equals(child.getLocalName())).findFirst().orElse(null);
+    Element lastContent = null;
+    for (Element child : children) if (!"pPr".equals(child.getLocalName())) lastContent = child;
+    if (firstContent == null || lastContent == null) throw new AnchorException("EMPTY_ANCHOR");
     Document doc = paragraph.getOwnerDocument();
     Element start = doc.createElementNS(W, "w:commentRangeStart");
     start.setAttributeNS(W, "w:id", String.valueOf(id));
     Element end = doc.createElementNS(W, "w:commentRangeEnd");
     end.setAttributeNS(W, "w:id", String.valueOf(id));
-    paragraph.insertBefore(start, children.get(0));
-    paragraph.insertBefore(end, children.get(children.size() - 1).getNextSibling());
+    paragraph.insertBefore(start, firstContent);
+    paragraph.insertBefore(end, lastContent.getNextSibling());
     Element referenceRun = doc.createElementNS(W, "w:r");
     Element reference = doc.createElementNS(W, "w:commentReference");
     reference.setAttributeNS(W, "w:id", String.valueOf(id));
@@ -160,7 +170,7 @@ public final class CommentWriter {
     }
   }
 
-  private static Element comment(Document comments, int id, CheckResult result) {
+  private static Element comment(Document comments, int id, List<CheckResult> results) {
     Element c = comments.createElementNS(W, "w:comment");
     c.setAttributeNS(W, "w:id", String.valueOf(id));
     c.setAttributeNS(W, "w:author", "\u8bba\u6587\u683c\u5f0f\u7b5b\u67e5");
@@ -168,7 +178,7 @@ public final class CommentWriter {
     Element p = comments.createElementNS(W, "w:p");
     Element r = comments.createElementNS(W, "w:r");
     Element t = comments.createElementNS(W, "w:t");
-    t.setTextContent(suggestion(result));
+    t.setTextContent(results.stream().map(CommentWriter::suggestion).distinct().collect(java.util.stream.Collectors.joining("\n")));
     r.appendChild(t); p.appendChild(r); c.appendChild(p);
     return c;
   }

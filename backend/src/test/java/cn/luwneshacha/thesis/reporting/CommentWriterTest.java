@@ -23,7 +23,7 @@ class CommentWriterTest {
 
   @Test
   void writesCommentToDirectBodyParagraphAndLeavesOtherPartsUntouched() throws Exception {
-    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>正文</w:t></w:r></w:p></w:body></w:document>");
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:r><w:t>正文</w:t></w:r></w:p></w:body></w:document>");
     Path target = tempDir.resolve("annotated.docx");
     var result = result(List.of(0, 0));
 
@@ -34,6 +34,7 @@ class CommentWriterTest {
       String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), StandardCharsets.UTF_8);
       String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
       assertTrue(document.contains("commentRangeStart"));
+      assertTrue(document.indexOf("w:pPr") < document.indexOf("commentRangeStart"));
       assertTrue(document.contains("commentReference"));
       assertTrue(comments.contains("页边距不符合要求，请按规范调整为 2.6 cm。"));
       assertTrue(zip.getEntry("word/_rels/document.xml.rels") != null);

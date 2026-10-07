@@ -71,6 +71,28 @@ class CommentWriterReadbackTest {
     assertEquals(2, part.getContents().getComment().size());
     assertEquals(1, relations.stream().filter(r -> r.getType().endsWith("/comments")).count());
   }
+
+  @Test
+  void mergesDifferentErrorsAtSameParagraphIntoOneCommentRange() throws Exception {
+    Path source = validDocx();
+    var raw = new DocxReader().read(source);
+    var anchor = new Docx4jDocumentParser().parse(raw).paragraphs().get(0).source();
+    var margin = new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "1474", "1418", "MARGIN_MISMATCH", anchor);
+    var size = new CheckResult("BODY-SIZE", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "24", "32", "SIZE_MISMATCH", anchor);
+    Path target = temp.resolve("merged.docx");
+
+    new CommentWriter().writeCopy(source, target, raw.sourceSha256(), List.of(margin, size));
+
+    var pkg = WordprocessingMLPackage.load(target.toFile());
+    var comments = ((CommentsPart) pkg.getParts().getParts().get(new PartName("/word/comments.xml"))).getContents();
+    assertEquals(1, comments.getComment().size());
+    try (var zip = new java.util.zip.ZipFile(target.toFile())) {
+      String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+      assertEquals(1, document.split("commentRangeStart", -1).length - 1);
+    }
+  }
   private Path validDocx() throws Exception {
     var pkg = WordprocessingMLPackage.createPackage();
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(

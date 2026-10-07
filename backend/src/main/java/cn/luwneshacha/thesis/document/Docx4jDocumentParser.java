@@ -38,11 +38,14 @@ public final class Docx4jDocumentParser {
         List<Integer> path = index < paragraphPaths.size() ? paragraphPaths.get(index) : List.of(index);
         paragraphs.add(parseParagraph(pkg, paragraph, index, path));
         if (paragraph.getPPr() != null && paragraph.getPPr().getSectPr() != null) {
-          sections.add(parseSection(paragraph.getPPr().getSectPr(), sections.size()));
+          sections.add(parseSection(paragraph.getPPr().getSectPr(), new SourceAddress("word/document.xml", path, 0, 0)));
         }
       }
       var body = main.getJaxbElement().getBody();
-      if (body.getSectPr() != null) sections.add(parseSection(body.getSectPr(), sections.size()));
+      if (body.getSectPr() != null) {
+        SourceAddress anchor = paragraphs.isEmpty() ? new SourceAddress("word/document.xml", List.of(0), 0, 0) : paragraphs.get(0).source();
+        sections.add(parseSection(body.getSectPr(), anchor));
+      }
       return new ParsedDocument(raw.sourceSha256(), paragraphs, sections, List.of());
     } catch (Exception error) {
       throw new IllegalArgumentException("unable to parse DOCX: " + error.getMessage(), error);
@@ -89,14 +92,14 @@ public final class Docx4jDocumentParser {
         firstLineChars);
   }
 
-  private SectionModel parseSection(SectPr section, int index) {
+  private SectionModel parseSection(SectPr section, SourceAddress source) {
     SectPr.PgMar margins = section.getPgMar();
     return new SectionModel(
         margins == null || margins.getTop() == null ? null : margins.getTop().intValue(),
         margins == null || margins.getRight() == null ? null : margins.getRight().intValue(),
         margins == null || margins.getBottom() == null ? null : margins.getBottom().intValue(),
         margins == null || margins.getLeft() == null ? null : margins.getLeft().intValue(),
-        new SourceAddress("word/document.xml", List.of(index, 0), 0, 0));
+        source);
   }
 
   private static List<List<Integer>> paragraphPaths(byte[] xml) throws Exception {
