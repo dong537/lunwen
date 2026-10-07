@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import jakarta.xml.bind.JAXBElement;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.docx4j.TraversalUtil;
@@ -81,7 +82,13 @@ public final class Docx4jDocumentParser {
       }
 
       @Override public boolean shouldTraverse(Object element) {
+        if (element instanceof JAXBElement<?> jaxb) {
+          String localName = jaxb.getName().getLocalPart();
+          if ("del".equals(localName) || "moveFrom".equals(localName)) return false;
+        }
         Object unwrapped = XmlUtils.unwrap(element);
+        String typeName = unwrapped.getClass().getSimpleName();
+        if ("RunDel".equals(typeName) || "RunMoveFrom".equals(typeName)) return false;
         return unwrapped == paragraph || !(unwrapped instanceof P);
       }
 
@@ -105,7 +112,7 @@ public final class Docx4jDocumentParser {
         RFonts fonts = properties == null ? null : properties.getRFonts();
         var source = new SourceAddress("word/document.xml", path, 0, text.length());
         runs.add(new RunModel(text,
-            fonts == null ? null : fonts.getAscii(),
+            fonts == null ? null : fonts.getAscii() != null ? fonts.getAscii() : fonts.getHAnsi(),
             fonts == null ? null : fonts.getEastAsia(),
             fonts == null ? null : fonts.getCs(),
             properties == null || properties.getSz() == null ? null : properties.getSz().getVal().intValue(),

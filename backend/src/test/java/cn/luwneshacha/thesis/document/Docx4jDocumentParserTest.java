@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import org.docx4j.XmlUtils;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 import org.docx4j.wml.Document;
@@ -48,6 +49,7 @@ class Docx4jDocumentParserTest {
     assertEquals("超链接控件正文", document.paragraphs().get(0).runs().stream()
         .map(RunModel::text).reduce("", String::concat));
     assertEquals(3, document.paragraphs().get(0).runs().size());
+    assertEquals("Times New Roman", document.paragraphs().get(0).runs().get(2).asciiFont());
   }
 
   @Test
@@ -76,13 +78,27 @@ class Docx4jDocumentParserTest {
         () -> new Docx4jDocumentParser().parse(new RawDocx(valid.sourceSha256(), valid.sourceBytes(), parts, valid.entryCount())));
   }
 
+  @Test
+  void ignoresDeletedRevisionRunsButKeepsInsertedText() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + "><w:body><w:p><w:del><w:r><w:t>删除</w:t></w:r></w:del>"
+            + "<w:ins><w:r><w:t>新增</w:t></w:r></w:ins></w:p></w:body></w:document>"));
+    Path file = temp.resolve("revisions.docx");
+    pkg.save(file.toFile());
+
+    ParsedDocument document = new Docx4jDocumentParser().parse(new DocxReader().read(file));
+
+    assertEquals(List.of("新增"), document.paragraphs().get(0).runs().stream().map(RunModel::text).toList());
+  }
+
   private Path nestedRunsFixture() throws Exception {
     var pkg = WordprocessingMLPackage.createPackage();
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
         "<w:document " + NS + " xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:body>"
             + "<w:p><w:hyperlink r:id=\"rId1\"><w:r><w:t>超链接</w:t></w:r></w:hyperlink>"
             + "<w:sdt><w:sdtContent><w:r><w:t>控件</w:t></w:r></w:sdtContent></w:sdt>"
-            + "<w:r><w:t>正文</w:t></w:r></w:p></w:body></w:document>"));
+            + "<w:r><w:rPr><w:rFonts w:hAnsi=\"Times New Roman\"/></w:rPr><w:t>正文</w:t></w:r></w:p></w:body></w:document>"));
     Path file = temp.resolve("nested-runs.docx");
     pkg.save(file.toFile());
     return file;
