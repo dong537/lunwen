@@ -32,7 +32,13 @@ public final class RuleEngine {
   }
 
   private CheckResult checkIndent(ParagraphModel paragraph, RuleSet rules) {
-    if (paragraph.firstLineChars() == null) return review("BODY-INDENT", "2 chars", "INDENT_UNKNOWN", paragraph.source());
+    if (paragraph.firstLineChars() == null) {
+      if (paragraph.firstLineIndentTwips() == null) return review("BODY-INDENT", "2 chars", "INDENT_UNKNOWN", paragraph.source());
+      return result("BODY-INDENT", String.valueOf(rules.expectedFirstLineIndentTwips()),
+          String.valueOf(paragraph.firstLineIndentTwips()), "",
+          paragraph.firstLineIndentTwips() == rules.expectedFirstLineIndentTwips() ? Judgement.PASS : Judgement.FAIL,
+          paragraph.source());
+    }
     return result("BODY-INDENT", String.valueOf(rules.expectedFirstLineChars()), String.valueOf(paragraph.firstLineChars()), "", paragraph.firstLineChars() == rules.expectedFirstLineChars() ? Judgement.PASS : Judgement.FAIL, paragraph.source());
   }
 

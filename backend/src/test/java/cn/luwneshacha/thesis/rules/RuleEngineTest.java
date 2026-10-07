@@ -53,4 +53,17 @@ class RuleEngineTest {
     assertEquals(ExecutionStatus.EXECUTED, result.executionStatus());
     assertEquals(Judgement.REVIEW, result.judgement());
   }
+
+  @Test
+  void acceptsTwoCharacterIndentStoredAsTwips() {
+    var run = new RunModel("正文", "Times New Roman", "宋体", null, 24, false, ADDRESS);
+    var paragraph = new ParagraphModel(List.of(run), 480, null, null, null, null, ADDRESS, null);
+    var document = new ParsedDocument("source", List.of(paragraph),
+        List.of(new SectionModel(1474, 1474, 1474, 1474, ADDRESS)), List.of());
+
+    var result = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
+        .filter(r -> r.ruleId().equals("BODY-INDENT")).findFirst().orElseThrow();
+
+    assertEquals(Judgement.PASS, result.judgement());
+  }
 }
