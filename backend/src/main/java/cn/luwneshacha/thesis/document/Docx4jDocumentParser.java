@@ -34,9 +34,12 @@ public final class Docx4jDocumentParser {
       var finder = new ClassFinder(P.class);
       new TraversalUtil(main.getContent(), finder);
       List<List<Integer>> paragraphPaths = paragraphPaths(raw.part("word/document.xml").bytes());
+      if (paragraphPaths.size() != finder.results.size()) {
+        throw new IllegalArgumentException("paragraph structure mismatch between XML and docx4j");
+      }
       for (int index = 0; index < finder.results.size(); index++) {
         P paragraph = (P) finder.results.get(index);
-        List<Integer> path = index < paragraphPaths.size() ? paragraphPaths.get(index) : List.of(index);
+        List<Integer> path = paragraphPaths.get(index);
         paragraphs.add(parseParagraph(pkg, paragraph, index, path));
         if (paragraph.getPPr() != null && paragraph.getPPr().getSectPr() != null) {
           sections.add(parseSection(paragraph.getPPr().getSectPr(), new SourceAddress("word/document.xml", path, 0, 0)));

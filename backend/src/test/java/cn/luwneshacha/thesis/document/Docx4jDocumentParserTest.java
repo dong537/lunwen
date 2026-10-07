@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import org.docx4j.XmlUtils;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 import org.docx4j.wml.Document;
@@ -60,6 +61,19 @@ class Docx4jDocumentParserTest {
     ParsedDocument document = new Docx4jDocumentParser().parse(new DocxReader().read(file));
 
     assertTrue(document.paragraphs().get(0).runs().isEmpty());
+  }
+
+  @Test
+  void refusesToAnnotateWhenRawXmlParagraphIndexCannotBeBound() throws Exception {
+    Path source = fixture();
+    RawDocx valid = new DocxReader().read(source);
+    var parts = new LinkedHashMap<>(valid.parts());
+    byte[] noParagraphs = ("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body/></w:document>")
+        .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    parts.put("word/document.xml", new RawPart("word/document.xml", "test", noParagraphs, true));
+
+    org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+        () -> new Docx4jDocumentParser().parse(new RawDocx(valid.sourceSha256(), valid.sourceBytes(), parts, valid.entryCount())));
   }
 
   private Path nestedRunsFixture() throws Exception {
