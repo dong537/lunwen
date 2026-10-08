@@ -1,13 +1,16 @@
 package cn.luwneshacha.thesis.document;
 
 import java.io.ByteArrayInputStream;
+import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 import jakarta.xml.bind.JAXBElement;
-import javax.xml.XMLConstants;
-import javax.xml.parsers.DocumentBuilderFactory;
 import org.docx4j.TraversalUtil;
 import org.docx4j.TraversalUtil.Callback;
 import org.docx4j.XmlUtils;
@@ -27,6 +30,11 @@ import org.w3c.dom.Node;
 
 public final class Docx4jDocumentParser {
   private static final Pattern PAGE_FIELD = Pattern.compile("(?:^|\\s)PAGE(?=\\s|$)", Pattern.CASE_INSENSITIVE);
+  private static final String RELATIONSHIPS = "http://schemas.openxmlformats.org/package/2006/relationships";
+  private static final String OFFICE_RELATIONSHIPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  private static final String STRICT_OFFICE_RELATIONSHIPS = "http://purl.oclc.org/ooxml/officeDocument/relationships";
+  private static final String FOOTER_RELATIONSHIP = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer";
+  private static final String STRICT_FOOTER_RELATIONSHIP = "http://purl.oclc.org/ooxml/officeDocument/relationships/footer";
 
   public ParsedDocument parse(RawDocx raw) {
     Objects.requireNonNull(raw, "raw");
@@ -56,9 +64,10 @@ public final class Docx4jDocumentParser {
         sections.add(parseSection(body.getSectPr(), anchor));
       }
       byte[] documentXml = raw.part("word/document.xml").bytes();
+      RawPart styles = raw.parts().get("word/styles.xml");
       return new ParsedDocument(raw.sourceSha256(), paragraphs, sections, List.of(),
           new TableParser().parse(documentXml), new EquationParser().parse(documentXml),
-          new ReferenceParser().parse(paragraphs), new ImageParser().parse(documentXml), parsePageNumbers(raw),
+          new ReferenceParser().parse(paragraphs), new ImageParser().parse(documentXml, styles == null ? null : styles.bytes()), parsePageNumbers(raw),
           parseChapterBreaks(documentXml, pkg, finder.results, paragraphPaths, paragraphs));
     } catch (Exception error) {
       throw new IllegalArgumentException("unable to parse DOCX: " + error.getMessage(), error);
@@ -67,24 +76,255 @@ public final class Docx4jDocumentParser {
 
   private List<PageNumberModel> parsePageNumbers(RawDocx raw) {
     var result = new ArrayList<PageNumberModel>();
+    Set<String> referencedFooters = referencedFooterParts(raw);
     for (RawPart part : raw.parts().values()) {
-      if (!part.name().startsWith("word/footer") || !part.name().endsWith(".xml")) continue;
+      if (!referencedFooters.contains(part.name())) continue;
       try {
         Element root = parseXml(part.bytes());
-        if (!hasPageField(root)) continue;
-        Element paragraph = firstElement(root, XmlPartSupport.W, "p");
-        Element jc = paragraph == null ? null : firstElement(paragraph, XmlPartSupport.W, "jc");
-        boolean centered = jc != null && "center".equals(jc.getAttributeNS(XmlPartSupport.W, "val"));
-        Element rFonts = firstElement(root, XmlPartSupport.W, "rFonts");
-        Element sz = firstElement(root, XmlPartSupport.W, "sz");
-        Integer size = sz == null ? null : parseInt(sz.getAttributeNS(XmlPartSupport.W, "val"));
-        String font = rFonts == null ? null : rFonts.getAttributeNS(XmlPartSupport.W, "ascii");
-        result.add(new PageNumberModel(new SourceAddress(part.name(), List.of(), 0, 0), true, centered, font, size));
+        var paragraphs = root.getElementsByTagNameNS(XmlPartSupport.W, "p");
+        for (int index = 0; index < paragraphs.getLength(); index++) {
+          Element paragraph = (Element) paragraphs.item(index);
+          if (!hasPageField(paragraph)) continue;
+          Element pageRun = pageFieldResultRun(paragraph);
+          Element paragraphProperties = directElement(paragraph, XmlPartSupport.W, "pPr");
+          Element jc = directElement(paragraphProperties, XmlPartSupport.W, "jc");
+          Boolean centered = jc == null ? pageNumberAlignmentFromStyles(raw, paragraph)
+              : Boolean.valueOf("center".equals(jc.getAttributeNS(XmlPartSupport.W, "val")));
+          Element runProperties = directElement(pageRun, XmlPartSupport.W, "rPr");
+          Element rFonts = directElement(runProperties, XmlPartSupport.W, "rFonts");
+          Element sz = directElement(runProperties, XmlPartSupport.W, "sz");
+          Integer size = sz == null ? pageNumberSizeFromStyles(raw, paragraph, pageRun)
+              : parseInt(sz.getAttributeNS(XmlPartSupport.W, "val"));
+          String font = fontName(rFonts);
+          if (font == null) font = pageNumberFontFromStyles(raw, paragraph, pageRun);
+          result.add(new PageNumberModel(new SourceAddress(part.name(), List.of(index), 0, 0), true,
+              centered, font, size));
+        }
       } catch (Exception error) {
         throw new IllegalArgumentException("unable to parse footer part " + part.name(), error);
       }
     }
     return List.copyOf(result);
+  }
+
+  private Set<String> referencedFooterParts(RawDocx raw) {
+    try {
+      Element document = parseXml(raw.part("word/document.xml").bytes());
+      var sections = document.getElementsByTagNameNS(XmlPartSupport.W, "sectPr");
+      boolean hasReferences = false;
+      for (int index = 0; index < sections.getLength(); index++) {
+        for (Element child : XmlPartSupport.children((Element) sections.item(index))) {
+          if (XmlPartSupport.W.equals(child.getNamespaceURI()) && "footerReference".equals(child.getLocalName())) {
+            hasReferences = true;
+            break;
+          }
+        }
+      }
+      if (!hasReferences) return Set.of();
+
+      Map<String, String> targets = footerRelationshipTargets(raw);
+      Map<String, String> effectiveByType = new java.util.HashMap<>();
+      var result = new LinkedHashSet<String>();
+      boolean evenAndOdd = enabledSetting(raw, "evenAndOddHeaders");
+      for (int index = 0; index < sections.getLength(); index++) {
+        Element section = (Element) sections.item(index);
+        Element titlePage = null;
+        for (Element child : XmlPartSupport.children(section)) {
+          if (!XmlPartSupport.W.equals(child.getNamespaceURI())) continue;
+          if ("footerReference".equals(child.getLocalName())) {
+            String type = child.getAttributeNS(XmlPartSupport.W, "type");
+            if (type.isBlank()) type = "default";
+            String relationshipId = relationshipId(child);
+            String target = targets.get(relationshipId);
+            if (target == null)
+              throw new IllegalArgumentException("footer relationship is missing: " + relationshipId);
+            effectiveByType.put(type, resolveFooterPart(raw, relationshipId, target));
+          } else if ("titlePg".equals(child.getLocalName())) {
+            titlePage = child;
+          }
+        }
+        addEffectiveFooter(result, effectiveByType.get("default"));
+        if (isEnabled(titlePage)) addEffectiveFooter(result, effectiveByType.get("first"));
+        if (evenAndOdd) addEffectiveFooter(result, effectiveByType.get("even"));
+      }
+      return Set.copyOf(result);
+    } catch (Exception error) {
+      throw new IllegalArgumentException("unable to resolve referenced footer parts", error);
+    }
+  }
+
+  private Map<String, String> footerRelationshipTargets(RawDocx raw) throws Exception {
+    Element relationships = parseXml(raw.part("word/_rels/document.xml.rels").bytes());
+    Map<String, String> targets = new java.util.HashMap<>();
+    var relationshipNodes = relationships.getElementsByTagNameNS(RELATIONSHIPS, "Relationship");
+    for (int index = 0; index < relationshipNodes.getLength(); index++) {
+      Element relationship = (Element) relationshipNodes.item(index);
+      String type = relationship.getAttribute("Type");
+      if ((FOOTER_RELATIONSHIP.equals(type) || STRICT_FOOTER_RELATIONSHIP.equals(type))
+          && !"External".equalsIgnoreCase(relationship.getAttribute("TargetMode"))) {
+        targets.put(relationship.getAttribute("Id"), relationship.getAttribute("Target"));
+      }
+    }
+    return targets;
+  }
+
+  private String resolveFooterPart(RawDocx raw, String relationshipId, String target) {
+    if (target.isBlank()) throw new IllegalArgumentException("footer relationship target is empty: " + relationshipId);
+    String path = URI.create(target).getPath();
+    if (path == null || path.isBlank())
+      throw new IllegalArgumentException("footer relationship target is empty: " + relationshipId);
+    while (path.startsWith("/")) path = path.substring(1);
+    String partName = java.nio.file.Path.of("word/document.xml").getParent().resolve(path).normalize()
+        .toString().replace('\\', '/');
+    if (!raw.parts().containsKey(partName))
+      throw new IllegalArgumentException("footer relationship target is missing: " + partName);
+    return partName;
+  }
+
+  private boolean enabledSetting(RawDocx raw, String settingName) throws Exception {
+    RawPart settings = raw.parts().get("word/settings.xml");
+    if (settings == null) return false;
+    Element root = parseXml(settings.bytes());
+    var nodes = root.getElementsByTagNameNS(XmlPartSupport.W, settingName);
+    return nodes.getLength() > 0 && isEnabled((Element) nodes.item(0));
+  }
+
+  private boolean isEnabled(Element element) {
+    if (element == null) return false;
+    String value = element.getAttributeNS(XmlPartSupport.W, "val");
+    return value.isBlank() || !("0".equals(value) || "false".equalsIgnoreCase(value) || "off".equalsIgnoreCase(value));
+  }
+
+  private void addEffectiveFooter(Set<String> result, String partName) {
+    if (partName != null) result.add(partName);
+  }
+
+  private static String relationshipId(Element element) {
+    String value = element.getAttributeNS(OFFICE_RELATIONSHIPS, "id");
+    return value.isBlank() ? element.getAttributeNS(STRICT_OFFICE_RELATIONSHIPS, "id") : value;
+  }
+
+  private Element pageFieldResultRun(Element paragraph) {
+    var simpleFields = paragraph.getElementsByTagNameNS(XmlPartSupport.W, "fldSimple");
+    for (int index = 0; index < simpleFields.getLength(); index++) {
+      Element field = (Element) simpleFields.item(index);
+      if (!PAGE_FIELD.matcher(field.getAttributeNS(XmlPartSupport.W, "instr")).find()) continue;
+      Element run = firstElement(field, XmlPartSupport.W, "r");
+      if (run != null && run.getElementsByTagNameNS(XmlPartSupport.W, "t").getLength() > 0) return run;
+    }
+    var runs = paragraph.getElementsByTagNameNS(XmlPartSupport.W, "r");
+    var instruction = new StringBuilder();
+    int instructionRun = -1;
+    for (int index = 0; index < runs.getLength(); index++) {
+      Element run = (Element) runs.item(index);
+      var instructions = run.getElementsByTagNameNS(XmlPartSupport.W, "instrText");
+      for (int part = 0; part < instructions.getLength(); part++) instruction.append(instructions.item(part).getTextContent());
+      if (!PAGE_FIELD.matcher(instruction).find()) continue;
+      instructionRun = index;
+      if (run.getElementsByTagNameNS(XmlPartSupport.W, "t").getLength() > 0) return run;
+      break;
+    }
+    for (int index = instructionRun + 1; instructionRun >= 0 && index < runs.getLength(); index++) {
+      Element run = (Element) runs.item(index);
+      if (run.getElementsByTagNameNS(XmlPartSupport.W, "t").getLength() > 0) return run;
+    }
+    return null;
+  }
+
+  private Boolean pageNumberAlignmentFromStyles(RawDocx raw, Element paragraph) throws Exception {
+    RawPart stylesPart = raw.parts().get("word/styles.xml");
+    if (stylesPart == null) return null;
+    Element styles = parseXml(stylesPart.bytes());
+    String styleId = paragraphStyleId(styles, paragraph);
+    Element styleJc = styleProperty(styles, styleId, "paragraph", "jc");
+    if (styleJc != null) return "center".equals(styleJc.getAttributeNS(XmlPartSupport.W, "val"));
+    Element defaults = directElement(styles, XmlPartSupport.W, "pPrDefault");
+    Element defaultJc = directElement(defaults, XmlPartSupport.W, "jc");
+    return defaultJc == null ? null : "center".equals(defaultJc.getAttributeNS(XmlPartSupport.W, "val"));
+  }
+
+  private Integer pageNumberSizeFromStyles(RawDocx raw, Element paragraph, Element pageRun) throws Exception {
+    RawPart stylesPart = raw.parts().get("word/styles.xml");
+    if (stylesPart == null) return null;
+    Element styles = parseXml(stylesPart.bytes());
+    Element size = styleProperty(styles, runStyleId(pageRun), "character", "sz");
+    if (size == null) size = styleProperty(styles, paragraphStyleId(styles, paragraph), "paragraph", "sz");
+    if (size != null) return parseInt(size.getAttributeNS(XmlPartSupport.W, "val"));
+    Element defaults = directElement(styles, XmlPartSupport.W, "rPrDefault");
+    Element defaultSize = directElement(defaults, XmlPartSupport.W, "sz");
+    return defaultSize == null ? null : parseInt(defaultSize.getAttributeNS(XmlPartSupport.W, "val"));
+  }
+
+  private String pageNumberFontFromStyles(RawDocx raw, Element paragraph, Element pageRun) throws Exception {
+    RawPart stylesPart = raw.parts().get("word/styles.xml");
+    if (stylesPart == null) return null;
+    Element styles = parseXml(stylesPart.bytes());
+    String font = fontName(styleProperty(styles, runStyleId(pageRun), "character", "rFonts"));
+    if (font != null) return font;
+    font = fontName(styleProperty(styles, paragraphStyleId(styles, paragraph), "paragraph", "rFonts"));
+    if (font != null) return font;
+    Element defaults = directElement(styles, XmlPartSupport.W, "rPrDefault");
+    Element defaultFonts = directElement(defaults, XmlPartSupport.W, "rFonts");
+    return fontName(defaultFonts);
+  }
+
+  private static String runStyleId(Element run) {
+    Element rPr = directElement(run, XmlPartSupport.W, "rPr");
+    Element rStyle = directElement(rPr, XmlPartSupport.W, "rStyle");
+    return rStyle == null ? null : rStyle.getAttributeNS(XmlPartSupport.W, "val");
+  }
+
+  private static String paragraphStyleId(Element styles, Element paragraph) {
+    Element pPr = directElement(paragraph, XmlPartSupport.W, "pPr");
+    Element pStyle = directElement(pPr, XmlPartSupport.W, "pStyle");
+    String styleId = pStyle == null ? null : pStyle.getAttributeNS(XmlPartSupport.W, "val");
+    if (styleId != null && !styleId.isBlank()) return styleId;
+    var candidates = styles.getElementsByTagNameNS(XmlPartSupport.W, "style");
+    for (int index = 0; index < candidates.getLength(); index++) {
+      Element style = (Element) candidates.item(index);
+      if ("paragraph".equals(style.getAttributeNS(XmlPartSupport.W, "type"))
+          && "1".equals(style.getAttributeNS(XmlPartSupport.W, "default")))
+        return style.getAttributeNS(XmlPartSupport.W, "styleId");
+    }
+    return null;
+  }
+
+  private static Element styleProperty(Element styles, String styleId, String type, String property) {
+    var visited = new HashSet<String>();
+    while (styleId != null && !styleId.isBlank() && visited.add(styleId)) {
+      Element style = findStyle(styles, styleId);
+      if (style == null || !type.equals(style.getAttributeNS(XmlPartSupport.W, "type"))) return null;
+      Element properties = directElement(style, XmlPartSupport.W, "rPr");
+      if ("jc".equals(property)) properties = directElement(style, XmlPartSupport.W, "pPr");
+      Element value = directElement(properties, XmlPartSupport.W, property);
+      if (value != null) return value;
+      Element basedOn = directElement(style, XmlPartSupport.W, "basedOn");
+      styleId = basedOn == null ? null : basedOn.getAttributeNS(XmlPartSupport.W, "val");
+    }
+    return null;
+  }
+
+  private static String fontName(Element fonts) {
+    if (fonts == null) return null;
+    String ascii = fonts.getAttributeNS(XmlPartSupport.W, "ascii");
+    if (ascii.isBlank()) ascii = fonts.getAttributeNS(XmlPartSupport.W, "hAnsi");
+    return ascii.isBlank() ? null : ascii;
+  }
+
+  private static Element directElement(Element parent, String namespace, String localName) {
+    if (parent == null) return null;
+    for (Element child : XmlPartSupport.children(parent))
+      if (namespace.equals(child.getNamespaceURI()) && localName.equals(child.getLocalName())) return child;
+    return null;
+  }
+
+  private static Element findStyle(Element styles, String styleId) {
+    var candidates = styles.getElementsByTagNameNS(XmlPartSupport.W, "style");
+    for (int i = 0; i < candidates.getLength(); i++) {
+      Element candidate = (Element) candidates.item(i);
+      if (styleId.equals(candidate.getAttributeNS(XmlPartSupport.W, "styleId"))) return candidate;
+    }
+    return null;
   }
 
   private static boolean hasPageField(Element root) {
@@ -140,9 +380,7 @@ public final class Docx4jDocumentParser {
   }
 
   private static Element parseXml(byte[] bytes) throws Exception {
-    var factory = DocumentBuilderFactory.newInstance(); factory.setNamespaceAware(true);
-    factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-    return factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes)).getDocumentElement();
+    return XmlPartSupport.parse(bytes).getDocumentElement();
   }
 
   private static Element firstElement(Element root, String namespace, String local) {
@@ -156,6 +394,10 @@ public final class Docx4jDocumentParser {
     var resolver = pkg.getMainDocumentPart().getPropertyResolver();
     PPr effectivePPr = resolver.getEffectivePPr(paragraph.getPPr());
     PPrBase.Ind ind = effectivePPr == null ? null : effectivePPr.getInd();
+    Integer outlineLevel = effectivePPr == null || effectivePPr.getOutlineLvl() == null
+        || effectivePPr.getOutlineLvl().getVal() == null ? null : effectivePPr.getOutlineLvl().getVal().intValue();
+    var jc = effectivePPr == null ? null : effectivePPr.getJc();
+    String alignment = jc == null || jc.getVal() == null ? "left" : jc.getVal().value();
     PPrBase.Ind directInd = paragraph.getPPr() == null ? null : paragraph.getPPr().getInd();
     Integer firstLineChars = null;
     if (directInd != null && directInd.getFirstLine() != null) {
@@ -216,7 +458,9 @@ public final class Docx4jDocumentParser {
             fonts == null ? null : fonts.getEastAsia(),
             fonts == null ? null : fonts.getCs(),
             properties == null || properties.getSz() == null ? null : properties.getSz().getVal().intValue(),
-            properties != null && properties.getB() != null && properties.getB().isVal(), source));
+            properties != null && properties.getB() != null && properties.getB().isVal(),
+            properties == null || properties.getVertAlign() == null || properties.getVertAlign().getVal() == null
+                ? null : properties.getVertAlign().getVal().value(), source));
         return null;
       }
     });
@@ -227,7 +471,7 @@ public final class Docx4jDocumentParser {
         spacing == null || spacing.getLine() == null ? null : spacing.getLine().intValue(),
         spacing == null || spacing.getLineRule() == null ? null : spacing.getLineRule().value(),
         new SourceAddress("word/document.xml", path, 0, runs.stream().mapToInt(r -> r.text().length()).sum()),
-        firstLineChars);
+        firstLineChars, outlineLevel, alignment);
   }
 
   private SectionModel parseSection(SectPr section, SourceAddress source) {
@@ -243,12 +487,7 @@ public final class Docx4jDocumentParser {
   }
 
   private static List<List<Integer>> paragraphPaths(byte[] xml) throws Exception {
-    var factory = DocumentBuilderFactory.newInstance();
-    factory.setNamespaceAware(true);
-    factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-    factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-    factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-    Element root = factory.newDocumentBuilder().parse(new ByteArrayInputStream(xml)).getDocumentElement();
+    Element root = XmlPartSupport.parse(xml).getDocumentElement();
     var paths = new ArrayList<List<Integer>>();
     collectParagraphPaths(root, List.of(), paths);
     return List.copyOf(paths);

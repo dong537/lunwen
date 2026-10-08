@@ -7,7 +7,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
 public final class TableParser {
-  private static final Pattern CAPTION = Pattern.compile("^\\s*表\\s*\\d+[\\-－]\\d+");
+  private static final Pattern CAPTION = Pattern.compile("^\\s*(?:续表\\s*(?:\\d+[\\-－]\\d+|[A-Z]\\d+)|表\\s*(?:\\d+[\\-－]\\d+|[A-Z]\\d+))");
 
   public List<TableModel> parse(byte[] xml) {
     try {
@@ -24,16 +24,35 @@ public final class TableParser {
       if (caption == null) caption = findFollowingCaption(element);
       var rows = XmlPartSupport.children(element).stream().filter(e -> "tr".equals(e.getLocalName())).toList();
       int columns = rows.stream().mapToInt(row -> (int) XmlPartSupport.children(row).stream().filter(e -> "tc".equals(e.getLocalName())).count()).max().orElse(0);
+      var columnWidths = XmlPartSupport.children(element).stream()
+          .filter(e -> XmlPartSupport.W.equals(e.getNamespaceURI()) && "tblGrid".equals(e.getLocalName()))
+          .flatMap(grid -> XmlPartSupport.children(grid).stream())
+          .filter(e -> XmlPartSupport.W.equals(e.getNamespaceURI()) && "gridCol".equals(e.getLocalName()))
+          .map(e -> integerAttribute(e, "w"))
+          .filter(java.util.Objects::nonNull).toList();
+      var rowHeights = rows.stream().map(row -> direct(row, "trPr"))
+          .map(TableParser::rowHeight).filter(java.util.Objects::nonNull).toList();
+      boolean merged = rows.stream().flatMap(row -> XmlPartSupport.children(row).stream())
+          .filter(cell -> "tc".equals(cell.getLocalName()))
+          .anyMatch(cell -> hasMerge(cell));
+      var headerTexts = rows.isEmpty() ? List.<String>of() : XmlPartSupport.children(rows.get(0)).stream()
+          .filter(cell -> "tc".equals(cell.getLocalName())).map(XmlPartSupport::text).toList();
+      var note = findFollowingNote(element);
       Element borders = first(element, "tblBorders");
-      boolean top = border(borders, "top") || borderInCells(element, "top");
-      boolean middle = border(borders, "insideH") || borderInCells(element, "insideH");
-      boolean bottom = border(borders, "bottom") || borderInCells(element, "bottom");
+      boolean top = border(borders, "top") || (!rows.isEmpty() && borderInRow(element, rows.get(0), "top"));
+      boolean middle = border(borders, "insideH") || borderInCells(element, "insideH")
+          || borderInInteriorRows(element, rows, "top") || borderInInteriorRows(element, rows, "bottom");
+      boolean bottom = border(borders, "bottom") || (!rows.isEmpty() && borderInRow(element, rows.get(rows.size() - 1), "bottom"));
       boolean vertical = border(borders, "left") || border(borders, "right") || border(borders, "insideV")
           || borderInCells(element, "left") || borderInCells(element, "right") || borderInCells(element, "insideV");
       result.add(new TableModel(new SourceAddress("word/document.xml", path, 0, 0),
           caption == null ? null : new SourceAddress("word/document.xml", caption.path, 0, caption.text.length()),
           caption == null ? null : caption.text, rows.size(), columns, top, middle, bottom, vertical,
-          captionBefore, false));
+          captionBefore, false, merged, columnWidths, rowHeights, headerTexts,
+          note == null ? null : note.text(), note == null ? null : new SourceAddress("word/document.xml", note.path(), 0, note.text().length()),
+          rows.stream().flatMap(row -> XmlPartSupport.children(row).stream())
+              .filter(cell -> "tc".equals(cell.getLocalName())).map(XmlPartSupport::text)
+              .anyMatch(text -> text.trim().matches("同前|同左"))));
     }
     int index = 0;
     for (Element child : XmlPartSupport.children(element)) {
@@ -70,6 +89,52 @@ public final class TableParser {
   }
 
   private record Caption(String text, List<Integer> path) {}
+  private record Note(String text, List<Integer> path) {}
+
+  private Note findFollowingNote(Element table) {
+    var parent = table.getParentNode();
+    if (!(parent instanceof Element parentElement)) return null;
+    var siblings = XmlPartSupport.children(parentElement);
+    int index = siblings.indexOf(table);
+    if (index < 0 || index + 1 >= siblings.size()) return null;
+    Element next = siblings.get(index + 1);
+    if (!XmlPartSupport.W.equals(next.getNamespaceURI()) || !"p".equals(next.getLocalName())) return null;
+    String text = XmlPartSupport.text(next).trim();
+    return text.matches("^注\\s*[：:].*") ? new Note(text, pathOf(next)) : null;
+  }
+
+  private static boolean hasMerge(Element cell) {
+    Element properties = direct(cell, "tcPr");
+    if (properties == null) return false;
+    for (Element child : XmlPartSupport.children(properties)) {
+      if (!XmlPartSupport.W.equals(child.getNamespaceURI())) continue;
+      if ("gridSpan".equals(child.getLocalName()) || "vMerge".equals(child.getLocalName())) return true;
+    }
+    return false;
+  }
+
+  private static Integer rowHeight(Element trPr) {
+    if (trPr == null) return null;
+    for (Element child : XmlPartSupport.children(trPr)) {
+      if (XmlPartSupport.W.equals(child.getNamespaceURI()) && "trHeight".equals(child.getLocalName()))
+        return integerAttribute(child, "val");
+    }
+    return null;
+  }
+
+  private static Integer integerAttribute(Element element, String localName) {
+    String value = element.getAttributeNS(XmlPartSupport.W, localName);
+    if (value == null || value.isBlank()) value = element.getAttribute(localName);
+    try { return value == null || value.isBlank() ? null : Integer.valueOf(value); }
+    catch (NumberFormatException ignored) { return null; }
+  }
+
+  private static Element direct(Element parent, String localName) {
+    if (parent == null) return null;
+    for (Element child : XmlPartSupport.children(parent))
+      if (XmlPartSupport.W.equals(child.getNamespaceURI()) && localName.equals(child.getLocalName())) return child;
+    return null;
+  }
 
   private static List<Integer> pathOf(Element element) {
     var reversed = new ArrayList<Integer>();
@@ -93,7 +158,27 @@ public final class TableParser {
   private static boolean border(Element borders, String side) {
     if (borders == null) return false;
     var nodes = borders.getElementsByTagNameNS(XmlPartSupport.W, side);
-    return nodes.getLength() > 0 && !"nil".equals(((Element) nodes.item(0)).getAttributeNS(XmlPartSupport.W, "val"));
+    if (nodes.getLength() == 0) return false;
+    String value = ((Element) nodes.item(0)).getAttributeNS(XmlPartSupport.W, "val");
+    return !"nil".equals(value) && !"none".equals(value);
+  }
+
+  private static boolean borderInInteriorRows(Element table, List<Element> rows, String side) {
+    for (int index = 0; index < rows.size(); index++) {
+      if ("top".equals(side) && index == 0) continue;
+      if ("bottom".equals(side) && index == rows.size() - 1) continue;
+      if (borderInRow(table, rows.get(index), side)) return true;
+    }
+    return false;
+  }
+
+  private static boolean borderInRow(Element table, Element row, String side) {
+    var nodes = row.getElementsByTagNameNS(XmlPartSupport.W, "tcBorders");
+    for (int index = 0; index < nodes.getLength(); index++) {
+      Element borders = (Element) nodes.item(index);
+      if (owningTable(borders) == table && owningRow(borders) == row && border(borders, side)) return true;
+    }
+    return false;
   }
 
   private static boolean borderInCells(Element table, String side) {
@@ -110,6 +195,15 @@ public final class TableParser {
     Node current = element.getParentNode();
     while (current instanceof Element parent) {
       if (XmlPartSupport.W.equals(parent.getNamespaceURI()) && "tbl".equals(parent.getLocalName())) return parent;
+      current = parent.getParentNode();
+    }
+    return null;
+  }
+
+  private static Element owningRow(Element element) {
+    Node current = element.getParentNode();
+    while (current instanceof Element parent) {
+      if (XmlPartSupport.W.equals(parent.getNamespaceURI()) && "tr".equals(parent.getLocalName())) return parent;
       current = parent.getParentNode();
     }
     return null;

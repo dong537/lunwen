@@ -20,6 +20,6 @@ public final class InspectionKernel {
       return new InspectionReport(raw.sourceSha256(), rules.id(), results, parsed.diagnostics(),
           parsed.tables(), parsed.equations(), parsed.references(), parsed.images(), parsed.pageNumbers(), parsed.chapterBreaks());
     } catch (InspectionException error) { throw error; }
-    catch (RuntimeException error) { throw new InspectionException("PARSER_FAILED", "DOCX parsing failed"); }
+    catch (RuntimeException error) { throw new InspectionException("PARSER_FAILED", "DOCX parsing failed", error); }
   }
 }

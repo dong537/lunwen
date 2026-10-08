@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"})
+@CrossOrigin(originPatterns = {"http://localhost:*", "http://127.0.0.1:*"})
 @RequestMapping("/api/inspections")
 public final class InspectionController {
   private static final MediaType DOCX = MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
@@ -31,7 +31,7 @@ public final class InspectionController {
       @RequestParam("file") MultipartFile file,
       @RequestParam(value = "annotate", defaultValue = "false") boolean annotate,
       @RequestHeader(value = "X-Request-Id", required = false) String requestId) {
-    return service.inspect(file, annotate);
+    return service.inspect(file, annotate, requestId);
   }
 
   @GetMapping("/{requestId}/annotated")

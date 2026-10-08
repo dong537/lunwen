@@ -1,6 +1,7 @@
 package cn.luwneshacha.thesis.reporting;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.luwneshacha.thesis.document.SourceAddress;
@@ -11,7 +12,9 @@ import cn.luwneshacha.thesis.rules.Judgement;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -42,6 +45,102 @@ class CommentWriterTest {
   }
 
   @Test
+  void writesSpecificColorAndNaturalSuggestionForCoverFormatError() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>论文题目</w:t></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("cover-annotated.docx");
+    var finding = new CheckResult("COVER-02-FONT", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "黑体", "宋体", "FONT_MISMATCH",
+        new SourceAddress("word/document.xml", List.of(0, 0), 0, 4));
+
+    AnnotationReport report = new CommentWriter().writeCopy(source, target, List.of(finding));
+
+    assertEquals(AnnotationStatus.WRITTEN, report.items().get(0).status());
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      assertTrue(document.contains("w:val=\"cyan\""));
+      assertTrue(comments.contains("论文题目：改为黑体。"));
+    }
+  }
+
+  @Test
+  void usesWordSupportedHighlightValuesForIndentAndLineSpacingErrors() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+        + "<w:p><w:r><w:t>正文段落</w:t></w:r></w:p><w:p><w:r><w:t>摘要行距</w:t></w:r></w:p>"
+        + "</w:body></w:document>");
+    Path target = tempDir.resolve("valid-highlight-values.docx");
+    var findings = List.of(
+        new CheckResult("BODY-INDENT", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+            Judgement.FAIL, "480", "0", "INDENT_MISMATCH", new SourceAddress("word/document.xml", List.of(0, 0), 0, 4)),
+        new CheckResult("ABSTRACT-LINE", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+            Judgement.FAIL, "360", "240", "LINE_SPACING_MISMATCH", new SourceAddress("word/document.xml", List.of(0, 1), 0, 4)));
+
+    AnnotationReport report = new CommentWriter().writeCopy(source, target, findings);
+
+    assertTrue(report.outputWritten());
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      assertTrue(document.contains("w:val=\"green\""));
+      assertTrue(document.contains("w:val=\"darkMagenta\""));
+      assertFalse(document.contains("brightGreen"));
+      assertFalse(document.contains("purple"));
+    }
+  }
+
+  @Test
+  void replacesAnExistingRunHighlightInsteadOfWritingDuplicateProperties() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p>"
+        + "<w:r><w:rPr><w:highlight w:val=\"cyan\"/><w:b/></w:rPr><w:t>正文内容</w:t></w:r>"
+        + "</w:p></w:body></w:document>");
+    Path target = tempDir.resolve("single-highlight-property.docx");
+
+    new CommentWriter().writeCopy(source, target, List.of(result(List.of(0, 0))));
+
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      assertEquals(1, Pattern.compile("<w:highlight\\b").matcher(document).results().count());
+      assertTrue(document.contains("w:val=\"magenta\""));
+    }
+  }
+
+  @Test
+  void writesTheCurrentUtcTimestampOnNewComments() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>正文</w:t></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("dated-annotated.docx");
+    Instant before = Instant.now().minusSeconds(1);
+
+    new CommentWriter().writeCopy(source, target, List.of(result(List.of(0, 0))));
+
+    Instant after = Instant.now().plusSeconds(1);
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      var matcher = Pattern.compile("w:date=\"([^\"]+)\"").matcher(comments);
+      assertTrue(matcher.find());
+      Instant commentDate = Instant.parse(matcher.group(1));
+      assertTrue(!commentDate.isBefore(before) && !commentDate.isAfter(after));
+    }
+  }
+
+  @Test
+  void writesAppendixNumberingIssueIntoWordComment() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>图B1 示例</w:t></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("appendix-annotated.docx");
+    var finding = new CheckResult("APP-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "图A", "图B1 示例", "APPENDIX_OBJECT_LETTER_MISMATCH",
+        new SourceAddress("word/document.xml", List.of(0, 0), 0, 7));
+
+    AnnotationReport report = new CommentWriter().writeCopy(source, target, List.of(finding));
+
+    assertEquals(AnnotationStatus.WRITTEN, report.items().get(0).status());
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      assertTrue(document.contains("w:val=\"red\""));
+      assertTrue(comments.contains("附录中的图、表或公式编号字母应与本附录一致。"));
+    }
+  }
+
+  @Test
   void rejectsChangedSourceHashBeforeWriting() throws Exception {
     Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>正文</w:t></w:r></w:p></w:body></w:document>");
     Path target = tempDir.resolve("annotated.docx");
@@ -49,6 +148,20 @@ class CommentWriterTest {
     var report = new CommentWriter().writeCopy(source, target, "0".repeat(64), List.of(result(List.of(0, 0))));
 
     assertEquals(AnnotationStatus.REJECTED, report.items().get(0).status());
+    assertTrue(Files.notExists(target));
+  }
+
+  @Test
+  void reportsOnlyWriteFailureWhenAnnotatedCopyCannotBeCreated() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>正文</w:t></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("missing-directory").resolve("annotated.docx");
+
+    AnnotationReport report = new CommentWriter().writeCopy(source, target, List.of(result(List.of(0, 0))));
+
+    assertFalse(report.outputWritten());
+    assertEquals(1, report.items().size());
+    assertEquals(AnnotationStatus.REJECTED, report.items().get(0).status());
+    assertEquals("WRITE_FAILED", report.items().get(0).reason());
     assertTrue(Files.notExists(target));
   }
 
@@ -79,7 +192,7 @@ class CommentWriterTest {
     Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:drawing/></w:r></w:p></w:body></w:document>");
     Path target = tempDir.resolve("figure-annotated.docx");
     CheckResult finding = new CheckResult("FIG-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
-        Judgement.FAIL, "图号和图题", null, "FIGURE_CAPTION_MISSING", new SourceAddress("word/document.xml", List.of(0, 0), 0, 0));
+        Judgement.FAIL, "body reference to figure", "1-1", "FIGURE_NOT_CITED_IN_BODY", new SourceAddress("word/document.xml", List.of(0, 0), 0, 0));
 
     new CommentWriter().writeCopy(source, target, List.of(finding));
 
@@ -87,7 +200,7 @@ class CommentWriterTest {
       String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), StandardCharsets.UTF_8);
       String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
       assertTrue(document.contains("w:val=\"red\""));
-      assertTrue(comments.contains("缺少图题"));
+      assertTrue(comments.contains("没有找到这幅图的引用"));
     }
   }
 
@@ -125,6 +238,40 @@ class CommentWriterTest {
       String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
       assertTrue(comments.contains("“关键词”标签需要加粗，后面的词不用加粗。"));
       assertTrue(comments.contains("关键词格式不符合要求，请检查冒号、数量和分号。"));
+    }
+  }
+
+  @Test
+  void writesShortCitationFormattingSuggestion() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>[1]</w:t></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("citation-annotated.docx");
+    var finding = new CheckResult("CITE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "24 / Times New Roman / superscript", "format mismatch", "CITATION_FORMAT_MISMATCH",
+        new SourceAddress("word/document.xml", List.of(0, 0), 0, 3));
+
+    new CommentWriter().writeCopy(source, target, List.of(finding));
+
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      assertTrue(comments.contains("\u5f15\u7528\u7f16\u53f7\u8bf7\u8bbe\u4e3a\u5c0f\u56db Times New Roman \u4e0a\u6807\u3002"));
+    }
+  }
+
+  @Test
+  void writesEquationReferenceFindingWithItsOwnColorAndComment() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>(3-1)</w:t></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("equation-reference-annotated.docx");
+    var finding = new CheckResult("EQ-04", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "body reference to equation 3-1", null, "EQUATION_NOT_REFERENCED",
+        new SourceAddress("word/document.xml", List.of(0, 0), 0, 5));
+
+    new CommentWriter().writeCopy(source, target, List.of(finding));
+
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      assertTrue(document.contains("w:val=\"red\""));
+      assertTrue(comments.contains("正文里没有找到这条公式的引用"));
     }
   }
 

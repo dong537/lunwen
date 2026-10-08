@@ -1,9 +1,17 @@
 package cn.luwneshacha.thesis.inspection;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import cn.luwneshacha.thesis.inspection.InspectionException;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+import java.nio.file.Files;
+import java.io.OutputStream;
 import org.docx4j.XmlUtils;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 import org.docx4j.wml.Document;
@@ -28,6 +36,27 @@ class InspectionKernelIntegrationTest {
     assertTrue(report.results().stream().anyMatch(r -> r.ruleId().equals("PAGE-01")));
     assertTrue(json.contains("word/document.xml"));
     assertTrue(json.contains("1474"));
+  }
+
+  @Test
+  void preservesTheParserCauseForServerDiagnostics() throws Exception {
+    Path source = temp.resolve("malformed-package.docx");
+    try (OutputStream file = Files.newOutputStream(source); ZipOutputStream zip = new ZipOutputStream(file)) {
+      zip.putNextEntry(new ZipEntry("[Content_Types].xml"));
+      zip.write(("<?xml version=\"1.0\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
+          + "<Default Extension=\"xml\" ContentType=\"application/xml\"/></Types>")
+          .getBytes(StandardCharsets.UTF_8));
+      zip.closeEntry();
+      zip.putNextEntry(new ZipEntry("word/document.xml"));
+      zip.write("<broken".getBytes(StandardCharsets.UTF_8));
+      zip.closeEntry();
+    }
+
+    InspectionException error = assertThrows(InspectionException.class,
+        () -> new InspectionKernel().inspect(source, cn.luwneshacha.thesis.rules.RuleSet.schoolV1()));
+
+    assertEquals("INVALID_DOCX", error.code());
+    assertNotNull(error.getCause());
   }
 
   private Path fixture() throws Exception {
