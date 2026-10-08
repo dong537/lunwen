@@ -8,12 +8,18 @@ import cn.luwneshacha.thesis.document.SourceAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashSet;
+import java.util.regex.Pattern;
 
 public final class RuleEngine {
+  private static final Pattern REFERENCE_ENTRY = Pattern.compile("^\\[\\d+\\]");
+  private static final Pattern TABLE_OR_FIGURE_CAPTION = Pattern.compile("^(表|图)\\s*[0-9一二三四五六七八九十]+", Pattern.CASE_INSENSITIVE);
+  private static final Pattern EQUATION_NUMBER = Pattern.compile("^\\(?\\d+[\\-－]\\d+\\)?$");
+  private static final Pattern TOC_ENTRY = Pattern.compile(".+(?:\\.{2,}|……+)\\s*\\d+$");
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
     for (SectionModel section : document.sections()) results.add(checkMargins(section, rules));
     for (ParagraphModel paragraph : document.paragraphs()) {
+      if (!isBodyParagraph(paragraph)) continue;
       results.add(checkIndent(paragraph, rules));
       for (RunModel run : paragraph.runs()) {
         results.add(checkFont(run, rules));
@@ -38,6 +44,22 @@ public final class RuleEngine {
       if (reference.category() == null) results.add(result("REF-02", "M/J/D/C/N/R/S/P/Z/EB/OL", null, "REFERENCE_CATEGORY_MISSING", Judgement.FAIL, reference.source()));
     }
     return List.copyOf(results);
+  }
+
+  private boolean isBodyParagraph(ParagraphModel paragraph) {
+    String text = paragraph.runs().stream().map(RunModel::text).reduce("", String::concat).trim();
+    if (text.isBlank()) return false;
+    if (REFERENCE_ENTRY.matcher(text).find()) return false;
+    if (TABLE_OR_FIGURE_CAPTION.matcher(text).find()) return false;
+    if (EQUATION_NUMBER.matcher(text).matches()) return false;
+    if (TOC_ENTRY.matcher(text).matches()) return false;
+    return !isSectionHeading(text);
+  }
+
+  private boolean isSectionHeading(String text) {
+    return text.matches("^(摘要|Abstract|关键词|Keywords|目录|Contents|参考文献|References|致谢|Acknowledg(?:e)?ments)$")
+        || text.matches("^第[一二三四五六七八九十百零\\d]+章.*$")
+        || text.matches("^\\d+(?:\\.\\d+){0,3}\\s+\\S+.*$");
   }
 
   private CheckResult checkMargins(SectionModel section, RuleSet rules) {

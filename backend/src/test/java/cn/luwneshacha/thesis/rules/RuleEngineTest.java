@@ -66,4 +66,15 @@ class RuleEngineTest {
 
     assertEquals(Judgement.PASS, result.judgement());
   }
+
+  @Test
+  void doesNotApplyBodyRulesToReferenceEntriesAndHeadings() {
+    var run = new RunModel("[1] Example[M].", "Arial", "黑体", null, 18, false, ADDRESS);
+    var heading = new ParagraphModel(List.of(run), 0, null, null, null, null, ADDRESS, 0);
+    var document = new ParsedDocument("source", List.of(heading), List.of(), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    assertTrue(results.stream().noneMatch(result -> result.ruleId().startsWith("BODY-")));
+  }
 }
