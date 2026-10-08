@@ -157,4 +157,18 @@ class RuleEngineTest {
     assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("HEADING-SIZE") && r.judgement() == Judgement.FAIL));
     assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("HEADING-BOLD") && r.judgement() == Judgement.FAIL));
   }
+
+  @Test
+  void reportsCaptionBelowTableAsPositionError() {
+    var table = new TableModel(new SourceAddress("word/document.xml", List.of(1), 0, 0),
+        ADDRESS, "表1-2 表题", 2, 2, true, true, true, false, false, true);
+    var document = new ParsedDocument("source", List.of(), List.of(), List.of(),
+        List.of(table), List.of(), List.of(), List.of());
+
+    var result = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
+        .filter(r -> r.ruleId().equals("TAB-02")).findFirst().orElseThrow();
+
+    assertEquals(Judgement.FAIL, result.judgement());
+    assertEquals("TABLE_CAPTION_BELOW", result.reasonCode());
+  }
 }

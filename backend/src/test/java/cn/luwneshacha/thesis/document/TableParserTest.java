@@ -43,4 +43,16 @@ class TableParserTest {
     assertFalse(tables.get(0).topBorder());
     assertTrue(tables.get(1).topBorder());
   }
+
+  @Test
+  void keepsCaptionWhenItAppearsAfterTableAndMarksOrder() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+        + "<w:tbl><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl>"
+        + "<w:p><w:r><w:t>表1-2 表题在下方</w:t></w:r></w:p></w:body></w:document>";
+
+    var table = new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8)).get(0);
+
+    assertEquals("表1-2 表题在下方", table.captionText());
+    assertFalse(table.captionBefore());
+  }
 }

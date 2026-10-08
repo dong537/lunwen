@@ -216,7 +216,9 @@ public final class CommentWriter {
       case "HEADING-SIZE" -> "标题字号不符合要求，请按标题层级调整。";
       case "HEADING-BOLD" -> "标题没有加粗，请按规范调整。";
       case "TAB-01" -> "表格缺少表题，请补充表号和题名。";
-      case "TAB-02" -> "表题位置需要复核，请确认是否位于表格上方。";
+      case "TAB-02" -> "TABLE_CAPTION_BELOW".equals(result.reasonCode())
+          ? "表题在表格下方，请移到表格上方。"
+          : "表题位置需要复核，请确认是否位于表格上方。";
       case "TAB-03" -> "表格边框可能不符合三线表要求，请检查横线和竖线。";
       case "FIG-01" -> "缺少图题，请在图片下方补充图号和题名。";
       case "EQ-01" -> "公式缺少编号，请按章节补充公式号。";

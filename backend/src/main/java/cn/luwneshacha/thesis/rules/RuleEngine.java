@@ -49,7 +49,8 @@ public final class RuleEngine {
     }
     for (var table : document.tables()) {
       if (table.captionText() == null) results.add(result("TAB-01", "表1-1", null, "TABLE_CAPTION_MISSING", Judgement.FAIL, table.source()));
-      if (table.layoutNeedsReview()) results.add(review("TAB-02", "caption above table", "TABLE_LAYOUT_REVIEW", table.source()));
+      else if (!table.captionBefore()) results.add(result("TAB-02", "caption above table", null, "TABLE_CAPTION_BELOW", Judgement.FAIL, table.source()));
+      else if (table.layoutNeedsReview()) results.add(review("TAB-02", "caption above table", "TABLE_LAYOUT_REVIEW", table.source()));
       if (!table.topBorder() || !table.middleBorder() || !table.bottomBorder())
         results.add(result("TAB-03", "three-line table", "border evidence", "TABLE_BORDER_MISMATCH", Judgement.FAIL, table.source()));
       else if (table.verticalBorders())

@@ -20,6 +20,8 @@ public final class TableParser {
   private void collect(Element element, List<Integer> path, List<TableModel> result) {
     if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "tbl".equals(element.getLocalName())) {
       var caption = findCaption(element);
+      boolean captionBefore = caption != null;
+      if (caption == null) caption = findFollowingCaption(element);
       var rows = XmlPartSupport.children(element).stream().filter(e -> "tr".equals(e.getLocalName())).toList();
       int columns = rows.stream().mapToInt(row -> (int) XmlPartSupport.children(row).stream().filter(e -> "tc".equals(e.getLocalName())).count()).max().orElse(0);
       Element borders = first(element, "tblBorders");
@@ -31,7 +33,7 @@ public final class TableParser {
       result.add(new TableModel(new SourceAddress("word/document.xml", path, 0, 0),
           caption == null ? null : new SourceAddress("word/document.xml", caption.path, 0, caption.text.length()),
           caption == null ? null : caption.text, rows.size(), columns, top, middle, bottom, vertical,
-          caption != null, caption != null));
+          captionBefore, caption != null));
     }
     int index = 0;
     for (Element child : XmlPartSupport.children(element)) {
@@ -52,6 +54,19 @@ public final class TableParser {
     String text = XmlPartSupport.text(previous);
     if (!CAPTION.matcher(text).find()) return null;
     return new Caption(text, pathOf(previous));
+  }
+
+  private Caption findFollowingCaption(Element table) {
+    var parent = table.getParentNode();
+    if (!(parent instanceof Element parentElement)) return null;
+    var siblings = XmlPartSupport.children(parentElement);
+    int index = siblings.indexOf(table);
+    if (index < 0 || index + 1 >= siblings.size()) return null;
+    Element next = siblings.get(index + 1);
+    if (!XmlPartSupport.W.equals(next.getNamespaceURI()) || !"p".equals(next.getLocalName())) return null;
+    String text = XmlPartSupport.text(next);
+    if (!CAPTION.matcher(text).find()) return null;
+    return new Caption(text, pathOf(next));
   }
 
   private record Caption(String text, List<Integer> path) {}
