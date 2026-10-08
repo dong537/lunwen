@@ -132,7 +132,11 @@ public final class RuleEngine {
     for (ParagraphModel paragraph : document.paragraphs()) {
       String text = paragraph.runs().stream().map(RunModel::text).reduce("", String::concat).trim();
       if (text.matches("^(摘要|Abstract)$")) { inAbstract = true; continue; }
-      if (inAbstract && text.matches("^(关键词|Keywords)[:：]?.*")) { inAbstract = false; continue; }
+      if (inAbstract && text.matches("^(关键词|Keywords)[:：]?.*")) {
+        results.add(checkLineSpacing("ABSTRACT-LINE", paragraph));
+        inAbstract = false;
+        continue;
+      }
       if (inAbstract && !text.isBlank()) results.add(checkLineSpacing("ABSTRACT-LINE", paragraph));
     }
   }

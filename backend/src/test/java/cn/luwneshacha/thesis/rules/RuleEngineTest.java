@@ -138,7 +138,9 @@ class RuleEngineTest {
 
     var results = new RuleEngine().check(document, RuleSet.schoolV1());
 
-    var line = results.stream().filter(r -> r.ruleId().equals("ABSTRACT-LINE")).findFirst().orElseThrow();
+    var lines = results.stream().filter(r -> r.ruleId().equals("ABSTRACT-LINE")).toList();
+    assertEquals(2, lines.size());
+    var line = lines.get(0);
     assertEquals(Judgement.FAIL, line.judgement());
   }
 }
