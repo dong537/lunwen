@@ -161,6 +161,9 @@ public final class CommentWriter {
       case "BODY-INDENT" -> "brightGreen";
       case "PAGE-01" -> "magenta";
       case "FIG-01" -> "red";
+      case "REF-FONT" -> "cyan";
+      case "REF-SIZE" -> "yellow";
+      case "REF-LINE" -> "purple";
       default -> "lightGray";
     };
     Document doc = paragraph.getOwnerDocument();
@@ -197,6 +200,9 @@ public final class CommentWriter {
       case "BODY-FONT" -> "字体不符合要求，请检查中文字体和英文字体。";
       case "BODY-SIZE" -> "字号不符合要求，请按规范调整。";
       case "BODY-INDENT" -> "首行缩进不符合要求，请调整为 2 字符。";
+      case "REF-FONT" -> "参考文献字体不一致，请按规范使用宋体和 Times New Roman。";
+      case "REF-SIZE" -> "参考文献字号不对，请按规范调整为小四。";
+      case "REF-LINE" -> "参考文献行距不是 1.5 倍，请调整段落行距。";
       case "TAB-01" -> "表格缺少表题，请补充表号和题名。";
       case "TAB-02" -> "表题位置需要复核，请确认是否位于表格上方。";
       case "TAB-03" -> "表格边框可能不符合三线表要求，请检查横线和竖线。";

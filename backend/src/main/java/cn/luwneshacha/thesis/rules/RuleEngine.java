@@ -26,6 +26,18 @@ public final class RuleEngine {
         results.add(checkSize(run, rules));
       }
     }
+    for (var reference : document.references()) {
+      document.paragraphs().stream()
+          .filter(paragraph -> paragraph.source().elementPath().equals(reference.source().elementPath()))
+          .findFirst()
+          .ifPresent(paragraph -> {
+            for (RunModel run : paragraph.runs()) {
+              results.add(checkFont(run, rules, "REF-FONT"));
+              results.add(checkSize(run, rules, "REF-SIZE"));
+            }
+            results.add(checkReferenceLineSpacing(paragraph));
+          });
+    }
     for (var table : document.tables()) {
       if (table.captionText() == null) results.add(result("TAB-01", "表1-1", null, "TABLE_CAPTION_MISSING", Judgement.FAIL, table.source()));
       if (table.layoutNeedsReview()) results.add(review("TAB-02", "caption above table", "TABLE_LAYOUT_REVIEW", table.source()));
@@ -90,18 +102,32 @@ public final class RuleEngine {
   }
 
   private CheckResult checkFont(RunModel run, RuleSet rules) {
+    return checkFont(run, rules, "BODY-FONT");
+  }
+
+  private CheckResult checkFont(RunModel run, RuleSet rules, String ruleId) {
     boolean hasHan = run.text().codePoints().anyMatch(c -> Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN);
     boolean hasLatin = run.text().codePoints().anyMatch(c -> Character.isLetterOrDigit(c) && Character.UnicodeScript.of(c) == Character.UnicodeScript.LATIN);
-    if ((hasHan && run.eastAsiaFont() == null) || (hasLatin && run.asciiFont() == null)) return review("BODY-FONT", "font slots", "FONT_UNKNOWN", run.source());
+    if ((hasHan && run.eastAsiaFont() == null) || (hasLatin && run.asciiFont() == null)) return review(ruleId, "font slots", "FONT_UNKNOWN", run.source());
     if ((hasHan && !rules.expectedEastAsiaFont().equals(run.eastAsiaFont())) || (hasLatin && !rules.expectedLatinFont().equals(run.asciiFont()))) {
-      return result("BODY-FONT", rules.expectedEastAsiaFont() + "/" + rules.expectedLatinFont(), run.eastAsiaFont() + "/" + run.asciiFont(), "FONT_MISMATCH", Judgement.FAIL, run.source());
+      return result(ruleId, rules.expectedEastAsiaFont() + "/" + rules.expectedLatinFont(), run.eastAsiaFont() + "/" + run.asciiFont(), "FONT_MISMATCH", Judgement.FAIL, run.source());
     }
-    return result("BODY-FONT", rules.expectedEastAsiaFont() + "/" + rules.expectedLatinFont(), run.eastAsiaFont() + "/" + run.asciiFont(), "", Judgement.PASS, run.source());
+    return result(ruleId, rules.expectedEastAsiaFont() + "/" + rules.expectedLatinFont(), run.eastAsiaFont() + "/" + run.asciiFont(), "", Judgement.PASS, run.source());
   }
 
   private CheckResult checkSize(RunModel run, RuleSet rules) {
-    if (run.fontSizeHalfPoints() == null) return review("BODY-SIZE", String.valueOf(rules.expectedSizeHalfPoints()), "SIZE_UNKNOWN", run.source());
-    return result("BODY-SIZE", String.valueOf(rules.expectedSizeHalfPoints()), String.valueOf(run.fontSizeHalfPoints()), "", run.fontSizeHalfPoints() == rules.expectedSizeHalfPoints() ? Judgement.PASS : Judgement.FAIL, run.source());
+    return checkSize(run, rules, "BODY-SIZE");
+  }
+
+  private CheckResult checkSize(RunModel run, RuleSet rules, String ruleId) {
+    if (run.fontSizeHalfPoints() == null) return review(ruleId, String.valueOf(rules.expectedSizeHalfPoints()), "SIZE_UNKNOWN", run.source());
+    return result(ruleId, String.valueOf(rules.expectedSizeHalfPoints()), String.valueOf(run.fontSizeHalfPoints()), "", run.fontSizeHalfPoints() == rules.expectedSizeHalfPoints() ? Judgement.PASS : Judgement.FAIL, run.source());
+  }
+
+  private CheckResult checkReferenceLineSpacing(ParagraphModel paragraph) {
+    if (paragraph.lineTwips() == null) return review("REF-LINE", "360", "LINE_SPACING_UNKNOWN", paragraph.source());
+    return result("REF-LINE", "360", String.valueOf(paragraph.lineTwips()), "",
+        paragraph.lineTwips() == 360 ? Judgement.PASS : Judgement.FAIL, paragraph.source());
   }
 
   private CheckResult review(String ruleId, String expected, String reason, SourceAddress source) {

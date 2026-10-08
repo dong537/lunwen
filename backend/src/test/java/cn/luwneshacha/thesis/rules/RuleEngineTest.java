@@ -9,6 +9,7 @@ import cn.luwneshacha.thesis.document.RunModel;
 import cn.luwneshacha.thesis.document.SectionModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.document.TableModel;
+import cn.luwneshacha.thesis.document.ReferenceEntryModel;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -91,5 +92,21 @@ class RuleEngineTest {
 
     assertEquals(Judgement.REVIEW, result.judgement());
     assertEquals("TABLE_AUXILIARY_BORDER_REVIEW", result.reasonCode());
+  }
+
+  @Test
+  void checksReferenceFontSizeAndOnePointFiveLineSpacing() {
+    var reference = new ParagraphModel(
+        List.of(new RunModel("[1] Paper[M].", "Arial", "黑体", null, 22, false, ADDRESS)),
+        null, null, null, 480, "auto", ADDRESS, null);
+    var entry = new ReferenceEntryModel(ADDRESS, "1", "[1] Paper[M].", "M", false);
+    var document = new ParsedDocument("source", List.of(reference), List.of(), List.of(),
+        List.of(), List.of(), List.of(entry), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("REF-FONT") && r.judgement() == Judgement.FAIL));
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("REF-SIZE") && r.judgement() == Judgement.FAIL));
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("REF-LINE") && r.judgement() == Judgement.FAIL));
   }
 }
