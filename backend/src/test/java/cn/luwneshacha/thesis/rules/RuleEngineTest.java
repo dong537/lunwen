@@ -8,6 +8,7 @@ import cn.luwneshacha.thesis.document.ParsedDocument;
 import cn.luwneshacha.thesis.document.RunModel;
 import cn.luwneshacha.thesis.document.SectionModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
+import cn.luwneshacha.thesis.document.TableModel;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -76,5 +77,19 @@ class RuleEngineTest {
     var results = new RuleEngine().check(document, RuleSet.schoolV1());
 
     assertTrue(results.stream().noneMatch(result -> result.ruleId().startsWith("BODY-")));
+  }
+
+  @Test
+  void treatsAuxiliaryTableLinesAsReviewInsteadOfFailure() {
+    var table = new TableModel(ADDRESS, ADDRESS, "表1-1 数据", 3, 2,
+        true, true, true, true, true, false);
+    var document = new ParsedDocument("source", List.of(), List.of(), List.of(),
+        List.of(table), List.of(), List.of(), List.of());
+
+    var result = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
+        .filter(r -> r.ruleId().equals("TAB-03")).findFirst().orElseThrow();
+
+    assertEquals(Judgement.REVIEW, result.judgement());
+    assertEquals("TABLE_AUXILIARY_BORDER_REVIEW", result.reasonCode());
   }
 }
