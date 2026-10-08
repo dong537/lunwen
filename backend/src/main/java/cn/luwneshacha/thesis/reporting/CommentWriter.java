@@ -163,6 +163,8 @@ public final class CommentWriter {
       case "ABSTRACT-SIZE" -> "yellow";
       case "ABSTRACT-INDENT" -> "brightGreen";
       case "ABSTRACT-LINE" -> "purple";
+      case "ABSTRACT-KEYWORD-BOLD" -> "brightGreen";
+      case "ABSTRACT-KEYWORD-FORMAT" -> "magenta";
       case "PAGE-01" -> "magenta";
       case "PAGE-05" -> "yellow";
       case "PAGE-04" -> "lightGray";
@@ -221,6 +223,8 @@ public final class CommentWriter {
       case "ABSTRACT-FONT" -> "摘要字体不符合要求，请检查中英文字符字体。";
       case "ABSTRACT-SIZE" -> "摘要字号应为小四，请检查。";
       case "ABSTRACT-INDENT" -> "摘要首行缩进应为 2 字符，请调整。";
+      case "ABSTRACT-KEYWORD-BOLD" -> "“关键词”标签需要加粗，后面的词不用加粗。";
+      case "ABSTRACT-KEYWORD-FORMAT" -> "关键词格式不符合要求，请检查冒号、数量和分号。";
       case "REF-FONT" -> "参考文献字体不一致，请按规范使用宋体和 Times New Roman。";
       case "REF-SIZE" -> "参考文献字号不对，请按规范调整为小四。";
       case "REF-LINE" -> "参考文献行距不是 1.5 倍，请调整段落行距。";

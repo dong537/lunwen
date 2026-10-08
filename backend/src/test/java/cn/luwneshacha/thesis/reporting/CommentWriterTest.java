@@ -109,6 +109,26 @@ class CommentWriterTest {
   }
 
   @Test
+  void writesNaturalChineseKeywordSuggestions() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>关键词：甲；乙</w:t></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("keywords-annotated.docx");
+    var anchor = new SourceAddress("word/document.xml", List.of(0, 0), 0, 8);
+    var findings = List.of(
+        new CheckResult("ABSTRACT-KEYWORD-BOLD", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+            Judgement.FAIL, "true", "false", "KEYWORD_LABEL_NOT_BOLD", anchor),
+        new CheckResult("ABSTRACT-KEYWORD-FORMAT", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+            Judgement.FAIL, "3-5 terms", "2 terms", "KEYWORD_LIST_MISMATCH", anchor));
+
+    new CommentWriter().writeCopy(source, target, findings);
+
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      assertTrue(comments.contains("“关键词”标签需要加粗，后面的词不用加粗。"));
+      assertTrue(comments.contains("关键词格式不符合要求，请检查冒号、数量和分号。"));
+    }
+  }
+
+  @Test
   void reportsUnsupportedStoryAnchorWithItsOriginalAddress() throws Exception {
     Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>正文</w:t></w:r></w:p></w:body></w:document>");
     Path target = tempDir.resolve("unsupported-annotated.docx");

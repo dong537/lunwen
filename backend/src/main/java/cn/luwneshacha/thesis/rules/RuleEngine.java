@@ -266,8 +266,42 @@ public final class RuleEngine {
       }
       results.add(checkIndent(paragraph, rules, "ABSTRACT-INDENT"));
       results.add(checkLineSpacing("ABSTRACT-LINE", paragraph));
-      if (keywords) language = null;
+      if (keywords) {
+        if ("zh".equals(language)) {
+          results.add(checkChineseKeywordLabelBold(paragraph));
+          results.add(checkChineseKeywordFormat(paragraph, text));
+        }
+        language = null;
+      }
     }
+  }
+
+  private CheckResult checkChineseKeywordLabelBold(ParagraphModel paragraph) {
+    int labelLength = "关键词".length();
+    int offset = 0;
+    for (RunModel run : paragraph.runs()) {
+      int end = offset + run.text().length();
+      if (offset < labelLength && end > offset && !run.bold())
+        return result("ABSTRACT-KEYWORD-BOLD", "true", "false", "KEYWORD_LABEL_NOT_BOLD", Judgement.FAIL, run.source());
+      offset = end;
+    }
+    if (offset < labelLength) return review("ABSTRACT-KEYWORD-BOLD", "true", "KEYWORD_LABEL_UNREADABLE", paragraph.source());
+    return result("ABSTRACT-KEYWORD-BOLD", "true", "true", "", Judgement.PASS, paragraph.source());
+  }
+
+  private CheckResult checkChineseKeywordFormat(ParagraphModel paragraph, String text) {
+    String normalized = text.replaceAll("\\s+", "");
+    if (!normalized.startsWith("关键词："))
+      return result("ABSTRACT-KEYWORD-FORMAT", "关键词：词1；词2；词3", text,
+          "KEYWORD_SEPARATOR_MISMATCH", Judgement.FAIL, paragraph.source());
+    String list = normalized.substring("关键词：".length());
+    String[] words = list.split("；", -1);
+    boolean trailingPunctuation = list.matches(".*[。！？；，,.!?]$");
+    boolean valid = words.length >= 3 && words.length <= 5
+        && java.util.Arrays.stream(words).allMatch(word -> !word.isBlank())
+        && !trailingPunctuation;
+    return result("ABSTRACT-KEYWORD-FORMAT", "3-5 个关键词，用中文分号分隔且末尾无标点", text,
+        valid ? "" : "KEYWORD_LIST_MISMATCH", valid ? Judgement.PASS : Judgement.FAIL, paragraph.source());
   }
 
   private CheckResult checkReferenceLineSpacing(ParagraphModel paragraph) {
@@ -276,8 +310,10 @@ public final class RuleEngine {
 
   private CheckResult checkLineSpacing(String ruleId, ParagraphModel paragraph) {
     if (paragraph.lineTwips() == null) return review(ruleId, "360", "LINE_SPACING_UNKNOWN", paragraph.source());
-    return result(ruleId, "360", String.valueOf(paragraph.lineTwips()), "",
-        paragraph.lineTwips() == 360 ? Judgement.PASS : Judgement.FAIL, paragraph.source());
+    String lineRule = paragraph.lineRule() == null ? "auto" : paragraph.lineRule();
+    boolean matches = paragraph.lineTwips() == 360 && "auto".equalsIgnoreCase(lineRule);
+    return result(ruleId, "360 / auto", paragraph.lineTwips() + " / " + lineRule, "",
+        matches ? Judgement.PASS : Judgement.FAIL, paragraph.source());
   }
 
   private void addCaptionResults(List<CheckResult> results, ParagraphModel paragraph, RuleSet rules) {

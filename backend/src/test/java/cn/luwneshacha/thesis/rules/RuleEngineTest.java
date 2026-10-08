@@ -194,6 +194,54 @@ class RuleEngineTest {
     assertEquals(2, lines.size());
     var line = lines.get(0);
     assertEquals(Judgement.FAIL, line.judgement());
+    assertEquals(Judgement.PASS, lines.get(1).judgement());
+  }
+
+  @Test
+  void rejectsFixedPointLineSpacingThatUsesTheSameTwipsAsOnePointFiveLines() {
+    var title = paragraph("摘要", List.of(0, 0));
+    var body = new ParagraphModel(List.of(new RunModel("摘要正文", "Times New Roman", "宋体", null, 24, false,
+        new SourceAddress("word/document.xml", List.of(0, 1), 0, 4))),
+        0, null, null, 360, "exact", new SourceAddress("word/document.xml", List.of(0, 1), 0, 4), 0);
+    var document = new ParsedDocument("source", List.of(title, body), List.of(), List.of());
+
+    var result = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
+        .filter(item -> item.ruleId().equals("ABSTRACT-LINE"))
+        .findFirst().orElseThrow();
+
+    assertEquals(Judgement.FAIL, result.judgement());
+  }
+
+  @Test
+  void acceptsChineseKeywordLineWithBoldLabelAndFourTerms() {
+    var title = paragraph("摘要", List.of(0, 0));
+    var source = new SourceAddress("word/document.xml", List.of(0, 1), 0, 23);
+    var keywords = new ParagraphModel(List.of(
+        new RunModel("关键词：", "Times New Roman", "宋体", null, 24, true, source),
+        new RunModel("甲；乙；丙；丁", "Times New Roman", "宋体", null, 24, false, source)),
+        0, null, null, 360, "auto", source, 200);
+    var document = new ParsedDocument("source", List.of(title, keywords), List.of(), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    assertTrue(results.stream().anyMatch(item -> item.ruleId().equals("ABSTRACT-KEYWORD-BOLD") && item.judgement() == Judgement.PASS));
+    assertTrue(results.stream().anyMatch(item -> item.ruleId().equals("ABSTRACT-KEYWORD-FORMAT") && item.judgement() == Judgement.PASS));
+  }
+
+  @Test
+  void rejectsUnboldChineseKeywordLabelAndInvalidKeywordList() {
+    var title = paragraph("摘要", List.of(0, 0));
+    var source = new SourceAddress("word/document.xml", List.of(0, 1), 0, 18);
+    var keywords = new ParagraphModel(List.of(
+        new RunModel("关键词:", "Times New Roman", "宋体", null, 24, false, source),
+        new RunModel("甲；乙。", "Times New Roman", "宋体", null, 24, false, source)),
+        0, null, null, 360, "auto", source, 200);
+    var document = new ParsedDocument("source", List.of(title, keywords), List.of(), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    assertTrue(results.stream().anyMatch(item -> item.ruleId().equals("ABSTRACT-KEYWORD-BOLD") && item.judgement() == Judgement.FAIL));
+    assertTrue(results.stream().anyMatch(item -> item.ruleId().equals("ABSTRACT-KEYWORD-FORMAT") && item.judgement() == Judgement.FAIL));
   }
 
   @Test
