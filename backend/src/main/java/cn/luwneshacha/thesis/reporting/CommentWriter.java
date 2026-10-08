@@ -165,6 +165,8 @@ public final class CommentWriter {
       case "REF-FONT" -> "cyan";
       case "REF-SIZE" -> "yellow";
       case "REF-LINE" -> "purple";
+      case "REF-03" -> "magenta";
+      case "REF-05" -> "red";
       case "CAPTION-FONT" -> "cyan";
       case "CAPTION-SIZE" -> "yellow";
       case "ABSTRACT-LINE" -> "purple";
@@ -210,6 +212,8 @@ public final class CommentWriter {
       case "REF-FONT" -> "参考文献字体不一致，请按规范使用宋体和 Times New Roman。";
       case "REF-SIZE" -> "参考文献字号不对，请按规范调整为小四。";
       case "REF-LINE" -> "参考文献行距不是 1.5 倍，请调整段落行距。";
+      case "REF-03" -> "参考文献编号重复，请按首次出现顺序统一编号。";
+      case "REF-05" -> "参考文献少于 10 篇，请补充有效文献。";
       case "CAPTION-FONT" -> "图表题字体不符合要求，请按规范使用宋体。";
       case "CAPTION-SIZE" -> "图表题字号不符合要求，请按规范调整为五号。";
       case "ABSTRACT-LINE" -> "摘要行距不是 1.5 倍，请调整段落行距。";

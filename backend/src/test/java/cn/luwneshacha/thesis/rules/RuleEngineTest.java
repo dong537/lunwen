@@ -186,4 +186,18 @@ class RuleEngineTest {
     assertEquals(Judgement.REVIEW, result.judgement());
     assertEquals("FIGURE_LAYOUT_REVIEW", result.reasonCode());
   }
+
+  @Test
+  void reportsTooFewReferencesAndUsesReferenceOrderRuleForDuplicates() {
+    var first = new ReferenceEntryModel(ADDRESS, "1", "[1] A[M].", "M", false);
+    var duplicate = new ReferenceEntryModel(new SourceAddress("word/document.xml", List.of(1), 0, 1),
+        "1", "[1] B[J].", "J", false);
+    var document = new ParsedDocument("source", List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(first, duplicate), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("REF-05") && r.judgement() == Judgement.FAIL));
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("REF-03") && r.judgement() == Judgement.FAIL));
+  }
 }

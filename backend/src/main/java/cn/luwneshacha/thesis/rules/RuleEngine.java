@@ -72,8 +72,12 @@ public final class RuleEngine {
       if (equation.needsReview()) results.add(review("EQ-04", equation.type(), "EQUATION_OBJECT_REVIEW", equation.source()));
     }
     var referenceNumbers = new HashSet<String>();
+    if (!document.references().isEmpty() && document.references().size() < 10) {
+      results.add(result("REF-05", "10", String.valueOf(document.references().size()), "REFERENCE_COUNT_TOO_LOW", Judgement.FAIL,
+          document.references().get(0).source()));
+    }
     for (var reference : document.references()) {
-      if (!referenceNumbers.add(reference.number())) results.add(result("REF-04", "unique", reference.number(), "REFERENCE_NUMBER_DUPLICATE", Judgement.FAIL, reference.source()));
+      if (!referenceNumbers.add(reference.number())) results.add(result("REF-03", "unique", reference.number(), "REFERENCE_NUMBER_DUPLICATE", Judgement.FAIL, reference.source()));
       if (reference.category() == null) results.add(result("REF-02", "M/J/D/C/N/R/S/P/Z/EB/OL", null, "REFERENCE_CATEGORY_MISSING", Judgement.FAIL, reference.source()));
     }
     return List.copyOf(results);
