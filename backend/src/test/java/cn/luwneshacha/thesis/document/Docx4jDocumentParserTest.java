@@ -110,6 +110,29 @@ class Docx4jDocumentParserTest {
     assertEquals(null, paragraph.firstLineChars());
   }
 
+  @Test
+  void chapterBreakEvidenceIncludesInheritedPageBreaksAndPreviousSectionBreaks() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + "><w:body>"
+            + "<w:p><w:r><w:t>第一章 绪论</w:t></w:r></w:p>"
+            + "<w:p><w:pPr><w:pStyle w:val=\"Chapter\"/></w:pPr><w:r><w:t>第二章 背景</w:t></w:r></w:p>"
+            + "<w:p><w:pPr><w:sectPr><w:type w:val=\"nextPage\"/></w:sectPr></w:pPr></w:p>"
+            + "<w:p><w:r><w:t>第三章 设计</w:t></w:r></w:p>"
+            + "<w:p><w:r><w:t>第二章 背景 ........ 3</w:t></w:r></w:p>"
+            + "</w:body></w:document>"));
+    pkg.getMainDocumentPart().getStyleDefinitionsPart().setContents((Styles) XmlUtils.unmarshalString(
+        "<w:styles " + NS + "><w:style w:type=\"paragraph\" w:styleId=\"Chapter\"><w:name w:val=\"Chapter\"/>"
+            + "<w:pPr><w:pageBreakBefore/></w:pPr></w:style></w:styles>"));
+    Path file = temp.resolve("chapter-breaks.docx");
+    pkg.save(file.toFile());
+
+    List<HeadingBreakModel> breaks = new Docx4jDocumentParser().parse(new DocxReader().read(file)).chapterBreaks();
+
+    assertEquals(List.of("第一章 绪论", "第二章 背景", "第三章 设计"), breaks.stream().map(HeadingBreakModel::text).toList());
+    assertEquals(List.of(false, true, true), breaks.stream().map(HeadingBreakModel::explicitBreak).toList());
+  }
+
   private Path nestedRunsFixture() throws Exception {
     var pkg = WordprocessingMLPackage.createPackage();
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(

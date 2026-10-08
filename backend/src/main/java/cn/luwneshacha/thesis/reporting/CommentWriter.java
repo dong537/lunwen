@@ -162,6 +162,7 @@ public final class CommentWriter {
       case "PAGE-01" -> "magenta";
       case "PAGE-05" -> "yellow";
       case "PAGE-04" -> "lightGray";
+      case "PAGE-03" -> "lightGray";
       case "FIG-01" -> "red";
       case "FIG-02" -> "lightGray";
       case "REF-FONT" -> "cyan";
@@ -210,6 +211,7 @@ public final class CommentWriter {
       case "PAGE-01" -> "页边距不符合要求，请按规范调整为 2.6 cm。";
       case "PAGE-05" -> "页码格式不符合要求，请检查页脚居中、五号 Times New Roman。";
       case "PAGE-04" -> "分节页码格式需复核，确认正文使用阿拉伯数字。";
+      case "PAGE-03" -> "章节分页需在 Word 中复核，确认本章从新页开始。";
       case "BODY-FONT" -> "字体不符合要求，请检查中文字体和英文字体。";
       case "BODY-SIZE" -> "字号不符合要求，请按规范调整。";
       case "BODY-INDENT" -> "首行缩进不符合要求，请调整为 2 字符。";

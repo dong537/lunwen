@@ -55,7 +55,8 @@ public final class Docx4jDocumentParser {
       byte[] documentXml = raw.part("word/document.xml").bytes();
       return new ParsedDocument(raw.sourceSha256(), paragraphs, sections, List.of(),
           new TableParser().parse(documentXml), new EquationParser().parse(documentXml),
-          new ReferenceParser().parse(paragraphs), new ImageParser().parse(documentXml), parsePageNumbers(raw));
+          new ReferenceParser().parse(paragraphs), new ImageParser().parse(documentXml), parsePageNumbers(raw),
+          parseChapterBreaks(documentXml, pkg, finder.results, paragraphPaths, paragraphs));
     } catch (Exception error) {
       throw new IllegalArgumentException("unable to parse DOCX: " + error.getMessage(), error);
     }
@@ -82,6 +83,47 @@ public final class Docx4jDocumentParser {
       } catch (Exception ignored) { }
     }
     return List.copyOf(result);
+  }
+
+  private List<HeadingBreakModel> parseChapterBreaks(byte[] xml, WordprocessingMLPackage pkg,
+      List<Object> sourceParagraphs, List<List<Integer>> paragraphPaths, List<ParagraphModel> paragraphs) throws Exception {
+    var result = new ArrayList<HeadingBreakModel>();
+    var elements = new ArrayList<Element>();
+    collectParagraphElements(parseXml(xml), elements);
+    if (elements.size() != sourceParagraphs.size() || elements.size() != paragraphPaths.size())
+      throw new IllegalArgumentException("paragraph structure mismatch while reading chapter breaks");
+    var resolver = pkg.getMainDocumentPart().getPropertyResolver();
+    for (int i = 0; i < elements.size(); i++) {
+      String text = paragraphs.get(i).runs().stream().map(RunModel::text).reduce("", String::concat).trim();
+      if (!text.matches("^第[0-9一二三四五六七八九十百千零〇]+章\\s+.*")
+          || text.matches(".*(?:\\.{2,}|……+)\\s*\\d+\\s*$")) continue;
+      P paragraph = (P) sourceParagraphs.get(i);
+      PPr effectivePPr = resolver.getEffectivePPr(paragraph.getPPr());
+      boolean pageBreak = effectivePPr != null && effectivePPr.getPageBreakBefore() != null
+          && effectivePPr.getPageBreakBefore().isVal();
+      if (i > 0) pageBreak |= startsOnNewPage((P) sourceParagraphs.get(i - 1));
+      var breaks = elements.get(i).getElementsByTagNameNS(XmlPartSupport.W, "br");
+      for (int j = 0; j < breaks.getLength(); j++) {
+        if ("page".equals(((Element) breaks.item(j)).getAttributeNS(XmlPartSupport.W, "type"))) pageBreak = true;
+      }
+      result.add(new HeadingBreakModel(new SourceAddress("word/document.xml", paragraphPaths.get(i), 0, text.length()), text, pageBreak));
+    }
+    return List.copyOf(result);
+  }
+
+  private static boolean startsOnNewPage(P paragraph) {
+    SectPr section = paragraph.getPPr() == null ? null : paragraph.getPPr().getSectPr();
+    if (section == null) return false;
+    String type = section.getType() == null ? null : section.getType().getVal();
+    return type == null || "nextPage".equals(type) || "oddPage".equals(type) || "evenPage".equals(type);
+  }
+
+  private static void collectParagraphElements(Element element, List<Element> paragraphs) {
+    if ("http://schemas.openxmlformats.org/markup-compatibility/2006".equals(element.getNamespaceURI())
+        && "Fallback".equals(element.getLocalName())) return;
+    if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "p".equals(element.getLocalName())) paragraphs.add(element);
+    for (Node child = element.getFirstChild(); child != null; child = child.getNextSibling())
+      if (child instanceof Element childElement) collectParagraphElements(childElement, paragraphs);
   }
 
   private static Element parseXml(byte[] bytes) throws Exception {

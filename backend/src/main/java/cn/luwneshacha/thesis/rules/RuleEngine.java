@@ -8,6 +8,7 @@ import cn.luwneshacha.thesis.document.SourceAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashSet;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class RuleEngine {
@@ -15,12 +16,17 @@ public final class RuleEngine {
   private static final Pattern TABLE_OR_FIGURE_CAPTION = Pattern.compile("^(表|图)\\s*[0-9一二三四五六七八九十]+", Pattern.CASE_INSENSITIVE);
   private static final Pattern EQUATION_NUMBER = Pattern.compile("^\\(?\\d+[\\-－]\\d+\\)?$");
   private static final Pattern TOC_ENTRY = Pattern.compile(".+(?:\\.{2,}|……+)\\s*\\d+$");
+  private static final Pattern CHAPTER_NUMBER = Pattern.compile("^第([0-9]+|[一二三四五六七八九十百千零〇]+)章");
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
     for (SectionModel section : document.sections()) results.add(checkMargins(section, rules));
     for (SectionModel section : document.sections()) {
       if (section.pageNumberFormat() != null && !"decimal".equalsIgnoreCase(section.pageNumberFormat()))
         results.add(review("PAGE-04", "decimal in main text", "PAGE_NUMBER_FORMAT_REVIEW", section.source()));
+    }
+    for (var chapter : document.chapterBreaks()) {
+      if (chapterNumber(chapter.text()) > 1 && !chapter.explicitBreak())
+        results.add(review("PAGE-03", "chapter starts on new page", "CHAPTER_PAGE_BREAK_REVIEW", chapter.source()));
     }
     for (var pageNumber : document.pageNumbers()) {
       if (!pageNumber.centered()) results.add(result("PAGE-05", "center", "not centered", "PAGE_NUMBER_NOT_CENTERED", Judgement.FAIL, pageNumber.source()));
@@ -91,6 +97,28 @@ public final class RuleEngine {
       if (reference.category() == null) results.add(result("REF-02", "M/J/D/C/N/R/S/P/Z/EB/OL", null, "REFERENCE_CATEGORY_MISSING", Judgement.FAIL, reference.source()));
     }
     return List.copyOf(results);
+  }
+
+  private static int chapterNumber(String text) {
+    Matcher matcher = CHAPTER_NUMBER.matcher(text);
+    if (!matcher.find()) return 0;
+    String number = matcher.group(1);
+    try { return Integer.parseInt(number); }
+    catch (NumberFormatException ignored) { }
+    int total = 0;
+    int section = 0;
+    int digit = 0;
+    for (int i = 0; i < number.length(); i++) {
+      char value = number.charAt(i);
+      int numeric = value == '〇' ? 0 : "零一二三四五六七八九".indexOf(value);
+      if (numeric >= 0) { digit = numeric; continue; }
+      int unit = value == '十' ? 10 : value == '百' ? 100 : value == '千' ? 1000 : 0;
+      if (unit == 0) return 0;
+      section += (digit == 0 ? 1 : digit) * unit;
+      digit = 0;
+      if (unit >= 100) { total += section; section = 0; }
+    }
+    return total + section + digit;
   }
 
   private String paragraphText(ParagraphModel paragraph) {

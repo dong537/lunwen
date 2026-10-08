@@ -12,6 +12,7 @@ import cn.luwneshacha.thesis.document.TableModel;
 import cn.luwneshacha.thesis.document.ReferenceEntryModel;
 import cn.luwneshacha.thesis.document.ImageModel;
 import cn.luwneshacha.thesis.document.PageNumberModel;
+import cn.luwneshacha.thesis.document.HeadingBreakModel;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -224,5 +225,20 @@ class RuleEngineTest {
         .filter(r -> r.ruleId().equals("PAGE-04")).findFirst().orElseThrow();
 
     assertEquals(Judgement.REVIEW, result.judgement());
+  }
+
+  @Test
+  void reviewsChapterWithoutExplicitPageBreakEvidence() {
+    var firstChapter = new HeadingBreakModel(ADDRESS, "第一章 绪论", false);
+    var chapter = new HeadingBreakModel(ADDRESS, "第二章 测试", false);
+    var document = new ParsedDocument("source", List.<ParagraphModel>of(), List.<SectionModel>of(), List.of(),
+        List.<TableModel>of(), List.<cn.luwneshacha.thesis.document.EquationModel>of(),
+        List.<ReferenceEntryModel>of(), List.<ImageModel>of(), List.<PageNumberModel>of(), List.of(firstChapter, chapter));
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
+        .filter(r -> r.ruleId().equals("PAGE-03")).toList();
+
+    assertEquals(1, results.size());
+    assertEquals(Judgement.REVIEW, results.get(0).judgement());
   }
 }
