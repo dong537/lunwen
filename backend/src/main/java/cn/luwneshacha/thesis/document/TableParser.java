@@ -67,8 +67,13 @@ public final class TableParser {
     java.util.Collections.reverse(reversed); return List.copyOf(reversed);
   }
   private static Element first(Element root, String local) {
-    var nodes = root.getElementsByTagNameNS(XmlPartSupport.W, local);
-    return nodes.getLength() == 0 ? null : (Element) nodes.item(0);
+    for (Element child : XmlPartSupport.children(root)) {
+      if (!XmlPartSupport.W.equals(child.getNamespaceURI()) || !"tblPr".equals(child.getLocalName())) continue;
+      for (Element property : XmlPartSupport.children(child)) {
+        if (XmlPartSupport.W.equals(property.getNamespaceURI()) && local.equals(property.getLocalName())) return property;
+      }
+    }
+    return null;
   }
   private static boolean border(Element borders, String side) {
     if (borders == null) return false;
@@ -80,8 +85,18 @@ public final class TableParser {
     var nodes = table.getElementsByTagNameNS(XmlPartSupport.W, "tcBorders");
     for (int i = 0; i < nodes.getLength(); i++) {
       Element borders = (Element) nodes.item(i);
+      if (owningTable(borders) != table) continue;
       if (border(borders, side)) return true;
     }
     return false;
+  }
+
+  private static Element owningTable(Element element) {
+    Node current = element.getParentNode();
+    while (current instanceof Element parent) {
+      if (XmlPartSupport.W.equals(parent.getNamespaceURI()) && "tbl".equals(parent.getLocalName())) return parent;
+      current = parent.getParentNode();
+    }
+    return null;
   }
 }
