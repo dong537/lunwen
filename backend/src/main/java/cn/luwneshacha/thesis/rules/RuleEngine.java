@@ -32,6 +32,11 @@ public final class RuleEngine {
       if (!table.topBorder() || !table.middleBorder() || !table.bottomBorder() || table.verticalBorders())
         results.add(result("TAB-03", "three-line table", "border evidence", "TABLE_BORDER_MISMATCH", Judgement.FAIL, table.source()));
     }
+    for (var image : document.images()) {
+      if (image.captionText() == null) {
+        results.add(result("FIG-01", "图号和图题", null, "FIGURE_CAPTION_MISSING", Judgement.FAIL, image.source()));
+      }
+    }
     var equationNumbers = new HashSet<String>();
     for (var equation : document.equations()) {
       if (equation.standalone() && equation.number() == null) results.add(result("EQ-01", "(3-1)", null, "EQUATION_NUMBER_MISSING", Judgement.FAIL, equation.source()));

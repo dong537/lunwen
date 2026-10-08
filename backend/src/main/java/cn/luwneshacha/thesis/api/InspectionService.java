@@ -87,8 +87,8 @@ public final class InspectionService {
   }
 
   private static String annotationKey(CheckResult result) {
-    // 同一段落的多个检查项合并为一个批注，避免一个段落被连续插入大量重复批注。
-    return result.source().partName() + "|" + result.source().elementPath();
+    // 这里只去掉同位置的同类问题；不同规则交给 CommentWriter 合并正文。
+    return result.ruleId() + "|" + result.source().partName() + "|" + result.source().elementPath();
   }
 
   private Path createRequestDir(String requestId) {

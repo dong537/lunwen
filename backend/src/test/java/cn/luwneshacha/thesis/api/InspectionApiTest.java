@@ -58,6 +58,9 @@ class InspectionApiTest {
     var comments = (CommentsPart) pkg.getParts().getParts().get(new PartName("/word/comments.xml"));
     int resultCount = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response).get("report").get("results").size();
     assertTrue(comments.getContents().getComment().size() < resultCount);
+    String commentXml = XmlUtils.marshaltoString(comments.getContents(), true, true);
+    assertTrue(commentXml.contains("字体"), "同段字体问题不能被去重丢掉");
+    assertTrue(commentXml.contains("字号"), "同段字号问题不能被去重丢掉");
   }
 
   @Test
@@ -75,7 +78,7 @@ class InspectionApiTest {
   private byte[] validDocx() throws Exception {
     var pkg = WordprocessingMLPackage.createPackage();
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
-        "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>\u6b63\u6587</w:t></w:r></w:p><w:sectPr><w:pgMar w:top=\"1474\" w:right=\"1474\" w:bottom=\"1474\" w:left=\"1474\"/></w:sectPr></w:body></w:document>"));
+        "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:rPr><w:rFonts w:eastAsia=\"黑体\"/><w:sz w:val=\"18\"/></w:rPr><w:t>正文</w:t></w:r></w:p><w:sectPr><w:pgMar w:top=\"1474\" w:right=\"1474\" w:bottom=\"1474\" w:left=\"1474\"/></w:sectPr></w:body></w:document>"));
     Path source = temp.resolve("source.docx");
     pkg.save(source.toFile());
     return java.nio.file.Files.readAllBytes(source);

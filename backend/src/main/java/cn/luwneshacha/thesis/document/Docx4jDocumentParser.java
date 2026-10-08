@@ -55,7 +55,7 @@ public final class Docx4jDocumentParser {
       byte[] documentXml = raw.part("word/document.xml").bytes();
       return new ParsedDocument(raw.sourceSha256(), paragraphs, sections, List.of(),
           new TableParser().parse(documentXml), new EquationParser().parse(documentXml),
-          new ReferenceParser().parse(paragraphs));
+          new ReferenceParser().parse(paragraphs), new ImageParser().parse(documentXml));
     } catch (Exception error) {
       throw new IllegalArgumentException("unable to parse DOCX: " + error.getMessage(), error);
     }
