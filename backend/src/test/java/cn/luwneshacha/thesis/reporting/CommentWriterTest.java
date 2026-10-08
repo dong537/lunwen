@@ -63,6 +63,34 @@ class CommentWriterTest {
     assertTrue(Files.exists(target));
   }
 
+  @Test
+  void writesCommentToDrawingOnlyParagraph() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:drawing><wp:inline xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\"/></w:drawing></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("drawing-annotated.docx");
+
+    AnnotationReport report = new CommentWriter().writeCopy(source, target, List.of(result(List.of(0, 0))));
+
+    assertEquals(AnnotationStatus.WRITTEN, report.items().get(0).status());
+    assertTrue(Files.exists(target));
+  }
+
+  @Test
+  void usesFigureSpecificCommentAndHighlight() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:drawing/></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("figure-annotated.docx");
+    CheckResult finding = new CheckResult("FIG-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "图号和图题", null, "FIGURE_CAPTION_MISSING", new SourceAddress("word/document.xml", List.of(0, 0), 0, 0));
+
+    new CommentWriter().writeCopy(source, target, List.of(finding));
+
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      assertTrue(document.contains("w:val=\"red\""));
+      assertTrue(comments.contains("缺少图题"));
+    }
+  }
+
   private CheckResult result(List<Integer> path) {
     return new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
         Judgement.FAIL, "1474", "1418", "MARGIN_MISMATCH",

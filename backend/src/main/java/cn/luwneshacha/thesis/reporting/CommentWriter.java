@@ -73,7 +73,8 @@ public final class CommentWriter {
           }
           if (!"p".equals(paragraph.getLocalName()) || !W.equals(paragraph.getNamespaceURI())) throw new AnchorException("ANCHOR_NOT_PARAGRAPH");
           String text = paragraph.getTextContent();
-          if (text == null || text.isBlank()) throw new AnchorException("EMPTY_ANCHOR");
+          boolean hasDrawing = paragraph.getElementsByTagNameNS(W, "drawing").getLength() > 0;
+          if ((text == null || text.isBlank()) && !hasDrawing) throw new AnchorException("EMPTY_ANCHOR");
           addRange(paragraph, nextId);
           // 一个段落只插入一个批注；颜色取该段落最先发现的错误类型，批注正文会列出其余问题。
           highlight(paragraph, result.ruleId());
@@ -159,6 +160,7 @@ public final class CommentWriter {
       case "BODY-FONT" -> "cyan";
       case "BODY-INDENT" -> "brightGreen";
       case "PAGE-01" -> "magenta";
+      case "FIG-01" -> "red";
       default -> "lightGray";
     };
     Document doc = paragraph.getOwnerDocument();
@@ -198,6 +200,7 @@ public final class CommentWriter {
       case "TAB-01" -> "表格缺少表题，请补充表号和题名。";
       case "TAB-02" -> "表题位置需要复核，请确认是否位于表格上方。";
       case "TAB-03" -> "表格边框可能不符合三线表要求，请检查横线和竖线。";
+      case "FIG-01" -> "缺少图题，请在图片下方补充图号和题名。";
       case "EQ-01" -> "公式缺少编号，请按章节补充公式号。";
       case "EQ-03" -> "公式编号重复，请检查编号顺序。";
       case "EQ-04" -> "公式对象已识别，具体格式请在 Word 中复核。";
