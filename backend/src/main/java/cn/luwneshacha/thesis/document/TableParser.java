@@ -33,7 +33,7 @@ public final class TableParser {
       result.add(new TableModel(new SourceAddress("word/document.xml", path, 0, 0),
           caption == null ? null : new SourceAddress("word/document.xml", caption.path, 0, caption.text.length()),
           caption == null ? null : caption.text, rows.size(), columns, top, middle, bottom, vertical,
-          captionBefore, caption != null));
+          captionBefore, false));
     }
     int index = 0;
     for (Element child : XmlPartSupport.children(element)) {

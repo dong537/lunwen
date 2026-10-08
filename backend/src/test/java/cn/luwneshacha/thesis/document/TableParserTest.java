@@ -14,6 +14,7 @@ class TableParserTest {
     var table = new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8)).get(0);
     assertEquals("表1-1 测试数据", table.captionText());
     assertTrue(table.captionBefore());
+    assertFalse(table.layoutNeedsReview());
     assertTrue(table.topBorder() && table.middleBorder() && table.bottomBorder());
     assertFalse(table.verticalBorders());
   }
