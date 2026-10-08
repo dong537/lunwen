@@ -15,4 +15,14 @@ class ReferenceParserTest {
     assertEquals(java.util.Arrays.asList("M", "J", null), entries.stream().map(ReferenceEntryModel::category).toList());
     assertTrue(entries.get(2).needsReview());
   }
+
+  @Test
+  void recognizesStandardAndOtherCategories() {
+    var entries = new ReferenceParser().parse(List.of(
+        p("References"),
+        p("[1] Standard[S]. 2024."),
+        p("[2] Regulation[Z]. 2024.")));
+    assertEquals(java.util.Arrays.asList("S", "Z"), entries.stream().map(ReferenceEntryModel::category).toList());
+    assertTrue(entries.stream().noneMatch(ReferenceEntryModel::needsReview));
+  }
 }

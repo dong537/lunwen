@@ -75,7 +75,8 @@ public final class CommentWriter {
           String text = paragraph.getTextContent();
           if (text == null || text.isBlank()) throw new AnchorException("EMPTY_ANCHOR");
           addRange(paragraph, nextId);
-          highlight(paragraph, group.size() == 1 ? result.ruleId() : "MULTIPLE");
+          // 一个段落只插入一个批注；颜色取该段落最先发现的错误类型，批注正文会列出其余问题。
+          highlight(paragraph, result.ruleId());
           commentsRoot.appendChild(comment(comments, nextId, group));
           for (CheckResult item : group) {
             written.add(item);

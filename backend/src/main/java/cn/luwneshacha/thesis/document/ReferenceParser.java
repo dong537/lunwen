@@ -9,7 +9,10 @@ import java.util.regex.Pattern;
 public final class ReferenceParser {
   private static final Pattern HEADING = Pattern.compile("^(参考文献|references)\\s*$", Pattern.CASE_INSENSITIVE);
   private static final Pattern NUMBER = Pattern.compile("^\\s*\\[(\\d+)\\]");
-  private static final Pattern CATEGORY = Pattern.compile("\\[(M|J|D|C|N|EB/OL)\\](?=\\s*(?:[.。]|$))", Pattern.CASE_INSENSITIVE);
+  /** GB/T 7714 常见文献类型：单字母类型，以及电子资源、数据库和计算机程序。 */
+  private static final Pattern CATEGORY = Pattern.compile(
+      "\\[((?:M|J|D|C|N|R|S|P|Z|A)|(?:EB|DB|CP)/(?:OL|DL))\\](?=\\s*(?:[.。]|$))",
+      Pattern.CASE_INSENSITIVE);
 
   public List<ReferenceEntryModel> parse(List<ParagraphModel> paragraphs) {
     var result = new ArrayList<ReferenceEntryModel>();

@@ -36,7 +36,8 @@ public final class Docx4jDocumentParser {
       new TraversalUtil(main.getContent(), finder);
       List<List<Integer>> paragraphPaths = paragraphPaths(raw.part("word/document.xml").bytes());
       if (paragraphPaths.size() != finder.results.size()) {
-        throw new IllegalArgumentException("paragraph structure mismatch between XML and docx4j");
+        throw new IllegalArgumentException("paragraph structure mismatch between XML and docx4j: xml="
+            + paragraphPaths.size() + ", docx4j=" + finder.results.size());
       }
       for (int index = 0; index < finder.results.size(); index++) {
         P paragraph = (P) finder.results.get(index);
@@ -161,6 +162,8 @@ public final class Docx4jDocumentParser {
   }
 
   private static void collectParagraphPaths(Element element, List<Integer> path, List<List<Integer>> paths) {
+    if ("http://schemas.openxmlformats.org/markup-compatibility/2006".equals(element.getNamespaceURI())
+        && "Fallback".equals(element.getLocalName())) return;
     if ("http://schemas.openxmlformats.org/wordprocessingml/2006/main".equals(element.getNamespaceURI())
         && "p".equals(element.getLocalName())) paths.add(path);
     int index = 0;

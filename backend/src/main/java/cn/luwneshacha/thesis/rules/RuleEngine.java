@@ -35,7 +35,7 @@ public final class RuleEngine {
     var referenceNumbers = new HashSet<String>();
     for (var reference : document.references()) {
       if (!referenceNumbers.add(reference.number())) results.add(result("REF-04", "unique", reference.number(), "REFERENCE_NUMBER_DUPLICATE", Judgement.FAIL, reference.source()));
-      if (reference.category() == null) results.add(result("REF-02", "M/J/D/C/N/EB/OL", null, "REFERENCE_CATEGORY_MISSING", Judgement.FAIL, reference.source()));
+      if (reference.category() == null) results.add(result("REF-02", "M/J/D/C/N/R/S/P/Z/EB/OL", null, "REFERENCE_CATEGORY_MISSING", Judgement.FAIL, reference.source()));
     }
     return List.copyOf(results);
   }
