@@ -11,6 +11,7 @@ import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.document.TableModel;
 import cn.luwneshacha.thesis.document.ReferenceEntryModel;
 import cn.luwneshacha.thesis.document.ImageModel;
+import cn.luwneshacha.thesis.document.PageNumberModel;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -199,5 +200,18 @@ class RuleEngineTest {
 
     assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("REF-05") && r.judgement() == Judgement.FAIL));
     assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("REF-03") && r.judgement() == Judgement.FAIL));
+  }
+
+  @Test
+  void checksPageNumberFooterEvidence() {
+    var page = new PageNumberModel(new SourceAddress("word/footer1.xml", List.of(), 0, 0), true,
+        false, "Arial", 22);
+    var document = new ParsedDocument("source", List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(), List.of(page));
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    assertEquals(3, results.stream().filter(r -> r.ruleId().equals("PAGE-05")).count());
+    assertTrue(results.stream().allMatch(r -> r.judgement() == Judgement.FAIL));
   }
 }

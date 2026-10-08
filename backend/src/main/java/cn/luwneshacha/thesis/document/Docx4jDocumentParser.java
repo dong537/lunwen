@@ -55,11 +55,47 @@ public final class Docx4jDocumentParser {
       byte[] documentXml = raw.part("word/document.xml").bytes();
       return new ParsedDocument(raw.sourceSha256(), paragraphs, sections, List.of(),
           new TableParser().parse(documentXml), new EquationParser().parse(documentXml),
-          new ReferenceParser().parse(paragraphs), new ImageParser().parse(documentXml));
+          new ReferenceParser().parse(paragraphs), new ImageParser().parse(documentXml), parsePageNumbers(raw));
     } catch (Exception error) {
       throw new IllegalArgumentException("unable to parse DOCX: " + error.getMessage(), error);
     }
   }
+
+  private List<PageNumberModel> parsePageNumbers(RawDocx raw) {
+    var result = new ArrayList<PageNumberModel>();
+    for (RawPart part : raw.parts().values()) {
+      if (!part.name().startsWith("word/footer") || !part.name().endsWith(".xml")) continue;
+      try {
+        Element root = parseXml(part.bytes());
+        var fields = root.getElementsByTagNameNS(XmlPartSupport.W, "instrText");
+        boolean page = false;
+        for (int i = 0; i < fields.getLength(); i++) if (fields.item(i).getTextContent().trim().equalsIgnoreCase("PAGE")) page = true;
+        if (!page) continue;
+        Element paragraph = firstElement(root, XmlPartSupport.W, "p");
+        Element jc = paragraph == null ? null : firstElement(paragraph, XmlPartSupport.W, "jc");
+        boolean centered = jc != null && "center".equals(jc.getAttributeNS(XmlPartSupport.W, "val"));
+        Element rFonts = firstElement(root, XmlPartSupport.W, "rFonts");
+        Element sz = firstElement(root, XmlPartSupport.W, "sz");
+        Integer size = sz == null ? null : parseInt(sz.getAttributeNS(XmlPartSupport.W, "val"));
+        String font = rFonts == null ? null : rFonts.getAttributeNS(XmlPartSupport.W, "ascii");
+        result.add(new PageNumberModel(new SourceAddress(part.name(), List.of(), 0, 0), true, centered, font, size));
+      } catch (Exception ignored) { }
+    }
+    return List.copyOf(result);
+  }
+
+  private static Element parseXml(byte[] bytes) throws Exception {
+    var factory = DocumentBuilderFactory.newInstance(); factory.setNamespaceAware(true);
+    factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+    return factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes)).getDocumentElement();
+  }
+
+  private static Element firstElement(Element root, String namespace, String local) {
+    var nodes = root.getElementsByTagNameNS(namespace, local);
+    return nodes.getLength() == 0 ? null : (Element) nodes.item(0);
+  }
+
+  private static Integer parseInt(String value) { try { return Integer.valueOf(value); } catch (NumberFormatException ignored) { return null; } }
 
   private ParagraphModel parseParagraph(WordprocessingMLPackage pkg, P paragraph, int index, List<Integer> path) throws Exception {
     var resolver = pkg.getMainDocumentPart().getPropertyResolver();
