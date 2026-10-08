@@ -17,7 +17,8 @@ public final class InspectionKernel {
       var raw = new DocxReader().read(source);
       var parsed = new Docx4jDocumentParser().parse(raw);
       var results = new cn.luwneshacha.thesis.rules.RuleEngine().check(parsed, rules);
-      return new InspectionReport(raw.sourceSha256(), rules.id(), results, parsed.diagnostics());
+      return new InspectionReport(raw.sourceSha256(), rules.id(), results, parsed.diagnostics(),
+          parsed.tables(), parsed.equations(), parsed.references());
     } catch (InspectionException error) { throw error; }
     catch (RuntimeException error) { throw new InspectionException("PARSER_FAILED", "DOCX parsing failed"); }
   }

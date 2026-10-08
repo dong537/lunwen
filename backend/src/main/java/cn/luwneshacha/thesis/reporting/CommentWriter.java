@@ -66,6 +66,11 @@ public final class CommentWriter {
         CheckResult result = group.get(0);
         try {
           Element paragraph = resolve(document, result.source());
+          if ("tbl".equals(paragraph.getLocalName()) && W.equals(paragraph.getNamespaceURI())) {
+            var nested = paragraph.getElementsByTagNameNS(W, "p");
+            if (nested.getLength() == 0) throw new AnchorException("TABLE_HAS_NO_PARAGRAPH");
+            paragraph = (Element) nested.item(0);
+          }
           if (!"p".equals(paragraph.getLocalName()) || !W.equals(paragraph.getNamespaceURI())) throw new AnchorException("ANCHOR_NOT_PARAGRAPH");
           String text = paragraph.getTextContent();
           if (text == null || text.isBlank()) throw new AnchorException("EMPTY_ANCHOR");
@@ -189,6 +194,14 @@ public final class CommentWriter {
       case "BODY-FONT" -> "字体不符合要求，请检查中文字体和英文字体。";
       case "BODY-SIZE" -> "字号不符合要求，请按规范调整。";
       case "BODY-INDENT" -> "首行缩进不符合要求，请调整为 2 字符。";
+      case "TAB-01" -> "表格缺少表题，请补充表号和题名。";
+      case "TAB-02" -> "表题位置需要复核，请确认是否位于表格上方。";
+      case "TAB-03" -> "表格边框可能不符合三线表要求，请检查横线和竖线。";
+      case "EQ-01" -> "公式缺少编号，请按章节补充公式号。";
+      case "EQ-03" -> "公式编号重复，请检查编号顺序。";
+      case "EQ-04" -> "公式对象已识别，具体格式请在 Word 中复核。";
+      case "REF-02" -> "参考文献缺少类型标识，请补充 [M]、[J] 等类别。";
+      case "REF-04" -> "参考文献编号重复，请检查编号。";
       default -> "格式不符合要求，请核对学校规范。";
     };
   }

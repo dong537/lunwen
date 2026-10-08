@@ -51,7 +51,10 @@ public final class Docx4jDocumentParser {
         SourceAddress anchor = paragraphs.isEmpty() ? new SourceAddress("word/document.xml", List.of(0), 0, 0) : paragraphs.get(0).source();
         sections.add(parseSection(body.getSectPr(), anchor));
       }
-      return new ParsedDocument(raw.sourceSha256(), paragraphs, sections, List.of());
+      byte[] documentXml = raw.part("word/document.xml").bytes();
+      return new ParsedDocument(raw.sourceSha256(), paragraphs, sections, List.of(),
+          new TableParser().parse(documentXml), new EquationParser().parse(documentXml),
+          new ReferenceParser().parse(paragraphs));
     } catch (Exception error) {
       throw new IllegalArgumentException("unable to parse DOCX: " + error.getMessage(), error);
     }

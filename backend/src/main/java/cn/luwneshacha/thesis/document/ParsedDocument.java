@@ -6,10 +6,21 @@ public record ParsedDocument(
     String sourceSha256,
     List<ParagraphModel> paragraphs,
     List<SectionModel> sections,
-    List<String> diagnostics) {
+    List<String> diagnostics,
+    List<TableModel> tables,
+    List<EquationModel> equations,
+    List<ReferenceEntryModel> references) {
   public ParsedDocument {
     paragraphs = List.copyOf(paragraphs);
     sections = List.copyOf(sections);
     diagnostics = List.copyOf(diagnostics);
+    tables = List.copyOf(tables);
+    equations = List.copyOf(equations);
+    references = List.copyOf(references);
+  }
+
+  public ParsedDocument(String sourceSha256, List<ParagraphModel> paragraphs,
+      List<SectionModel> sections, List<String> diagnostics) {
+    this(sourceSha256, paragraphs, sections, diagnostics, List.of(), List.of(), List.of());
   }
 }
