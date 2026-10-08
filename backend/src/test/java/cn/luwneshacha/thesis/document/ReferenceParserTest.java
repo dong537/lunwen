@@ -25,4 +25,19 @@ class ReferenceParserTest {
     assertEquals(java.util.Arrays.asList("S", "Z"), entries.stream().map(ReferenceEntryModel::category).toList());
     assertTrue(entries.stream().noneMatch(ReferenceEntryModel::needsReview));
   }
+
+  @Test
+  void recognizesElectronicResourceCategoriesWithAndWithoutSubtype() {
+    var entries = new ReferenceParser().parse(List.of(
+        p("References"),
+        p("[1] Web page[OL]. 2024."),
+        p("[2] Database[DB]. 2024."),
+        p("[3] Online database[DB/OL]. 2024."),
+        p("[4] Program[CP]. 2024."),
+        p("[5] Download[DL]. 2024.")));
+
+    assertEquals(java.util.Arrays.asList("OL", "DB", "DB/OL", "CP", "DL"),
+        entries.stream().map(ReferenceEntryModel::category).toList());
+    assertTrue(entries.stream().noneMatch(ReferenceEntryModel::needsReview));
+  }
 }
