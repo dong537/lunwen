@@ -18,6 +18,10 @@ public final class RuleEngine {
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
     for (SectionModel section : document.sections()) results.add(checkMargins(section, rules));
+    for (SectionModel section : document.sections()) {
+      if (section.pageNumberFormat() != null && !"decimal".equalsIgnoreCase(section.pageNumberFormat()))
+        results.add(review("PAGE-04", "decimal in main text", "PAGE_NUMBER_FORMAT_REVIEW", section.source()));
+    }
     for (var pageNumber : document.pageNumbers()) {
       if (!pageNumber.centered()) results.add(result("PAGE-05", "center", "not centered", "PAGE_NUMBER_NOT_CENTERED", Judgement.FAIL, pageNumber.source()));
       if (!"Times New Roman".equals(pageNumber.asciiFont())) results.add(result("PAGE-05", "Times New Roman", pageNumber.asciiFont(), "PAGE_NUMBER_FONT_MISMATCH", Judgement.FAIL, pageNumber.source()));

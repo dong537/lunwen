@@ -214,4 +214,15 @@ class RuleEngineTest {
     assertEquals(3, results.stream().filter(r -> r.ruleId().equals("PAGE-05")).count());
     assertTrue(results.stream().allMatch(r -> r.judgement() == Judgement.FAIL));
   }
+
+  @Test
+  void reviewsRomanSectionPageNumberFormat() {
+    var section = new SectionModel(1474, 1474, 1474, 1474, ADDRESS, "upperRoman", 1);
+    var document = new ParsedDocument("source", List.of(), List.of(section), List.of());
+
+    var result = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
+        .filter(r -> r.ruleId().equals("PAGE-04")).findFirst().orElseThrow();
+
+    assertEquals(Judgement.REVIEW, result.judgement());
+  }
 }

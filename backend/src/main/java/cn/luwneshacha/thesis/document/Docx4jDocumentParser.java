@@ -182,7 +182,9 @@ public final class Docx4jDocumentParser {
         margins == null || margins.getRight() == null ? null : margins.getRight().intValue(),
         margins == null || margins.getBottom() == null ? null : margins.getBottom().intValue(),
         margins == null || margins.getLeft() == null ? null : margins.getLeft().intValue(),
-        source);
+        source,
+        section.getPgNumType() == null || section.getPgNumType().getFmt() == null ? null : section.getPgNumType().getFmt().value(),
+        section.getPgNumType() == null || section.getPgNumType().getStart() == null ? null : section.getPgNumType().getStart().intValue());
   }
 
   private static List<List<Integer>> paragraphPaths(byte[] xml) throws Exception {
