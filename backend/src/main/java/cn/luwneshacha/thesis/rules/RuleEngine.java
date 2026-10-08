@@ -26,6 +26,7 @@ public final class RuleEngine {
         results.add(checkSize(run, rules));
       }
     }
+    checkAbstractLineSpacing(results, document);
     for (var reference : document.references()) {
       document.paragraphs().stream()
           .filter(paragraph -> paragraph.source().elementPath().equals(reference.source().elementPath()))
@@ -126,9 +127,23 @@ public final class RuleEngine {
     return result(ruleId, String.valueOf(rules.expectedSizeHalfPoints()), String.valueOf(run.fontSizeHalfPoints()), "", run.fontSizeHalfPoints() == rules.expectedSizeHalfPoints() ? Judgement.PASS : Judgement.FAIL, run.source());
   }
 
+  private void checkAbstractLineSpacing(List<CheckResult> results, ParsedDocument document) {
+    boolean inAbstract = false;
+    for (ParagraphModel paragraph : document.paragraphs()) {
+      String text = paragraph.runs().stream().map(RunModel::text).reduce("", String::concat).trim();
+      if (text.matches("^(摘要|Abstract)$")) { inAbstract = true; continue; }
+      if (inAbstract && text.matches("^(关键词|Keywords)[:：]?.*")) { inAbstract = false; continue; }
+      if (inAbstract && !text.isBlank()) results.add(checkLineSpacing("ABSTRACT-LINE", paragraph));
+    }
+  }
+
   private CheckResult checkReferenceLineSpacing(ParagraphModel paragraph) {
-    if (paragraph.lineTwips() == null) return review("REF-LINE", "360", "LINE_SPACING_UNKNOWN", paragraph.source());
-    return result("REF-LINE", "360", String.valueOf(paragraph.lineTwips()), "",
+    return checkLineSpacing("REF-LINE", paragraph);
+  }
+
+  private CheckResult checkLineSpacing(String ruleId, ParagraphModel paragraph) {
+    if (paragraph.lineTwips() == null) return review(ruleId, "360", "LINE_SPACING_UNKNOWN", paragraph.source());
+    return result(ruleId, "360", String.valueOf(paragraph.lineTwips()), "",
         paragraph.lineTwips() == 360 ? Judgement.PASS : Judgement.FAIL, paragraph.source());
   }
 

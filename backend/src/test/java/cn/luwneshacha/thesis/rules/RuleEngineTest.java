@@ -125,4 +125,20 @@ class RuleEngineTest {
     assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("CAPTION-FONT") && r.judgement() == Judgement.FAIL));
     assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("CAPTION-SIZE") && r.judgement() == Judgement.FAIL));
   }
+
+  @Test
+  void checksOnePointFiveLineSpacingInsideAbstractZone() {
+    var heading = new ParagraphModel(List.of(new RunModel("摘要", "Times New Roman", "宋体", null, 24, false, ADDRESS)),
+        0, null, null, 360, "auto", ADDRESS, 0);
+    var abstractBody = new ParagraphModel(List.of(new RunModel("这是摘要内容。", "Times New Roman", "宋体", null, 24, false, ADDRESS)),
+        480, null, null, 480, "auto", new SourceAddress("word/document.xml", List.of(1), 0, 7), 200);
+    var keywords = new ParagraphModel(List.of(new RunModel("关键词：格式", "Times New Roman", "宋体", null, 24, false, ADDRESS)),
+        0, null, null, 360, "auto", new SourceAddress("word/document.xml", List.of(2), 0, 7), 0);
+    var document = new ParsedDocument("source", List.of(heading, abstractBody, keywords), List.of(), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    var line = results.stream().filter(r -> r.ruleId().equals("ABSTRACT-LINE")).findFirst().orElseThrow();
+    assertEquals(Judgement.FAIL, line.judgement());
+  }
 }
