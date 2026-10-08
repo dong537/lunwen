@@ -167,6 +167,9 @@ public final class CommentWriter {
       case "CAPTION-FONT" -> "cyan";
       case "CAPTION-SIZE" -> "yellow";
       case "ABSTRACT-LINE" -> "purple";
+      case "HEADING-FONT" -> "cyan";
+      case "HEADING-SIZE" -> "yellow";
+      case "HEADING-BOLD" -> "brightGreen";
       default -> "lightGray";
     };
     Document doc = paragraph.getOwnerDocument();
@@ -209,6 +212,9 @@ public final class CommentWriter {
       case "CAPTION-FONT" -> "图表题字体不符合要求，请按规范使用宋体。";
       case "CAPTION-SIZE" -> "图表题字号不符合要求，请按规范调整为五号。";
       case "ABSTRACT-LINE" -> "摘要行距不是 1.5 倍，请调整段落行距。";
+      case "HEADING-FONT" -> "标题字体不符合要求，请按层级使用黑体。";
+      case "HEADING-SIZE" -> "标题字号不符合要求，请按标题层级调整。";
+      case "HEADING-BOLD" -> "标题没有加粗，请按规范调整。";
       case "TAB-01" -> "表格缺少表题，请补充表号和题名。";
       case "TAB-02" -> "表题位置需要复核，请确认是否位于表格上方。";
       case "TAB-03" -> "表格边框可能不符合三线表要求，请检查横线和竖线。";

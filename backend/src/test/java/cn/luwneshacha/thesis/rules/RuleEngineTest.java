@@ -143,4 +143,18 @@ class RuleEngineTest {
     var line = lines.get(0);
     assertEquals(Judgement.FAIL, line.judgement());
   }
+
+  @Test
+  void checksSecondLevelHeadingFontSizeAndBold() {
+    var heading = new ParagraphModel(
+        List.of(new RunModel("1.1 标题", "Arial", "宋体", null, 24, false, ADDRESS)),
+        0, null, null, 360, "auto", ADDRESS, 0);
+    var document = new ParsedDocument("source", List.of(heading), List.of(), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("HEADING-FONT") && r.judgement() == Judgement.FAIL));
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("HEADING-SIZE") && r.judgement() == Judgement.FAIL));
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("HEADING-BOLD") && r.judgement() == Judgement.FAIL));
+  }
 }

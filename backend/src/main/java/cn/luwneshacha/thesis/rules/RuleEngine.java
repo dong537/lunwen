@@ -19,6 +19,14 @@ public final class RuleEngine {
     var results = new ArrayList<CheckResult>();
     for (SectionModel section : document.sections()) results.add(checkMargins(section, rules));
     for (ParagraphModel paragraph : document.paragraphs()) {
+      int headingLevel = headingLevel(paragraph);
+      if (headingLevel > 0 && !TOC_ENTRY.matcher(paragraphText(paragraph)).matches()) {
+        for (RunModel run : paragraph.runs()) {
+          results.add(checkHeadingFont(run, headingLevel));
+          results.add(checkHeadingSize(run, headingLevel));
+          results.add(checkHeadingBold(run));
+        }
+      }
       if (!isBodyParagraph(paragraph)) continue;
       results.add(checkIndent(paragraph, rules));
       for (RunModel run : paragraph.runs()) {
@@ -66,6 +74,40 @@ public final class RuleEngine {
       if (reference.category() == null) results.add(result("REF-02", "M/J/D/C/N/R/S/P/Z/EB/OL", null, "REFERENCE_CATEGORY_MISSING", Judgement.FAIL, reference.source()));
     }
     return List.copyOf(results);
+  }
+
+  private String paragraphText(ParagraphModel paragraph) {
+    return paragraph.runs().stream().map(RunModel::text).reduce("", String::concat).trim();
+  }
+
+  private int headingLevel(ParagraphModel paragraph) {
+    String text = paragraphText(paragraph);
+    if (text.matches("^第[0-9一二三四五六七八九十]+章\\s+.*")) return 1;
+    if (text.matches("^\\d+\\.\\d+\\.\\d+\\s+.*")) return 3;
+    if (text.matches("^\\d+\\.\\d+\\s+.*")) return 2;
+    return 0;
+  }
+
+  private CheckResult checkHeadingFont(RunModel run, int level) {
+    boolean hasHan = run.text().codePoints().anyMatch(c -> Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN);
+    boolean hasLatin = run.text().codePoints().anyMatch(c -> Character.isLetterOrDigit(c) && Character.UnicodeScript.of(c) == Character.UnicodeScript.LATIN);
+    if ((hasHan && run.eastAsiaFont() == null) || (hasLatin && run.asciiFont() == null))
+      return review("HEADING-FONT", "黑体/Times New Roman", "FONT_UNKNOWN", run.source());
+    boolean matches = (!hasHan || "黑体".equals(run.eastAsiaFont())) && (!hasLatin || "Times New Roman".equals(run.asciiFont()));
+    return result("HEADING-FONT", "黑体/Times New Roman", run.eastAsiaFont() + "/" + run.asciiFont(), "",
+        matches ? Judgement.PASS : Judgement.FAIL, run.source());
+  }
+
+  private CheckResult checkHeadingSize(RunModel run, int level) {
+    int expected = level == 1 ? 32 : level == 2 ? 28 : 24;
+    if (run.fontSizeHalfPoints() == null) return review("HEADING-SIZE", String.valueOf(expected), "SIZE_UNKNOWN", run.source());
+    return result("HEADING-SIZE", String.valueOf(expected), String.valueOf(run.fontSizeHalfPoints()), "",
+        run.fontSizeHalfPoints() == expected ? Judgement.PASS : Judgement.FAIL, run.source());
+  }
+
+  private CheckResult checkHeadingBold(RunModel run) {
+    return result("HEADING-BOLD", "true", String.valueOf(run.bold()), "",
+        run.bold() ? Judgement.PASS : Judgement.FAIL, run.source());
   }
 
   private boolean isBodyParagraph(ParagraphModel paragraph) {
