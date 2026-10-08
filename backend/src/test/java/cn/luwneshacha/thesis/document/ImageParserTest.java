@@ -20,6 +20,7 @@ class ImageParserTest {
     assertEquals("图3-1 系统结构图", images.get(0).captionText());
     assertEquals(100L, images.get(0).widthEmu());
     assertEquals(200L, images.get(0).heightEmu());
+    assertEquals(java.util.List.of(0, 0), images.get(0).source().elementPath());
     assertFalse(images.get(0).inline() == false);
   }
 }

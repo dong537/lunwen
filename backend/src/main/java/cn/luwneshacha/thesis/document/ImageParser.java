@@ -31,7 +31,7 @@ public final class ImageParser {
         long height = extent == null ? 0 : number(extent.getAttribute("cy"));
         Caption caption = followingCaption(paragraph);
         result.add(new ImageModel(
-            new SourceAddress("word/document.xml", path, 0, 0),
+            new SourceAddress("word/document.xml", pathOf(paragraph), 0, 0),
             caption == null ? null : new SourceAddress("word/document.xml", caption.path(), 0, caption.text().length()),
             caption == null ? null : caption.text(), width, height,
             element.getElementsByTagNameNS(DRAW, "inline").getLength() > 0, true));
