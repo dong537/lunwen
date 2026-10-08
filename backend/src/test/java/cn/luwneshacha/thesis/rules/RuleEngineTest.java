@@ -109,4 +109,20 @@ class RuleEngineTest {
     assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("REF-SIZE") && r.judgement() == Judgement.FAIL));
     assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("REF-LINE") && r.judgement() == Judgement.FAIL));
   }
+
+  @Test
+  void checksCaptionFontAndSizeUsingCaptionParagraphAnchor() {
+    var caption = new ParagraphModel(
+        List.of(new RunModel("表1-1 数据", "Arial", "黑体", null, 22, false, ADDRESS)),
+        null, null, null, null, null, ADDRESS, null);
+    var table = new TableModel(new SourceAddress("word/document.xml", List.of(1), 0, 0),
+        ADDRESS, "表1-1 数据", 2, 2, true, true, true, false, true, false);
+    var document = new ParsedDocument("source", List.of(caption), List.of(), List.of(),
+        List.of(table), List.of(), List.of(), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("CAPTION-FONT") && r.judgement() == Judgement.FAIL));
+    assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("CAPTION-SIZE") && r.judgement() == Judgement.FAIL));
+  }
 }

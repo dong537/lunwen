@@ -45,11 +45,13 @@ public final class RuleEngine {
         results.add(result("TAB-03", "three-line table", "border evidence", "TABLE_BORDER_MISMATCH", Judgement.FAIL, table.source()));
       else if (table.verticalBorders())
         results.add(review("TAB-03", "three-line table", "TABLE_AUXILIARY_BORDER_REVIEW", table.source()));
+      captionParagraph(document, table.captionSource()).ifPresent(paragraph -> addCaptionResults(results, paragraph, rules));
     }
     for (var image : document.images()) {
       if (image.captionText() == null) {
         results.add(result("FIG-01", "图号和图题", null, "FIGURE_CAPTION_MISSING", Judgement.FAIL, image.source()));
       }
+      captionParagraph(document, image.captionSource()).ifPresent(paragraph -> addCaptionResults(results, paragraph, rules));
     }
     var equationNumbers = new HashSet<String>();
     for (var equation : document.equations()) {
@@ -128,6 +130,26 @@ public final class RuleEngine {
     if (paragraph.lineTwips() == null) return review("REF-LINE", "360", "LINE_SPACING_UNKNOWN", paragraph.source());
     return result("REF-LINE", "360", String.valueOf(paragraph.lineTwips()), "",
         paragraph.lineTwips() == 360 ? Judgement.PASS : Judgement.FAIL, paragraph.source());
+  }
+
+  private void addCaptionResults(List<CheckResult> results, ParagraphModel paragraph, RuleSet rules) {
+    for (RunModel run : paragraph.runs()) {
+      results.add(checkFont(run, rules, "CAPTION-FONT"));
+      results.add(checkCaptionSize(run));
+    }
+  }
+
+  private CheckResult checkCaptionSize(RunModel run) {
+    if (run.fontSizeHalfPoints() == null) return review("CAPTION-SIZE", "21", "SIZE_UNKNOWN", run.source());
+    return result("CAPTION-SIZE", "21", String.valueOf(run.fontSizeHalfPoints()), "",
+        run.fontSizeHalfPoints() == 21 ? Judgement.PASS : Judgement.FAIL, run.source());
+  }
+
+  private java.util.Optional<ParagraphModel> captionParagraph(ParsedDocument document, SourceAddress source) {
+    if (source == null) return java.util.Optional.empty();
+    return document.paragraphs().stream()
+        .filter(paragraph -> paragraph.source().elementPath().equals(source.elementPath()))
+        .findFirst();
   }
 
   private CheckResult review(String ruleId, String expected, String reason, SourceAddress source) {
