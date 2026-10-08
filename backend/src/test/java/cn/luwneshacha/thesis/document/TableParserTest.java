@@ -17,4 +17,16 @@ class TableParserTest {
     assertTrue(table.topBorder() && table.middleBorder() && table.bottomBorder());
     assertFalse(table.verticalBorders());
   }
+
+  @Test
+  void readsThreeLineEvidenceStoredOnCellsWhenTableBordersAreAbsent() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+        + "<w:tbl><w:tr><w:tc><w:tcPr><w:tcBorders><w:top w:val=\"single\"/><w:insideH w:val=\"single\"/></w:tcBorders></w:tcPr><w:p/></w:tc></w:tr>"
+        + "<w:tr><w:tc><w:tcPr><w:tcBorders><w:bottom w:val=\"single\"/></w:tcBorders></w:tcPr><w:p/></w:tc></w:tr></w:tbl></w:body></w:document>";
+
+    var table = new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8)).get(0);
+
+    assertTrue(table.topBorder() && table.middleBorder() && table.bottomBorder());
+    assertFalse(table.verticalBorders());
+  }
 }

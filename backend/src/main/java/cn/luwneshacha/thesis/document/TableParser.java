@@ -23,8 +23,11 @@ public final class TableParser {
       var rows = XmlPartSupport.children(element).stream().filter(e -> "tr".equals(e.getLocalName())).toList();
       int columns = rows.stream().mapToInt(row -> (int) XmlPartSupport.children(row).stream().filter(e -> "tc".equals(e.getLocalName())).count()).max().orElse(0);
       Element borders = first(element, "tblBorders");
-      boolean top = border(borders, "top"), middle = border(borders, "insideH"), bottom = border(borders, "bottom");
-      boolean vertical = border(borders, "left") || border(borders, "right") || border(borders, "insideV");
+      boolean top = border(borders, "top") || borderInCells(element, "top");
+      boolean middle = border(borders, "insideH") || borderInCells(element, "insideH");
+      boolean bottom = border(borders, "bottom") || borderInCells(element, "bottom");
+      boolean vertical = border(borders, "left") || border(borders, "right") || border(borders, "insideV")
+          || borderInCells(element, "left") || borderInCells(element, "right") || borderInCells(element, "insideV");
       result.add(new TableModel(new SourceAddress("word/document.xml", path, 0, 0),
           caption == null ? null : new SourceAddress("word/document.xml", caption.path, 0, caption.text.length()),
           caption == null ? null : caption.text, rows.size(), columns, top, middle, bottom, vertical,
@@ -71,5 +74,14 @@ public final class TableParser {
     if (borders == null) return false;
     var nodes = borders.getElementsByTagNameNS(XmlPartSupport.W, side);
     return nodes.getLength() > 0 && !"nil".equals(((Element) nodes.item(0)).getAttributeNS(XmlPartSupport.W, "val"));
+  }
+
+  private static boolean borderInCells(Element table, String side) {
+    var nodes = table.getElementsByTagNameNS(XmlPartSupport.W, "tcBorders");
+    for (int i = 0; i < nodes.getLength(); i++) {
+      Element borders = (Element) nodes.item(i);
+      if (border(borders, side)) return true;
+    }
+    return false;
   }
 }
