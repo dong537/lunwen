@@ -23,7 +23,7 @@ class RuleEngineTest {
   void reportsPassForSchoolV1Formatting() {
     var run = new RunModel("正文A", "Times New Roman", "宋体", null, 24, false, ADDRESS);
     var paragraph = new ParagraphModel(List.of(run), 480, null, null, null, null, ADDRESS, 200);
-    var document = new ParsedDocument("source", List.of(paragraph),
+    var document = new ParsedDocument("source", List.of(chapterHeading(), paragraph),
         List.of(new SectionModel(1474, 1474, 1474, 1474, ADDRESS)), List.of());
 
     var results = new RuleEngine().check(document, RuleSet.schoolV1());
@@ -35,7 +35,7 @@ class RuleEngineTest {
   void reportsFailForWrongMarginAndFontSize() {
     var run = new RunModel("正文A", "Arial", "宋体", null, 22, false, ADDRESS);
     var paragraph = new ParagraphModel(List.of(run), 480, null, null, null, null, ADDRESS, 200);
-    var document = new ParsedDocument("source", List.of(paragraph),
+    var document = new ParsedDocument("source", List.of(chapterHeading(), paragraph),
         List.of(new SectionModel(1418, 1474, 1474, 1474, ADDRESS)), List.of());
 
     var results = new RuleEngine().check(document, RuleSet.schoolV1());
@@ -49,7 +49,7 @@ class RuleEngineTest {
   void reportsReviewWhenRequiredIndentEvidenceIsMissing() {
     var run = new RunModel("正文", "Times New Roman", "宋体", null, 24, false, ADDRESS);
     var paragraph = new ParagraphModel(List.of(run), null, null, null, null, null, ADDRESS, null);
-    var document = new ParsedDocument("source", List.of(paragraph),
+    var document = new ParsedDocument("source", List.of(chapterHeading(), paragraph),
         List.of(new SectionModel(1474, 1474, 1474, 1474, ADDRESS)), List.of());
 
     var results = new RuleEngine().check(document, RuleSet.schoolV1());
@@ -63,7 +63,7 @@ class RuleEngineTest {
   void acceptsTwoCharacterIndentStoredAsTwips() {
     var run = new RunModel("正文", "Times New Roman", "宋体", null, 24, false, ADDRESS);
     var paragraph = new ParagraphModel(List.of(run), 480, null, null, null, null, ADDRESS, null);
-    var document = new ParsedDocument("source", List.of(paragraph),
+    var document = new ParsedDocument("source", List.of(chapterHeading(), paragraph),
         List.of(new SectionModel(1474, 1474, 1474, 1474, ADDRESS)), List.of());
 
     var result = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
@@ -81,6 +81,55 @@ class RuleEngineTest {
     var results = new RuleEngine().check(document, RuleSet.schoolV1());
 
     assertTrue(results.stream().noneMatch(result -> result.ruleId().startsWith("BODY-")));
+  }
+
+  @Test
+  void doesNotApplyBodyFormattingRulesInsideTableCells() {
+    var tableSource = new SourceAddress("word/document.xml", List.of(0, 1), 0, 0);
+    var cellSource = new SourceAddress("word/document.xml", List.of(0, 1, 0, 0, 0), 0, 4);
+    var run = new RunModel("表格内容", "Arial", "黑体", null, 18, false, cellSource);
+    var cellParagraph = new ParagraphModel(List.of(run), 0, null, null, null, null, cellSource, 0);
+    var table = new TableModel(tableSource, null, null, 1, 1, true, true, true, false, true, false);
+    var document = new ParsedDocument("source", List.of(cellParagraph), List.of(), List.of(), List.of(table),
+        List.of(), List.of(), List.of(), List.of(), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
+        .filter(result -> result.ruleId().startsWith("BODY-")).toList();
+
+    assertTrue(results.isEmpty());
+  }
+
+  @Test
+  void appliesBodyRulesOnlyBetweenFirstChapterAndEndMatter() {
+    var cover = paragraph("论文题目", List.of(0, 0));
+    var abstractTitle = paragraph("摘  要", List.of(0, 1));
+    var tocEntry = paragraph("第1章 绪论 ........ 1", List.of(0, 2));
+    var firstChapter = paragraph("第1章 绪论", List.of(0, 3));
+    var body = paragraph("正文内容", List.of(0, 4));
+    var references = paragraph("REFERENCES", List.of(0, 5));
+    var referenceText = paragraph("文献条目内容", List.of(0, 6));
+    var acknowledgement = paragraph("致谢", List.of(0, 7));
+    var afterBody = paragraph("感谢指导老师", List.of(0, 8));
+    var document = new ParsedDocument("source", List.of(cover, abstractTitle, tocEntry, firstChapter, body,
+        references, referenceText, acknowledgement, afterBody), List.of(), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
+        .filter(result -> result.ruleId().startsWith("BODY-") && result.judgement() != Judgement.PASS).toList();
+
+    assertEquals(3, results.size());
+    assertTrue(results.stream().allMatch(result -> result.source().elementPath().equals(List.of(0, 4))));
+  }
+
+  private static ParagraphModel paragraph(String text, List<Integer> path) {
+    var source = new SourceAddress("word/document.xml", path, 0, text.length());
+    var run = new RunModel(text, "Arial", "黑体", null, 18, false, source);
+    return new ParagraphModel(List.of(run), 0, null, null, null, null, source, 0);
+  }
+
+  private static ParagraphModel chapterHeading() {
+    var source = new SourceAddress("word/document.xml", List.of(0, 0), 0, 6);
+    var run = new RunModel("第1章 绪论", "Times New Roman", "黑体", null, 32, true, source);
+    return new ParagraphModel(List.of(run), 0, null, null, null, null, source, 0);
   }
 
   @Test
@@ -145,6 +194,26 @@ class RuleEngineTest {
     assertEquals(2, lines.size());
     var line = lines.get(0);
     assertEquals(Judgement.FAIL, line.judgement());
+  }
+
+  @Test
+  void checksChineseAbstractFormattingAndStopsAfterKeywords() {
+    var title = paragraph("摘  要", List.of(0, 0));
+    var body = new ParagraphModel(List.of(new RunModel("摘要正文", "Arial", "黑体", null, 18, false,
+        new SourceAddress("word/document.xml", List.of(0, 1), 0, 4))),
+        0, null, null, 480, "auto", new SourceAddress("word/document.xml", List.of(0, 1), 0, 4), 0);
+    var keywords = new ParagraphModel(List.of(new RunModel("关键词：格式", "Arial", "黑体", null, 18, false,
+        new SourceAddress("word/document.xml", List.of(0, 2), 0, 7))),
+        0, null, null, 480, "auto", new SourceAddress("word/document.xml", List.of(0, 2), 0, 7), 0);
+    var afterKeywords = paragraph("后续说明", List.of(0, 3));
+    var document = new ParsedDocument("source", List.of(title, body, keywords, afterKeywords), List.of(), List.of());
+
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+
+    assertEquals(2, results.stream().filter(result -> result.ruleId().equals("ABSTRACT-FONT")).count());
+    assertEquals(2, results.stream().filter(result -> result.ruleId().equals("ABSTRACT-SIZE")).count());
+    assertEquals(2, results.stream().filter(result -> result.ruleId().equals("ABSTRACT-INDENT")).count());
+    assertEquals(2, results.stream().filter(result -> result.ruleId().equals("ABSTRACT-LINE")).count());
   }
 
   @Test

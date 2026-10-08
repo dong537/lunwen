@@ -45,7 +45,17 @@ class InspectionApiTest {
         .andExpect(jsonPath("$.report.ruleSetId").value("school-v1"))
         .andExpect(jsonPath("$.annotation.available").value(true))
         .andReturn().getResponse().getContentAsString();
-    String requestId = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response).get("requestId").asText();
+    var responseJson = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response);
+    String requestId = responseJson.get("requestId").asText();
+    var annotationItems = responseJson.path("annotation").path("items");
+    boolean bodySizeWritten = false;
+    for (var item : annotationItems) {
+      if ("BODY-SIZE".equals(item.path("ruleId").asText())
+          && "WRITTEN".equals(item.path("status").asText())
+          && "word/document.xml".equals(item.path("source").path("partName").asText())
+          && item.path("source").path("elementPath").isArray()) bodySizeWritten = true;
+    }
+    assertTrue(bodySizeWritten, "the response should expose the annotation status at its source address");
 
     var download = mvc.perform(get("/api/inspections/{id}/annotated", requestId))
         .andExpect(status().isOk())
@@ -75,10 +85,24 @@ class InspectionApiTest {
         .andExpect(jsonPath("$.code").value("ANNOTATION_NOT_FOUND"));
   }
 
+  @Test
+  void leavesAnnotationItemsEmptyWhenAnnotationWasNotRequested() throws Exception {
+    mvc.perform(multipart("/api/inspections")
+        .file(new MockMultipartFile("file", "thesis.docx", MediaType.APPLICATION_OCTET_STREAM_VALUE, validDocx()))
+        .param("annotate", "false"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.annotation.available").value(false))
+        .andExpect(jsonPath("$.annotation.items").isArray())
+        .andExpect(jsonPath("$.annotation.items").isEmpty());
+  }
+
   private byte[] validDocx() throws Exception {
     var pkg = WordprocessingMLPackage.createPackage();
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
-        "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:rPr><w:rFonts w:eastAsia=\"黑体\"/><w:sz w:val=\"18\"/></w:rPr><w:t>正文</w:t></w:r></w:p><w:sectPr><w:pgMar w:top=\"1474\" w:right=\"1474\" w:bottom=\"1474\" w:left=\"1474\"/></w:sectPr></w:body></w:document>"));
+        "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+            + "<w:p><w:r><w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:eastAsia=\"黑体\"/><w:sz w:val=\"32\"/><w:b/></w:rPr><w:t>第1章 绪论</w:t></w:r></w:p>"
+            + "<w:p><w:r><w:rPr><w:rFonts w:eastAsia=\"黑体\"/><w:sz w:val=\"18\"/></w:rPr><w:t>正文</w:t></w:r></w:p>"
+            + "<w:sectPr><w:pgMar w:top=\"1474\" w:right=\"1474\" w:bottom=\"1474\" w:left=\"1474\"/></w:sectPr></w:body></w:document>"));
     Path source = temp.resolve("source.docx");
     pkg.save(source.toFile());
     return java.nio.file.Files.readAllBytes(source);

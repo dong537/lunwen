@@ -91,6 +91,39 @@ class CommentWriterTest {
     }
   }
 
+  @Test
+  void usesAbstractSpecificCommentAndHighlight() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>摘要内容</w:t></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("abstract-annotated.docx");
+    var finding = new CheckResult("ABSTRACT-SIZE", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "24", "18", "", new SourceAddress("word/document.xml", List.of(0, 0), 0, 4));
+
+    new CommentWriter().writeCopy(source, target, List.of(finding));
+
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
+      assertTrue(document.contains("w:val=\"yellow\""));
+      assertTrue(comments.contains("摘要字号应为小四，请检查。"));
+    }
+  }
+
+  @Test
+  void reportsUnsupportedStoryAnchorWithItsOriginalAddress() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>正文</w:t></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("unsupported-annotated.docx");
+    var anchor = new SourceAddress("word/footer1.xml", List.of(0, 1), 0, 4);
+    var finding = new CheckResult("PAGE-05", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "center", "left", "PAGE_NUMBER_NOT_CENTERED", anchor);
+
+    AnnotationReport report = new CommentWriter().writeCopy(source, target, List.of(finding));
+
+    assertEquals(false, report.outputWritten());
+    assertEquals(AnnotationStatus.UNSUPPORTED_ANCHOR, report.items().get(0).status());
+    assertEquals("PART_NOT_SUPPORTED", report.items().get(0).reason());
+    assertEquals(anchor, report.items().get(0).source());
+  }
+
   private CheckResult result(List<Integer> path) {
     return new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
         Judgement.FAIL, "1474", "1418", "MARGIN_MISMATCH",

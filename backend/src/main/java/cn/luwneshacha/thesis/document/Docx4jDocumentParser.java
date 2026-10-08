@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import jakarta.xml.bind.JAXBElement;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -25,6 +26,8 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
 public final class Docx4jDocumentParser {
+  private static final Pattern PAGE_FIELD = Pattern.compile("(?:^|\\s)PAGE(?=\\s|$)", Pattern.CASE_INSENSITIVE);
+
   public ParsedDocument parse(RawDocx raw) {
     Objects.requireNonNull(raw, "raw");
     try {
@@ -68,10 +71,7 @@ public final class Docx4jDocumentParser {
       if (!part.name().startsWith("word/footer") || !part.name().endsWith(".xml")) continue;
       try {
         Element root = parseXml(part.bytes());
-        var fields = root.getElementsByTagNameNS(XmlPartSupport.W, "instrText");
-        boolean page = false;
-        for (int i = 0; i < fields.getLength(); i++) if (fields.item(i).getTextContent().trim().equalsIgnoreCase("PAGE")) page = true;
-        if (!page) continue;
+        if (!hasPageField(root)) continue;
         Element paragraph = firstElement(root, XmlPartSupport.W, "p");
         Element jc = paragraph == null ? null : firstElement(paragraph, XmlPartSupport.W, "jc");
         boolean centered = jc != null && "center".equals(jc.getAttributeNS(XmlPartSupport.W, "val"));
@@ -80,9 +80,22 @@ public final class Docx4jDocumentParser {
         Integer size = sz == null ? null : parseInt(sz.getAttributeNS(XmlPartSupport.W, "val"));
         String font = rFonts == null ? null : rFonts.getAttributeNS(XmlPartSupport.W, "ascii");
         result.add(new PageNumberModel(new SourceAddress(part.name(), List.of(), 0, 0), true, centered, font, size));
-      } catch (Exception ignored) { }
+      } catch (Exception error) {
+        throw new IllegalArgumentException("unable to parse footer part " + part.name(), error);
+      }
     }
     return List.copyOf(result);
+  }
+
+  private static boolean hasPageField(Element root) {
+    var instructions = new StringBuilder();
+    var complexFields = root.getElementsByTagNameNS(XmlPartSupport.W, "instrText");
+    for (int i = 0; i < complexFields.getLength(); i++) instructions.append(complexFields.item(i).getTextContent());
+    var simpleFields = root.getElementsByTagNameNS(XmlPartSupport.W, "fldSimple");
+    for (int i = 0; i < simpleFields.getLength(); i++) {
+      instructions.append(' ').append(((Element) simpleFields.item(i)).getAttributeNS(XmlPartSupport.W, "instr"));
+    }
+    return PAGE_FIELD.matcher(instructions).find();
   }
 
   private List<HeadingBreakModel> parseChapterBreaks(byte[] xml, WordprocessingMLPackage pkg,

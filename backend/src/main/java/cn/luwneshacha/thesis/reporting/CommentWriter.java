@@ -45,7 +45,7 @@ public final class CommentWriter {
       byte[] sourceBytes = Files.readAllBytes(source);
       String actualHash = sha256(sourceBytes);
       if (expectedSourceSha256 != null && !expectedSourceSha256.equalsIgnoreCase(actualHash)) {
-        for (CheckResult result : results) rejected.add(new AnnotationItem(result.ruleId(), AnnotationStatus.REJECTED, "SOURCE_HASH_MISMATCH"));
+        for (CheckResult result : results) rejected.add(new AnnotationItem(result.ruleId(), AnnotationStatus.REJECTED, "SOURCE_HASH_MISMATCH", result.source()));
         return new AnnotationReport(rejected, false);
       }
       Map<String, byte[]> parts = readParts(source);
@@ -57,7 +57,7 @@ public final class CommentWriter {
       Map<String, List<CheckResult>> grouped = new LinkedHashMap<>();
       for (CheckResult result : results) {
         if (!"word/document.xml".equals(result.source().partName())) {
-          rejected.add(new AnnotationItem(result.ruleId(), AnnotationStatus.UNSUPPORTED_ANCHOR, "PART_NOT_SUPPORTED"));
+          rejected.add(new AnnotationItem(result.ruleId(), AnnotationStatus.UNSUPPORTED_ANCHOR, "PART_NOT_SUPPORTED", result.source()));
           continue;
         }
         grouped.computeIfAbsent(result.source().elementPath().toString(), ignored -> new ArrayList<>()).add(result);
@@ -81,11 +81,11 @@ public final class CommentWriter {
           commentsRoot.appendChild(comment(comments, nextId, group));
           for (CheckResult item : group) {
             written.add(item);
-            rejected.add(new AnnotationItem(item.ruleId(), AnnotationStatus.WRITTEN, ""));
+            rejected.add(new AnnotationItem(item.ruleId(), AnnotationStatus.WRITTEN, "", item.source()));
           }
           nextId++;
         } catch (AnchorException error) {
-          for (CheckResult item : group) rejected.add(new AnnotationItem(item.ruleId(), AnnotationStatus.UNSUPPORTED_ANCHOR, error.getMessage()));
+          for (CheckResult item : group) rejected.add(new AnnotationItem(item.ruleId(), AnnotationStatus.UNSUPPORTED_ANCHOR, error.getMessage(), item.source()));
         }
       }
       if (written.isEmpty()) return new AnnotationReport(rejected, false);
@@ -96,7 +96,7 @@ public final class CommentWriter {
       writeParts(target, parts);
       return new AnnotationReport(rejected, true);
     } catch (IOException | RuntimeException error) {
-      for (CheckResult result : results) rejected.add(new AnnotationItem(result.ruleId(), AnnotationStatus.REJECTED, "WRITE_FAILED"));
+      for (CheckResult result : results) rejected.add(new AnnotationItem(result.ruleId(), AnnotationStatus.REJECTED, "WRITE_FAILED", result.source()));
       return new AnnotationReport(rejected, false);
     }
   }
@@ -159,6 +159,10 @@ public final class CommentWriter {
       case "BODY-SIZE" -> "yellow";
       case "BODY-FONT" -> "cyan";
       case "BODY-INDENT" -> "brightGreen";
+      case "ABSTRACT-FONT" -> "cyan";
+      case "ABSTRACT-SIZE" -> "yellow";
+      case "ABSTRACT-INDENT" -> "brightGreen";
+      case "ABSTRACT-LINE" -> "purple";
       case "PAGE-01" -> "magenta";
       case "PAGE-05" -> "yellow";
       case "PAGE-04" -> "lightGray";
@@ -172,7 +176,6 @@ public final class CommentWriter {
       case "REF-05" -> "red";
       case "CAPTION-FONT" -> "cyan";
       case "CAPTION-SIZE" -> "yellow";
-      case "ABSTRACT-LINE" -> "purple";
       case "HEADING-FONT" -> "cyan";
       case "HEADING-SIZE" -> "yellow";
       case "HEADING-BOLD" -> "brightGreen";
@@ -215,6 +218,9 @@ public final class CommentWriter {
       case "BODY-FONT" -> "字体不符合要求，请检查中文字体和英文字体。";
       case "BODY-SIZE" -> "字号不符合要求，请按规范调整。";
       case "BODY-INDENT" -> "首行缩进不符合要求，请调整为 2 字符。";
+      case "ABSTRACT-FONT" -> "摘要字体不符合要求，请检查中英文字符字体。";
+      case "ABSTRACT-SIZE" -> "摘要字号应为小四，请检查。";
+      case "ABSTRACT-INDENT" -> "摘要首行缩进应为 2 字符，请调整。";
       case "REF-FONT" -> "参考文献字体不一致，请按规范使用宋体和 Times New Roman。";
       case "REF-SIZE" -> "参考文献字号不对，请按规范调整为小四。";
       case "REF-LINE" -> "参考文献行距不是 1.5 倍，请调整段落行距。";

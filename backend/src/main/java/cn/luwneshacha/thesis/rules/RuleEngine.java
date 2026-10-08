@@ -5,6 +5,7 @@ import cn.luwneshacha.thesis.document.ParsedDocument;
 import cn.luwneshacha.thesis.document.RunModel;
 import cn.luwneshacha.thesis.document.SectionModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
+import cn.luwneshacha.thesis.document.TableModel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashSet;
@@ -34,23 +35,27 @@ public final class RuleEngine {
       if (pageNumber.sizeHalfPoints() == null) results.add(review("PAGE-05", "21", "PAGE_NUMBER_SIZE_UNKNOWN", pageNumber.source()));
       else if (pageNumber.sizeHalfPoints() != 21) results.add(result("PAGE-05", "21", String.valueOf(pageNumber.sizeHalfPoints()), "PAGE_NUMBER_SIZE_MISMATCH", Judgement.FAIL, pageNumber.source()));
     }
+    boolean inMainBody = false;
     for (ParagraphModel paragraph : document.paragraphs()) {
+      String text = paragraphText(paragraph);
+      if (isChapterHeading(text)) inMainBody = true;
+      if (inMainBody && isEndMatterHeading(text)) inMainBody = false;
       int headingLevel = headingLevel(paragraph);
-      if (headingLevel > 0 && !TOC_ENTRY.matcher(paragraphText(paragraph)).matches()) {
+      if (headingLevel > 0 && !TOC_ENTRY.matcher(text).matches()) {
         for (RunModel run : paragraph.runs()) {
           results.add(checkHeadingFont(run, headingLevel));
           results.add(checkHeadingSize(run, headingLevel));
           results.add(checkHeadingBold(run));
         }
       }
-      if (!isBodyParagraph(paragraph)) continue;
+      if (!inMainBody || !isBodyParagraph(paragraph) || isInsideTable(paragraph, document.tables())) continue;
       results.add(checkIndent(paragraph, rules));
       for (RunModel run : paragraph.runs()) {
         results.add(checkFont(run, rules));
         results.add(checkSize(run, rules));
       }
     }
-    checkAbstractLineSpacing(results, document);
+    checkAbstractFormatting(results, document, rules);
     for (var reference : document.references()) {
       document.paragraphs().stream()
           .filter(paragraph -> paragraph.source().elementPath().equals(reference.source().elementPath()))
@@ -127,7 +132,7 @@ public final class RuleEngine {
 
   private int headingLevel(ParagraphModel paragraph) {
     String text = paragraphText(paragraph);
-    if (text.matches("^第[0-9一二三四五六七八九十]+章\\s+.*")) return 1;
+    if (isChapterHeading(text)) return 1;
     if (text.matches("^\\d+\\.\\d+\\.\\d+\\s+.*")) return 3;
     if (text.matches("^\\d+\\.\\d+\\s+.*")) return 2;
     return 0;
@@ -165,9 +170,32 @@ public final class RuleEngine {
     return !isSectionHeading(text);
   }
 
+  private boolean isChapterHeading(String text) {
+    return text.matches("^第[0-9一二三四五六七八九十百千零〇]+章\\s+.*")
+        && !TOC_ENTRY.matcher(text).matches();
+  }
+
+  private boolean isEndMatterHeading(String text) {
+    String normalized = text.replaceAll("\\s+", "");
+    if (normalized.equals("参考文献") || normalized.equalsIgnoreCase("References") || normalized.equals("致谢")
+        || normalized.equalsIgnoreCase("Acknowledgments") || normalized.equalsIgnoreCase("Acknowledgements")) return true;
+    return normalized.matches("^附录(?:[A-Za-z0-9一二三四五六七八九十百千零〇].*)?$");
+  }
+
+  private boolean isInsideTable(ParagraphModel paragraph, List<TableModel> tables) {
+    List<Integer> paragraphPath = paragraph.source().elementPath();
+    return tables.stream().anyMatch(table -> {
+      SourceAddress tableSource = table.source();
+      List<Integer> tablePath = tableSource.elementPath();
+      return tableSource.partName().equals(paragraph.source().partName())
+          && paragraphPath.size() > tablePath.size()
+          && paragraphPath.subList(0, tablePath.size()).equals(tablePath);
+    });
+  }
+
   private boolean isSectionHeading(String text) {
     return text.matches("^(摘要|Abstract|关键词|Keywords|目录|Contents|参考文献|References|致谢|Acknowledg(?:e)?ments)$")
-        || text.matches("^第[一二三四五六七八九十百零\\d]+章.*$")
+        || text.matches("^第[一二三四五六七八九十百千零〇\\d]+章.*$")
         || text.matches("^\\d+(?:\\.\\d+){0,3}\\s+\\S+.*$");
   }
 
@@ -181,14 +209,18 @@ public final class RuleEngine {
   }
 
   private CheckResult checkIndent(ParagraphModel paragraph, RuleSet rules) {
+    return checkIndent(paragraph, rules, "BODY-INDENT");
+  }
+
+  private CheckResult checkIndent(ParagraphModel paragraph, RuleSet rules, String ruleId) {
     if (paragraph.firstLineChars() == null) {
-      if (paragraph.firstLineIndentTwips() == null) return review("BODY-INDENT", "2 chars", "INDENT_UNKNOWN", paragraph.source());
-      return result("BODY-INDENT", String.valueOf(rules.expectedFirstLineIndentTwips()),
+      if (paragraph.firstLineIndentTwips() == null) return review(ruleId, "2 chars", "INDENT_UNKNOWN", paragraph.source());
+      return result(ruleId, String.valueOf(rules.expectedFirstLineIndentTwips()),
           String.valueOf(paragraph.firstLineIndentTwips()), "",
           paragraph.firstLineIndentTwips() == rules.expectedFirstLineIndentTwips() ? Judgement.PASS : Judgement.FAIL,
           paragraph.source());
     }
-    return result("BODY-INDENT", String.valueOf(rules.expectedFirstLineChars()), String.valueOf(paragraph.firstLineChars()), "", paragraph.firstLineChars() == rules.expectedFirstLineChars() ? Judgement.PASS : Judgement.FAIL, paragraph.source());
+    return result(ruleId, String.valueOf(rules.expectedFirstLineChars()), String.valueOf(paragraph.firstLineChars()), "", paragraph.firstLineChars() == rules.expectedFirstLineChars() ? Judgement.PASS : Judgement.FAIL, paragraph.source());
   }
 
   private CheckResult checkFont(RunModel run, RuleSet rules) {
@@ -214,17 +246,27 @@ public final class RuleEngine {
     return result(ruleId, String.valueOf(rules.expectedSizeHalfPoints()), String.valueOf(run.fontSizeHalfPoints()), "", run.fontSizeHalfPoints() == rules.expectedSizeHalfPoints() ? Judgement.PASS : Judgement.FAIL, run.source());
   }
 
-  private void checkAbstractLineSpacing(List<CheckResult> results, ParsedDocument document) {
-    boolean inAbstract = false;
+  private void checkAbstractFormatting(List<CheckResult> results, ParsedDocument document, RuleSet rules) {
+    String language = null;
     for (ParagraphModel paragraph : document.paragraphs()) {
-      String text = paragraph.runs().stream().map(RunModel::text).reduce("", String::concat).trim();
-      if (text.matches("^(摘要|Abstract)$")) { inAbstract = true; continue; }
-      if (inAbstract && text.matches("^(关键词|Keywords)[:：]?.*")) {
-        results.add(checkLineSpacing("ABSTRACT-LINE", paragraph));
-        inAbstract = false;
+      String text = paragraphText(paragraph);
+      String normalized = text.replaceAll("\\s+", "");
+      if (normalized.equals("摘要")) { language = "zh"; continue; }
+      if (normalized.equalsIgnoreCase("ABSTRACT")) { language = "en"; continue; }
+      if (language == null) continue;
+      if (isEndMatterHeading(text) || isChapterHeading(text) || normalized.equals("目录") || normalized.equalsIgnoreCase("CONTENTS")) {
+        language = null;
         continue;
       }
-      if (inAbstract && !text.isBlank()) results.add(checkLineSpacing("ABSTRACT-LINE", paragraph));
+      if (text.isBlank()) continue;
+      boolean keywords = normalized.matches("^(关键词|keywords)[:：]?.*");
+      for (RunModel run : paragraph.runs()) {
+        results.add(checkFont(run, rules, "ABSTRACT-FONT"));
+        results.add(checkSize(run, rules, "ABSTRACT-SIZE"));
+      }
+      results.add(checkIndent(paragraph, rules, "ABSTRACT-INDENT"));
+      results.add(checkLineSpacing("ABSTRACT-LINE", paragraph));
+      if (keywords) language = null;
     }
   }
 

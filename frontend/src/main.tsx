@@ -3,8 +3,27 @@ import { createRoot } from 'react-dom/client'
 import { AlertTriangle, CheckCircle2, ChevronDown, FileCheck2, FileUp, LoaderCircle, MessageSquareWarning, RotateCcw } from 'lucide-react'
 import './styles.css'
 
-type Result = { ruleId: string; judgement: 'PASS' | 'FAIL' | 'REVIEW'; expected: string | null; actual: string | null; reasonCode: string | null }
-type Report = { requestId: string; sourceSha256: string; report: { results: Result[]; diagnostics: string[]; tables: unknown[]; equations: unknown[]; references: unknown[]; images: unknown[] }; annotation: { available: boolean; downloadPath: string | null } }
+type SourceAddress = { partName: string; elementPath: number[]; start: number; end: number }
+type Result = { ruleId: string; judgement: 'PASS' | 'FAIL' | 'REVIEW'; expected: string | null; actual: string | null; reasonCode: string | null; source: SourceAddress }
+type AnnotationItem = { ruleId: string; status: 'WRITTEN' | 'UNSUPPORTED_ANCHOR' | 'REJECTED'; reason: string; source: SourceAddress }
+type Report = { requestId: string; sourceSha256: string; report: { results: Result[]; diagnostics: string[]; tables: unknown[]; equations: unknown[]; references: unknown[]; images: unknown[] }; annotation: { available: boolean; downloadPath: string | null; items: AnnotationItem[] } }
+
+function resultKey(ruleId: string, source: SourceAddress) {
+  return `${ruleId}|${source.partName}|${source.elementPath.join(',')}`
+}
+
+function annotationLabel(item?: AnnotationItem) {
+  if (!item) return '批注状态：未返回'
+  if (item.status === 'WRITTEN') return 'Word 批注已写入'
+  const reasons: Record<string, string> = {
+    PART_NOT_SUPPORTED: '该位置暂不支持 Word 批注',
+    EMPTY_ANCHOR: '该位置没有可批注的文字或图片',
+    PATH_OUT_OF_RANGE: '原文结构变化，无法定位',
+    SOURCE_HASH_MISMATCH: '论文内容变化，批注未写入',
+    WRITE_FAILED: '批注文件生成失败',
+  }
+  return `未写入 Word 批注：${(reasons[item.reason] ?? item.reason) || '未知原因'}`
+}
 
 const API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8080'
 
@@ -20,6 +39,8 @@ function App() {
     review: report?.report.results.filter(r => r.judgement === 'REVIEW').length ?? 0,
   }), [report])
   const visibleResults = report?.report.results.filter(result => result.judgement !== 'PASS') ?? []
+  const annotationStates = useMemo(() => new Map(report?.annotation.items.map(item => [resultKey(item.ruleId, item.source), item]) ?? []), [report])
+  const hasUnwrittenAnnotations = report?.annotation.items.some(item => item.status !== 'WRITTEN') ?? false
 
   async function inspect() {
     if (!file) return
@@ -46,7 +67,7 @@ function App() {
         </article>
         <article className="panel scope-panel"><div className="panel-heading"><span className="step">02</span><div><h3>检测范围</h3><p>当前版本的可验证规则</p></div></div><ul className="scope-list"><li><span className="scope-icon">↔</span><span>四边页边距<small>按 2.6 cm（1474 twips）</small></span></li><li><span className="scope-icon">Aa</span><span>字体与字号<small>中文字体、英文字体、半点字号</small></span></li><li><span className="scope-icon">↦</span><span>段落首行缩进<small>按 2 字符规则检查</small></span></li><li className="muted"><span className="scope-icon">◎</span><span>图片、公式、真实分页<small>暂列为人工复核范围</small></span></li></ul></article>
       </section>
-      {report && <section className="results"><div className="results-head"><div><p className="eyebrow">检测完成 · {report.requestId.slice(0, 8)}</p><h2>发现 {counts.fail + counts.review} 项需要处理</h2></div>{report.annotation.available && <a className="download-button" href={`${API}${report.annotation.downloadPath}`} download><MessageSquareWarning size={17}/> 下载带批注副本</a>}</div><div className="summary"><div className="metric pass"><CheckCircle2 size={19}/><strong>{counts.pass}</strong><span>通过</span></div><div className="metric fail"><AlertTriangle size={19}/><strong>{counts.fail}</strong><span>格式问题</span></div><div className="metric review"><MessageSquareWarning size={19}/><strong>{counts.review}</strong><span>需复核</span></div></div><div className="object-counts"><span>表格 {report.report.tables.length}</span><span>图片 {report.report.images.length}</span><span>公式 {report.report.equations.length}</span><span>文献 {report.report.references.length}</span></div><div className="result-list">{visibleResults.map((result, index) => <div className={`result-row ${result.judgement.toLowerCase()}`} key={`${result.ruleId}-${index}`}><button className="result-toggle" onClick={() => setOpen(open === `${result.ruleId}-${index}` ? null : `${result.ruleId}-${index}`)}><span className="result-state">{result.judgement === 'FAIL' ? <AlertTriangle size={17}/> : <MessageSquareWarning size={17}/>}</span><span className="rule-id">{result.ruleId}</span><span className="result-label">{result.judgement === 'FAIL' ? '存在格式问题' : '需要人工复核'}</span><ChevronDown size={17} className={open === `${result.ruleId}-${index}` ? 'rotate' : ''}/></button>{open === `${result.ruleId}-${index}` && <div className="result-detail"><span>期望值：{result.expected ?? '未定义'}</span><span>实际值：{result.actual ?? '未知'}</span>{result.reasonCode && <span>定位：{result.reasonCode}</span>}</div>}</div>)}</div></section>}
+      {report && <section className="results"><div className="results-head"><div><p className="eyebrow">检测完成 · {report.requestId.slice(0, 8)}</p><h2>发现 {counts.fail + counts.review} 项需要处理</h2>{hasUnwrittenAnnotations && <p className="annotation-warning">有些意见未能写入 Word 批注，展开对应问题可查看原因。</p>}</div>{report.annotation.available && <a className="download-button" href={`${API}${report.annotation.downloadPath}`} download><MessageSquareWarning size={17}/> 下载带批注副本</a>}</div><div className="summary"><div className="metric pass"><CheckCircle2 size={19}/><strong>{counts.pass}</strong><span>通过</span></div><div className="metric fail"><AlertTriangle size={19}/><strong>{counts.fail}</strong><span>格式问题</span></div><div className="metric review"><MessageSquareWarning size={19}/><strong>{counts.review}</strong><span>需复核</span></div></div><div className="object-counts"><span>表格 {report.report.tables.length}</span><span>图片 {report.report.images.length}</span><span>公式 {report.report.equations.length}</span><span>文献 {report.report.references.length}</span></div><div className="result-list">{visibleResults.map((result, index) => <div className={`result-row ${result.judgement.toLowerCase()}`} key={`${result.ruleId}-${index}`}><button className="result-toggle" onClick={() => setOpen(open === `${result.ruleId}-${index}` ? null : `${result.ruleId}-${index}`)}><span className="result-state">{result.judgement === 'FAIL' ? <AlertTriangle size={17}/> : <MessageSquareWarning size={17}/>}</span><span className="rule-id">{result.ruleId}</span><span className="result-label">{result.judgement === 'FAIL' ? '存在格式问题' : '需要人工复核'}</span><ChevronDown size={17} className={open === `${result.ruleId}-${index}` ? 'rotate' : ''}/></button>{open === `${result.ruleId}-${index}` && <div className="result-detail"><span>期望值：{result.expected ?? '未定义'}</span><span>实际值：{result.actual ?? '未知'}</span>{result.reasonCode && <span>定位：{result.reasonCode}</span>}<span>{annotationLabel(annotationStates.get(resultKey(result.ruleId, result.source)))}</span></div>}</div>)}</div></section>}
       {!report && !busy && <div className="empty-state"><RotateCcw size={17}/> 检测结果会显示在这里</div>}
     </main>
     <footer>原文只读 · 结果绑定 DOCX SHA-256 · 不保存账户信息</footer>

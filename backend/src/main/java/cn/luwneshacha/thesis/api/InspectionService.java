@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,17 +48,19 @@ public final class InspectionService {
       RawDocx raw = reader.read(source);
       InspectionReport report = kernel.inspect(source, RuleSet.schoolV1());
       boolean available = false;
+      AnnotationReport annotationReport = new AnnotationReport(List.of(), false);
       if (annotate) {
         Path target = requestDir.resolve("annotated.docx");
-        AnnotationReport annotation = commentWriter.writeCopy(source, target, raw.sourceSha256(), report.results().stream()
+        annotationReport = commentWriter.writeCopy(source, target, raw.sourceSha256(), report.results().stream()
             .filter(InspectionService::needsAnnotation)
             .collect(Collectors.toMap(InspectionService::annotationKey, java.util.function.UnaryOperator.identity(), (first, ignored) -> first, java.util.LinkedHashMap::new))
             .values().stream().toList());
-        available = annotation.outputWritten();
+        available = annotationReport.outputWritten();
         if (available) annotations.put(requestId, new StoredAnnotation(requestId, raw.sourceSha256(), target));
       }
       return new InspectionResponse(requestId, report.sourceSha256(), report.ruleSetId(), report,
-          new InspectionResponse.AnnotationInfo(available, available ? "/api/inspections/" + requestId + "/annotated" : null));
+          new InspectionResponse.AnnotationInfo(available, available ? "/api/inspections/" + requestId + "/annotated" : null,
+              annotationReport.items()));
     } catch (InspectionException error) {
       throw error;
     } catch (IOException | RuntimeException error) {

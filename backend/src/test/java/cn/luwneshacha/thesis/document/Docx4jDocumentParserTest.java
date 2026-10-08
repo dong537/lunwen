@@ -66,6 +66,22 @@ class Docx4jDocumentParserTest {
   }
 
   @Test
+  void recognizesPageFieldsWithSwitchesAndSimpleFieldSyntax() throws Exception {
+    RawDocx valid = new DocxReader().read(fixture());
+    var parts = new LinkedHashMap<>(valid.parts());
+    String footer = "<w:ftr " + NS + "><w:p><w:r><w:instrText xml:space=\"preserve\"> PA</w:instrText></w:r>"
+        + "<w:r><w:instrText xml:space=\"preserve\">GE \\* MERGEFORMAT</w:instrText></w:r></w:p>"
+        + "<w:p><w:fldSimple w:instr=\" PAGE \\* MERGEFORMAT \"><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p></w:ftr>";
+    parts.put("word/footer1.xml", new RawPart("word/footer1.xml", "test", footer.getBytes(java.nio.charset.StandardCharsets.UTF_8), true));
+    RawDocx withFooter = new RawDocx(valid.sourceSha256(), valid.sourceBytes(), parts, valid.entryCount());
+
+    ParsedDocument document = new Docx4jDocumentParser().parse(withFooter);
+
+    assertEquals(1, document.pageNumbers().size());
+    assertTrue(document.pageNumbers().get(0).pageField());
+  }
+
+  @Test
   void refusesToAnnotateWhenRawXmlParagraphIndexCannotBeBound() throws Exception {
     Path source = fixture();
     RawDocx valid = new DocxReader().read(source);
