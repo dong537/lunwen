@@ -161,6 +161,7 @@ public final class CommentWriter {
       case "BODY-INDENT" -> "brightGreen";
       case "PAGE-01" -> "magenta";
       case "FIG-01" -> "red";
+      case "FIG-02" -> "lightGray";
       case "REF-FONT" -> "cyan";
       case "REF-SIZE" -> "yellow";
       case "REF-LINE" -> "purple";
@@ -221,6 +222,7 @@ public final class CommentWriter {
           : "表题位置需要复核，请确认是否位于表格上方。";
       case "TAB-03" -> "表格边框可能不符合三线表要求，请检查横线和竖线。";
       case "FIG-01" -> "缺少图题，请在图片下方补充图号和题名。";
+      case "FIG-02" -> "图题位置需在 Word 中复核，确认位于图片下方并居中。";
       case "EQ-01" -> "公式缺少编号，请按章节补充公式号。";
       case "EQ-03" -> "公式编号重复，请检查编号顺序。";
       case "EQ-04" -> "公式对象已识别，具体格式请在 Word 中复核。";

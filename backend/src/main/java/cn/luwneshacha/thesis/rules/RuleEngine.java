@@ -62,6 +62,8 @@ public final class RuleEngine {
         results.add(result("FIG-01", "图号和图题", null, "FIGURE_CAPTION_MISSING", Judgement.FAIL, image.source()));
       }
       captionParagraph(document, image.captionSource()).ifPresent(paragraph -> addCaptionResults(results, paragraph, rules));
+      if (image.captionText() != null && image.placementNeedsReview())
+        results.add(review("FIG-02", "caption below and centered", "FIGURE_LAYOUT_REVIEW", image.source()));
     }
     var equationNumbers = new HashSet<String>();
     for (var equation : document.equations()) {

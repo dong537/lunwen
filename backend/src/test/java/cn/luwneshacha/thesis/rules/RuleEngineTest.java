@@ -10,6 +10,7 @@ import cn.luwneshacha.thesis.document.SectionModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.document.TableModel;
 import cn.luwneshacha.thesis.document.ReferenceEntryModel;
+import cn.luwneshacha.thesis.document.ImageModel;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -170,5 +171,19 @@ class RuleEngineTest {
 
     assertEquals(Judgement.FAIL, result.judgement());
     assertEquals("TABLE_CAPTION_BELOW", result.reasonCode());
+  }
+
+  @Test
+  void reportsFigurePlacementAsReviewWhenCaptionExists() {
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(1), 0, 0),
+        ADDRESS, "图1-1 示例", 100, 200, true, true);
+    var document = new ParsedDocument("source", List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(image));
+
+    var result = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
+        .filter(r -> r.ruleId().equals("FIG-02")).findFirst().orElseThrow();
+
+    assertEquals(Judgement.REVIEW, result.judgement());
+    assertEquals("FIGURE_LAYOUT_REVIEW", result.reasonCode());
   }
 }
