@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 18098
+      THESIS_STORAGE_ROOT: /data/thesis-inspection
+      THESIS_MAX_UPLOAD_BYTES: 16777216
+      THESIS_ANNOTATION_RETENTION: PT1H
+    volumes:
+      - thesis-data:/data/thesis-inspection
+    expose:
+      - "18098"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:18098/api/inspections/health | grep -q 'UP'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
+volumes:
+  thesis-data:

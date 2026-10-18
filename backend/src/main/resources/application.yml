@@ -1,0 +1,14 @@
+server:
+  port: 18098
+  tomcat:
+    max-swallow-size: 20MB
+spring:
+  servlet:
+    multipart:
+      max-file-size: 16MB
+      max-request-size: 16MB
+thesis:
+  storage-root: ${java.io.tmpdir}/thesis-inspection
+  max-upload-bytes: 16777216
+  annotation-retention: PT1H
+  annotation-cleanup-interval: PT5M
