@@ -358,7 +358,7 @@ class ContentsRuleCheckerTest {
   }
 
   @Test
-  void acceptsExactLevelIndentWhenItIsEncodedAsLeftIndentInsteadOfFirstLineIndent() {
+  void doesNotRequireFirstLineInsteadOfExistingLowerLevelLeftIndent() {
     var levelTwoSource = source(2);
     var levelThreeSource = source(3);
     var levelTwo = new ParagraphModel(List.of(new RunModel("2.1 研究背景……2", "Times New Roman",
@@ -375,9 +375,7 @@ class ContentsRuleCheckerTest {
         .filter(result -> result.ruleId().equals("TOC-ENTRY-INDENT"))
         .toList();
 
-    assertEquals(2, findings.size(), findings.toString());
-    assertTrue(findings.stream().allMatch(result -> result.judgement() == Judgement.PASS),
-        findings.toString());
+    assertTrue(findings.isEmpty(), findings.toString());
   }
 
   @Test
@@ -412,7 +410,7 @@ class ContentsRuleCheckerTest {
   }
 
   @Test
-  void doesNotTreatFirstLineIndentAsContentsEntryLeftIndent() {
+  void acceptsFirstLineIndentWithoutRequiringContentsEntryLeftIndent() {
     var source = source(2);
     var entry = new ParagraphModel(List.of(new RunModel("2.1 研究背景……2", "Times New Roman",
         "宋体", null, 24, false, source)), 480, null, null, null, 360, "auto", source,
@@ -420,13 +418,11 @@ class ContentsRuleCheckerTest {
     var document = document(paragraph("目    录", 0, "黑体", 32, "center"),
         paragraph("", 1, "宋体", 24, "left"), entry);
 
-    var finding = new ContentsRuleChecker(new ParagraphFormatChecker()).check(document, RuleSet.schoolV1()).stream()
-        .filter(result -> result.source().equals(source) && result.ruleId().equals("TOC-ENTRY-INDENT"))
-        .findFirst().orElseThrow();
+    var findings = new ContentsRuleChecker(new ParagraphFormatChecker()).check(document, RuleSet.schoolV1()).stream()
+        .filter(result -> result.ruleId().equals("TOC-ENTRY-INDENT"))
+        .toList();
 
-    assertEquals(Judgement.FAIL, finding.judgement());
-    assertEquals("INDENT_MISMATCH", finding.reasonCode());
-    assertEquals("left=0 twips", finding.actual());
+    assertTrue(findings.isEmpty(), findings.toString());
   }
 
   @Test
@@ -448,7 +444,7 @@ class ContentsRuleCheckerTest {
   }
 
   @Test
-  void reportsContentsEntryFontAndIndentMismatch() {
+  void reportsContentsEntryFontAndSizeWithoutInventedIndentMismatch() {
     var document = document(
         paragraph("目    录", 0, "黑体", 32, "center"),
         paragraph("", 1, "宋体", 24, "left"),
@@ -460,11 +456,11 @@ class ContentsRuleCheckerTest {
 
     assertTrue(findings.stream().anyMatch(result -> result.ruleId().equals("TOC-ENTRY-FONT")), findings.toString());
     assertTrue(findings.stream().anyMatch(result -> result.ruleId().equals("TOC-ENTRY-SIZE")), findings.toString());
-    assertTrue(findings.stream().anyMatch(result -> result.ruleId().equals("TOC-ENTRY-INDENT")), findings.toString());
+    assertTrue(findings.stream().noneMatch(result -> result.ruleId().equals("TOC-ENTRY-INDENT")), findings.toString());
   }
 
   @Test
-  void rejectsTwipOnlyValuesThatDoNotMatchTheExactIndentContract() {
+  void doesNotImposeExactLowerLevelLeftIndentDistances() {
     var document = document(
         paragraph("目    录", 0, "黑体", 32, "center"),
         paragraph("", 1, "宋体", 24, "left"),
@@ -475,11 +471,7 @@ class ContentsRuleCheckerTest {
         .filter(result -> result.ruleId().equals("TOC-ENTRY-INDENT"))
         .toList();
 
-    assertEquals(2, findings.size(), findings.toString());
-    assertTrue(findings.stream().allMatch(result -> result.judgement() == Judgement.FAIL),
-        findings.toString());
-    assertTrue(findings.stream().allMatch(result -> result.reasonCode().equals("INDENT_MISMATCH")),
-        findings.toString());
+    assertTrue(findings.isEmpty(), findings.toString());
   }
 
   @Test
@@ -514,11 +506,7 @@ class ContentsRuleCheckerTest {
 
     assertTrue(findings.stream().anyMatch(result -> result.ruleId().equals("TOC-ENTRY-FONT")), findings.toString());
     assertTrue(findings.stream().anyMatch(result -> result.ruleId().equals("TOC-ENTRY-SIZE")), findings.toString());
-    var indent = new ContentsRuleChecker(new ParagraphFormatChecker()).check(document, RuleSet.schoolV1()).stream()
-        .filter(result -> result.source().equals(source) && result.ruleId().equals("TOC-ENTRY-INDENT"))
-        .findFirst().orElseThrow();
-    assertEquals(Judgement.FAIL, indent.judgement());
-    assertEquals("INDENT_MISMATCH", indent.reasonCode());
+    assertTrue(findings.stream().noneMatch(result -> result.ruleId().equals("TOC-ENTRY-INDENT")), findings.toString());
     assertTrue(findings.stream().anyMatch(result -> result.ruleId().equals("TOC-ENTRY-PAGE")), findings.toString());
   }
 
@@ -658,7 +646,7 @@ class ContentsRuleCheckerTest {
   }
 
   @Test
-  void checksContentsIndentUsingExactTwipsWhenCharacterEvidenceIsAbsent() {
+  void acceptsLowerLevelTwipIndentWithoutAddingCharacterRequirements() {
     var document = document(
         paragraph("目    录", 0, "黑体", 32, "center"),
         paragraph("", 1, "宋体", 24, "left"),
@@ -669,26 +657,21 @@ class ContentsRuleCheckerTest {
         .filter(result -> result.ruleId().equals("TOC-ENTRY-INDENT"))
         .toList();
 
-    assertEquals(2, findings.size());
-    assertTrue(findings.stream().allMatch(result -> result.judgement() == Judgement.PASS),
-        findings.toString());
+    assertTrue(findings.isEmpty(), findings.toString());
   }
 
   @Test
-  void rejectsContentsIndentTwipsThatDifferFromTheExactExpectedValue() {
+  void doesNotInventLowerLevelIndentRequirementWhenOnlyTwipsArePresent() {
     var document = document(
         paragraph("目    录", 0, "黑体", 32, "center"),
         paragraph("", 1, "宋体", 24, "left"),
         tocEntry("2.1 定义……2", 2, "宋体", 24, null, 420));
 
-    var finding = new ContentsRuleChecker(new ParagraphFormatChecker()).check(document, RuleSet.schoolV1()).stream()
+    var findings = new ContentsRuleChecker(new ParagraphFormatChecker()).check(document, RuleSet.schoolV1()).stream()
         .filter(result -> result.ruleId().equals("TOC-ENTRY-INDENT"))
-        .findFirst().orElseThrow();
+        .toList();
 
-    assertEquals(Judgement.FAIL, finding.judgement());
-    assertEquals("INDENT_MISMATCH", finding.reasonCode());
-    assertTrue(finding.expected().contains("480 twips"), finding.expected());
-    assertTrue(finding.actual().contains("420"), finding.actual());
+    assertTrue(findings.isEmpty(), findings.toString());
   }
 
   @Test

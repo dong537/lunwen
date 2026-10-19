@@ -751,7 +751,7 @@ class RuleEngineTest {
   }
 
   @Test
-  void acceptsExactContentsCharacterIndentEvidence() {
+  void onlyEnforcesFirstLevelIndentAmongMixedContentsLevels() {
     var contents = paragraph("目录", List.of(0, 90));
     var blank = paragraph("", List.of(0, 91));
     var chapterSource = new SourceAddress("word/document.xml", List.of(0, 92), 0, 13);
@@ -773,7 +773,8 @@ class RuleEngineTest {
         .filter(item -> item.ruleId().equals("TOC-ENTRY-INDENT"))
         .toList();
 
-    assertEquals(3, results.size(), results.toString());
+    assertEquals(1, results.size(), results.toString());
+    assertEquals(chapterSource, results.getFirst().source());
     assertTrue(results.stream().allMatch(result -> result.judgement() == Judgement.PASS), results.toString());
   }
 

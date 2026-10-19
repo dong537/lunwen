@@ -596,22 +596,12 @@ public final class RuleDescriptions {
   }
 
   private static String tocIndentSuggestion(CheckResult result) {
-    String expected = result.expected() == null ? "" : result.expected();
-    java.util.regex.Matcher expectedChars = java.util.regex.Pattern
-        .compile("leftChars=(\\d+)").matcher(expected);
-    if (!expectedChars.find())
-      return "请核对目录层级：一级条目顶格，二级条目整体左侧缩进 2 字符，三级条目整体左侧缩进 4 字符。目录不要求首行缩进。";
-    int characters = Integer.parseInt(expectedChars.group(1)) / 100;
-    String entry = characters == 0 ? "一级目录条目" : characters == 2 ? "二级目录条目" : "三级目录条目";
-    String requirement = characters == 0 ? "顶格，左侧缩进为 0 字符" : "整体左侧缩进 " + characters + " 字符";
     String actual = result.actual() == null ? "" : result.actual();
     String detail = actual.contains("空白字符") ? "条目开头有空白字符，请删除这些字符。"
         : actual.startsWith("存在额外的") ? "条目设置了额外的右侧或悬挂缩进，请清除这些设置。"
         : actual.contains("无法读取") ? "未能读取到有效的目录左侧缩进设置。"
         : "";
-    return detail + entry + "应" + requirement
-        + "。请选中整条目录，在段落设置中将“左侧缩进”设为 " + characters
-        + " 字符；不要用行首空格代替。目录不要求首行缩进。";
+    return detail + "一级目录条目应顶格，左侧缩进为 0 字符。请选中该条目，在段落设置中将“左侧缩进”设为 0 字符；不要用行首空格代替。目录不要求首行缩进。";
   }
 
   private static String indentMeasurement(String actual, String expected) {

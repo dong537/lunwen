@@ -11,7 +11,11 @@ import java.util.regex.Pattern;
 /** Shared document-region evidence used by rules that cross paragraph/object boundaries. */
 final class DocumentRegionClassifier {
   private static final Pattern TOC_ENTRY = Pattern.compile(".+(?:\\.{2,}|……+|\\t|[\\p{Zs}]{2,})\\s*\\d+$");
-  private static final Pattern CONTENTS_STYLE = Pattern.compile("(?i)^(?:toc|目录)[\\s\\p{Zs}]*[1-3]$");
+  private static final Pattern CONTENTS_STYLE = Pattern.compile("(?i)^(?:toc|目录)[\\s\\p{Zs}]*([1-3])$");
+  static final Pattern NUMERIC_CONTENTS_WITH_INTERNAL_WHITESPACE = Pattern.compile(
+      "^(\\d+(?:[\\p{javaWhitespace}\\p{Z}\\u200B-\\u200D\\u2060\\uFEFF]*\\."
+          + "[\\p{javaWhitespace}\\p{Z}\\u200B-\\u200D\\u2060\\uFEFF]*\\d+){1,2})(.*)$",
+      Pattern.DOTALL);
   private static final Pattern APPENDIX_HEADING = Pattern.compile(
       "^(?:附录|Appendix)[\\s\\p{Zs}]*([A-Z])(?:$|[\\s\\p{Zs}]|[:：]|\\p{IsHan}).*",
       Pattern.CASE_INSENSITIVE);
@@ -20,12 +24,24 @@ final class DocumentRegionClassifier {
       "^(续表|表|图)\\s*[0-9一二三四五六七八九十]+", Pattern.CASE_INSENSITIVE);
 
   boolean hasDefiniteContentsEvidence(ParagraphModel paragraph) {
-    return paragraph.generatedTocField() || isContentsStyle(paragraph.paragraphStyleId())
-        || isContentsStyle(paragraph.paragraphStyleName());
+    return paragraph.generatedTocField() || contentsStyleLevel(paragraph) > 0;
   }
 
-  private boolean isContentsStyle(String style) {
-    return style != null && CONTENTS_STYLE.matcher(style).matches();
+  int contentsStyleLevel(ParagraphModel paragraph) {
+    for (String style : new String[] {paragraph.paragraphStyleId(), paragraph.paragraphStyleName()}) {
+      if (style == null) continue;
+      Matcher matcher = CONTENTS_STYLE.matcher(style);
+      if (matcher.matches()) return Integer.parseInt(matcher.group(1));
+    }
+    return 0;
+  }
+
+  /** Weak layout evidence: callers must already be inside the contents region. */
+  boolean looksLikeLowerLevelContentsEntry(ParagraphModel paragraph) {
+    return NUMERIC_CONTENTS_WITH_INTERNAL_WHITESPACE.matcher(paragraphText(paragraph)).matches()
+        && paragraph.runs().stream().filter(run -> !run.text().isBlank())
+            .allMatch(run -> !Boolean.TRUE.equals(run.bold())
+                && Integer.valueOf(24).equals(run.fontSizeHalfPoints()));
   }
 
   boolean isBeforeMainBody(ParsedDocument document, SourceAddress source) {

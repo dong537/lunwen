@@ -15,8 +15,6 @@ final class ContentsRuleChecker implements RuleModule {
   private static final Pattern ENTRY = Pattern.compile(".+(?:\\.{2,}|……+|\\t|[\\p{Zs}]{2,})\\s*\\d+$", Pattern.DOTALL);
   private static final Pattern CHAPTER = Pattern.compile("^第[一二三四五六七八九十百千万零〇]+章");
   private static final Pattern NUMERIC = Pattern.compile("^(\\d+(?:\\.\\d+){1,2})(.*)$", Pattern.DOTALL);
-  private static final Pattern NUMERIC_WITH_INTERNAL_WHITESPACE = Pattern.compile(
-      "^(\\d+(?:" + WHITESPACE + "*\\." + WHITESPACE + "*\\d+){1,2})(.*)$", Pattern.DOTALL);
   private static final Pattern ENTRY_WITH_PAGE = Pattern.compile(
       "^(.*?)(?:\\.{2,}|……+|\\t|[\\p{Zs}]{2,})\\s*\\d+$", Pattern.DOTALL);
   private static final Pattern SIMPLE_ENTRY_WITH_PAGE = Pattern.compile("^(.*?)\\s+\\d+$", Pattern.DOTALL);
@@ -271,7 +269,7 @@ final class ContentsRuleChecker implements RuleModule {
               sourceOffset(paragraph, leadingOffset + whitespace + 1))));
       return;
     }
-    Matcher malformedNumeric = NUMERIC_WITH_INTERNAL_WHITESPACE.matcher(entryText);
+    Matcher malformedNumeric = DocumentRegionClassifier.NUMERIC_CONTENTS_WITH_INTERNAL_WHITESPACE.matcher(entryText);
     if (malformedNumeric.matches()
         && malformedNumeric.group(1).codePoints().anyMatch(ContentsRuleChecker::isSeparatorCodePoint)) {
       int whitespace = firstWhitespaceIndex(malformedNumeric.group(1));
@@ -333,25 +331,15 @@ final class ContentsRuleChecker implements RuleModule {
   private void checkEntryFormatting(List<CheckResult> results, ParagraphModel paragraph, String raw) {
     String matchingText = matchingText(raw);
     checkEntrySpacing(results, paragraph, matchingText);
-    int level = tocLevel(matchingText);
+    int level = tocLevel(paragraph, matchingText);
     for (RunModel run : paragraph.runs()) {
       if (run.text().isEmpty()) continue;
       results.add(formatChecker.checkFont(run, "宋体", "Times New Roman", "TOC-ENTRY-FONT"));
       results.add(formatChecker.checkExpectedSize(run, 24, "TOC-ENTRY-SIZE"));
     }
     results.add(formatChecker.checkLineSpacing("TOC-ENTRY-LINE", paragraph));
-    Integer expectedChars = switch (level) {
-      case 1 -> 0;
-      case 2 -> 200;
-      case 3 -> 400;
-      default -> 0;
-    };
-    Integer expectedTwips = switch (level) {
-      case 2 -> 480;
-      case 3 -> 960;
-      default -> 0;
-    };
-    results.add(checkTocEntryIndent(paragraph, expectedChars, expectedTwips));
+    // 二、三级目录允许首行或整段缩进；没有依据强制其中一种方式或数值。
+    if (level == 1) results.add(checkFirstLevelEntryIndent(paragraph));
     Matcher page = NUMERIC_PAGE.matcher(matchingText.strip());
     if (!page.matches()) {
       String value = matchingText.strip();
@@ -366,17 +354,19 @@ final class ContentsRuleChecker implements RuleModule {
     }
   }
 
-  private int tocLevel(String raw) {
+  private int tocLevel(ParagraphModel paragraph, String raw) {
+    int styleLevel = regions.contentsStyleLevel(paragraph);
+    if (styleLevel > 0) return styleLevel;
     String value = raw.stripLeading();
     if (CHAPTER.matcher(value).find()) return 1;
-    Matcher numeric = NUMERIC.matcher(value);
-    if (!numeric.matches()) return 1;
-    return numeric.group(1).chars().filter(character -> character == '.').count() == 1 ? 2 : 3;
+    Matcher numeric = DocumentRegionClassifier.NUMERIC_CONTENTS_WITH_INTERNAL_WHITESPACE.matcher(value);
+    if (numeric.matches())
+      return numeric.group(1).chars().filter(character -> character == '.').count() == 1 ? 2 : 3;
+    return isEndMatter(removePageSuffix(value)) ? 1 : 0;
   }
 
-  private CheckResult checkTocEntryIndent(ParagraphModel paragraph,
-      Integer expectedChars, Integer expectedTwips) {
-    String expected = "leftChars=" + expectedChars + " / left=" + expectedTwips + " twips";
+  private CheckResult checkFirstLevelEntryIndent(ParagraphModel paragraph) {
+    String expected = "leftChars=0 / left=0 twips";
     if (paragraph.leftEvidenceInvalid()) {
       return result("TOC-ENTRY-INDENT", expected, "左缩进属性冲突或无法读取",
           "INDENT_EVIDENCE_INVALID", Judgement.FAIL, paragraph.source());
@@ -394,11 +384,11 @@ final class ContentsRuleChecker implements RuleModule {
       return result("TOC-ENTRY-INDENT", expected, "条目文字前有空白字符",
           "INDENT_MISMATCH", Judgement.FAIL, paragraph.source());
     }
-    // 目录按整段左侧缩进区分层级，不检查首行缩进，也不用首行值替代左缩进。
+    // 仅检查一级目录已有的顶格要求，不将首行缩进换算成整体左缩进。
     boolean characterEvidence = paragraph.leftIndentChars() != null;
     int actual = characterEvidence ? paragraph.leftIndentChars()
         : paragraph.leftIndentTwips() == null ? 0 : paragraph.leftIndentTwips();
-    boolean matches = actual == (characterEvidence ? expectedChars : expectedTwips);
+    boolean matches = actual == 0;
     return result("TOC-ENTRY-INDENT", expected,
         characterEvidence ? "leftChars=" + actual : "left=" + actual + " twips",
         matches ? "" : "INDENT_MISMATCH", matches ? Judgement.PASS : Judgement.FAIL, paragraph.source());
@@ -434,8 +424,9 @@ final class ContentsRuleChecker implements RuleModule {
     if (paragraph.generatedTocField()) return true;
     if (isContentsStyle(paragraph)) return true;
     String value = matchingText.stripLeading();
+    if (regions.looksLikeLowerLevelContentsEntry(paragraph)) return true;
     if (looksLikeTocEntry(paragraph)
-        && (CHAPTER.matcher(value).find() || NUMERIC.matcher(value).matches()
+        && (CHAPTER.matcher(value).find()
             || isEndMatter(value))) return true;
 
     // A hand-written entry can be missing its page number and can itself have

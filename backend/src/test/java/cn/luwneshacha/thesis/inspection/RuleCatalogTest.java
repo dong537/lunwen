@@ -75,8 +75,10 @@ class RuleCatalogTest {
     var appendix = RuleCatalog.find("APP-01");
 
     assertTrue(cover.inspectionLimitation().contains("段前、段后和行距未检查"));
-    assertTrue(contents.description().contains("条目字体字号行距和整段左侧层级缩进"));
-    assertTrue(contents.description().contains("不检查首行缩进"));
+    assertTrue(contents.description().contains("条目字体字号行距"));
+    assertTrue(contents.description().contains("一级条目顶格"));
+    assertTrue(contents.description().contains("不检查目录首行缩进"));
+    assertTrue(contents.description().contains("不强制二、三级条目整体左缩进"));
     assertTrue(contents.description().contains("标题对应关系和顺序"));
     assertTrue(contents.description().contains("目录标题"));
     assertTrue(contents.inspectionLimitation().contains("最终页码显示"));

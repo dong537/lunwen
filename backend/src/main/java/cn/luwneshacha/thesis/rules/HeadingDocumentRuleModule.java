@@ -217,7 +217,8 @@ final class HeadingDocumentRuleModule implements RuleModule {
 
   boolean isTocEntryParagraph(ParsedDocument document, int index,
       ParagraphModel paragraph, String text) {
-    if (regions.hasDefiniteContentsEvidence(paragraph) || TOC_ENTRY.matcher(text).matches()
+    if (regions.hasDefiniteContentsEvidence(paragraph)
+        || regions.looksLikeLowerLevelContentsEntry(paragraph) || TOC_ENTRY.matcher(text).matches()
         || text.matches("^第[一二三四五六七八九十百千万零〇]+章\\s+.+\\d$")
         || text.matches("^\\d+(?:\\.\\d+){1,2}\\s+.+\\d$")) return true;
     String value = text.stripLeading();

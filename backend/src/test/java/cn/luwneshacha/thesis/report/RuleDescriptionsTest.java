@@ -67,22 +67,17 @@ class RuleDescriptionsTest {
   }
 
   @Test
-  void explainsTheSpecificContentsEntryIndentMismatch() {
-    CheckResult missing = result("TOC-ENTRY-INDENT", "INDENT_MISMATCH",
-        "leftChars=200 / left=480 twips", "left=0 twips", Judgement.FAIL);
+  void explainsFirstLevelIndentWithoutInventingLowerLevelRequirements() {
     CheckResult wrongValue = result("TOC-ENTRY-INDENT", "INDENT_MISMATCH",
-        "leftChars=400 / left=960 twips", "left=360 twips", Judgement.FAIL);
+        "leftChars=0 / left=0 twips", "left=360 twips", Judgement.FAIL);
     CheckResult typedWhitespace = result("TOC-ENTRY-INDENT", "INDENT_MISMATCH",
         "leftChars=0 / left=0 twips", "条目文字前有空白字符", Judgement.FAIL);
 
-    String missingAdvice = RuleDescriptions.suggestion(missing);
-    assertTrue(missingAdvice.contains("整体左侧缩进 2 字符"), missingAdvice);
-    assertTrue(missingAdvice.contains("目录不要求首行缩进"), missingAdvice);
-    assertFalse(missingAdvice.contains("将首行缩进"), missingAdvice);
-
     String wrongValueAdvice = RuleDescriptions.suggestion(wrongValue);
-    assertTrue(wrongValueAdvice.contains("三级目录条目"), wrongValueAdvice);
-    assertTrue(wrongValueAdvice.contains("4 字符"), wrongValueAdvice);
+    assertTrue(wrongValueAdvice.contains("一级目录条目"), wrongValueAdvice);
+    assertTrue(wrongValueAdvice.contains("0 字符"), wrongValueAdvice);
+    assertTrue(wrongValueAdvice.contains("目录不要求首行缩进"), wrongValueAdvice);
+    assertFalse(wrongValueAdvice.contains("2 字符") || wrongValueAdvice.contains("4 字符"), wrongValueAdvice);
     assertFalse(wrongValueAdvice.contains("twips"), wrongValueAdvice);
 
     String whitespaceAdvice = RuleDescriptions.suggestion(typedWhitespace);
@@ -92,16 +87,12 @@ class RuleDescriptionsTest {
 
   @Test
   void contentsIndentReportValuesDescribeLeftIndentInWordUnits() {
-    CheckResult missing = result("TOC-ENTRY-INDENT", "INDENT_MISMATCH",
-        "leftChars=200 / left=480 twips", "left=0 twips", Judgement.FAIL);
     CheckResult wrongCharacters = result("TOC-ENTRY-INDENT", "INDENT_MISMATCH",
-        "leftChars=400 / left=960 twips", "leftChars=199", Judgement.FAIL);
+        "leftChars=0 / left=0 twips", "leftChars=199", Judgement.FAIL);
     CheckResult wrongDistance = result("TOC-ENTRY-INDENT", "INDENT_MISMATCH",
         "leftChars=0 / left=0 twips", "left=720 twips", Judgement.FAIL);
 
-    assertEquals("左侧缩进 2 字符", RuleDescriptions.expectedValue(missing));
-    assertEquals("左侧缩进 0 厘米", RuleDescriptions.actualValue(missing));
-    assertEquals("左侧缩进 4 字符", RuleDescriptions.expectedValue(wrongCharacters));
+    assertEquals("左侧缩进 0 字符", RuleDescriptions.expectedValue(wrongCharacters));
     assertEquals("左侧缩进 1.99 字符", RuleDescriptions.actualValue(wrongCharacters));
     assertEquals("左侧缩进 0 字符", RuleDescriptions.expectedValue(wrongDistance));
     assertEquals("左侧缩进 1.27 厘米", RuleDescriptions.actualValue(wrongDistance));

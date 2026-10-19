@@ -15,6 +15,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import org.docx4j.XmlUtils;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 import org.docx4j.wml.Document;
+import org.docx4j.wml.Style;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,6 +24,30 @@ import org.junit.jupiter.params.provider.ValueSource;
 class ContentsIndentPolicyTest {
   @TempDir Path directory;
   private Path source;
+
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "<w:ind w:left=\"0\" w:firstLineChars=\"200\"/>",
+      "<w:ind w:firstLine=\"480\"/>",
+      "<w:ind w:leftChars=\"200\"/>",
+      ""
+  })
+  void secondLevelEntriesDoNotRequireWholeParagraphLeftIndent(String indent) throws Exception {
+    var parsed = parse(entry("TOC2", indent, "2.1 方法……2"));
+    assertTrue(indentFindings(parsed).isEmpty(), indentFindings(parsed).toString());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "<w:ind w:left=\"0\" w:firstLineChars=\"400\"/>",
+      "<w:ind w:firstLine=\"960\"/>",
+      "<w:ind w:leftChars=\"400\"/>",
+      ""
+  })
+  void thirdLevelEntriesAcceptFirstLineIndentWithoutIntroducingAnotherRequirement(String indent) throws Exception {
+    var parsed = parse(entry("TOC3", indent, "2.1.1 实现……3"));
+    assertTrue(indentFindings(parsed).isEmpty(), indentFindings(parsed).toString());
+  }
 
   @ParameterizedTest
   @ValueSource(strings = {"", "<w:ind w:left=\"0\" w:firstLine=\"0\"/>"})
@@ -39,40 +64,78 @@ class ContentsIndentPolicyTest {
   }
 
   @Test
-  void lowerLevelsUseWholeParagraphLeftIndentWithoutRequiringFirstLineAttributes() throws Exception {
-    var parsed = parse(entry("TOC2", "<w:ind w:leftChars=\"200\"/>", "2.1 方法……2")
-        + entry("TOC3", "<w:ind w:leftChars=\"400\"/>", "2.1.1 实现……3"));
+  void inheritedFirstLineIndentRemainsDistinctFromLeftIndent() throws Exception {
+    var parsed = parse(entry("TOC2", "", "2.1 方法……2")
+        + entry("TOC3", "", "2.1.1 实现……3"),
+        style("TOC2", "目录 2", 200), style("TOC3", "目录 3", 400));
+    assertEquals(200, parsed.paragraphs().get(2).firstLineChars());
+    assertEquals(400, parsed.paragraphs().get(3).firstLineChars());
+    assertEquals(null, parsed.paragraphs().get(2).leftIndentChars());
+    assertEquals(null, parsed.paragraphs().get(3).leftIndentChars());
     var findings = indentFindings(parsed);
 
-    assertEquals(2, findings.size());
-    assertTrue(findings.stream().allMatch(r -> r.judgement() == Judgement.PASS), findings.toString());
-    assertTrue(findings.stream().noneMatch(r -> r.expected().contains("firstLine")), findings.toString());
+    assertTrue(findings.isEmpty(), findings.toString());
   }
 
   @Test
-  void firstLineIndentDoesNotSubstituteForWholeParagraphLeftIndent() throws Exception {
-    var parsed = parse(entry("TOC2", "<w:ind w:left=\"0\" w:firstLineChars=\"200\"/>", "2.1 方法……2"));
-    var finding = indentFindings(parsed).getFirst();
-
-    assertEquals(Judgement.FAIL, finding.judgement());
-    assertTrue(finding.expected().contains("leftChars=200"), finding.toString());
+  void localizedContentsStyleDoesNotFallBackToFirstLevelWhenNumberIsMissing() throws Exception {
+    var parsed = parse(entry("CustomTOC", "<w:ind w:leftChars=\"400\"/>", "研究范围……2"),
+        style("CustomTOC", "目录 3", 400));
+    assertEquals("目录 3", parsed.paragraphs().getLast().paragraphStyleName());
+    assertTrue(indentFindings(parsed).isEmpty(), indentFindings(parsed).toString());
   }
 
   @Test
-  void actualWordCommentExplainsWholeParagraphLeftIndent() throws Exception {
-    var parsed = parse(entry("TOC2", "<w:ind w:left=\"0\"/>", "2.1 方法……2"));
-    var finding = indentFindings(parsed).getFirst();
-    assertEquals(Judgement.FAIL, finding.judgement());
+  void brokenNumberSpacingDoesNotTurnLowerLevelIntoFirstLevel() throws Exception {
+    var parsed = parse(entry("", "<w:ind w:leftChars=\"400\"/>", "2 .1.1 实现……2"));
+    var findings = new RuleEngine().check(parsed, RuleSet.schoolV1());
+    assertFalse(findings.stream().anyMatch(r -> r.ruleId().equals("TOC-ENTRY-INDENT")), findings.toString());
+    assertTrue(findings.stream().anyMatch(r -> r.ruleId().equals("TOC-SPACING")
+        && r.judgement() == Judgement.FAIL), findings.toString());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2.1.1 研究范围", "2.1.1 研究范围\tX", "2 .1.1 研究范围", "2 .1.1 研究范围\tX"})
+  void manualContentsWithMissingOrInvalidPageIsNotCheckedAsBodyHeading(String title) throws Exception {
+    var parsed = parse(entry("", "<w:ind w:firstLine=\"960\"/>", title)
+        .replace("<w:r><w:t", "<w:r><w:rPr><w:rFonts w:eastAsia=\"宋体\" w:ascii=\"Times New Roman\"/>"
+            + "<w:sz w:val=\"24\"/></w:rPr><w:t"));
+    var sourcePath = parsed.paragraphs().getLast().source().elementPath();
+    var findings = new RuleEngine().check(parsed, RuleSet.schoolV1()).stream()
+        .filter(r -> r.source().elementPath().equals(sourcePath)).toList();
+    assertTrue(findings.stream().anyMatch(r -> r.ruleId().equals("TOC-ENTRY-PAGE")
+        && r.judgement() == Judgement.FAIL), findings.toString());
+    if (title.startsWith("2 ")) {
+      assertTrue(findings.stream().anyMatch(r -> r.ruleId().equals("TOC-SPACING")
+          && r.judgement() == Judgement.FAIL), findings.toString());
+    }
+    assertFalse(findings.stream().anyMatch(r -> r.ruleId().startsWith("HEAD")
+        || r.ruleId().equals("BODY-INDENT") || r.ruleId().equals("TOC-ENTRY-INDENT")), findings.toString());
+  }
+
+  @Test
+  void lowerLevelCompatibilityStillWritesOtherFormatErrorsToWord() throws Exception {
+    var parsed = parse(entry("TOC3", "<w:ind w:firstLineChars=\"400\"/>"
+        + "<w:spacing w:line=\"240\" w:lineRule=\"auto\"/>", "2.1.1实现")
+        .replace("<w:r><w:t", "<w:r><w:rPr><w:rFonts w:eastAsia=\"黑体\" w:ascii=\"Arial\"/>"
+            + "<w:sz w:val=\"28\"/></w:rPr><w:t"));
+    var entryPath = parsed.paragraphs().getLast().source().elementPath();
+    var findings = new RuleEngine().check(parsed, RuleSet.schoolV1()).stream()
+        .filter(r -> r.source().elementPath().equals(entryPath) && r.judgement() == Judgement.FAIL).toList();
+    for (String ruleId : List.of("TOC-ENTRY-FONT", "TOC-ENTRY-SIZE", "TOC-ENTRY-LINE", "TOC-SPACING", "TOC-ENTRY-PAGE")) {
+      assertTrue(findings.stream().anyMatch(r -> r.ruleId().equals(ruleId)), ruleId + ": " + findings);
+    }
+    assertFalse(findings.stream().anyMatch(r -> r.ruleId().contains("INDENT")), findings.toString());
     Path annotated = directory.resolve("annotated.docx");
-    var annotations = new CommentWriter().writeCopy(source, annotated, parsed.sourceSha256(), List.of(finding));
+    var annotations = new CommentWriter().writeCopy(source, annotated, parsed.sourceSha256(), findings);
     assertTrue(annotations.outputWritten());
     try (ZipFile zip = new ZipFile(annotated.toFile());
         var stream = zip.getInputStream(zip.getEntry("word/comments.xml"))) {
       var factory = DocumentBuilderFactory.newInstance();
       factory.setNamespaceAware(true);
       String comment = factory.newDocumentBuilder().parse(stream).getDocumentElement().getTextContent();
-      assertTrue(comment.contains("左侧缩进") && comment.contains("2 字符"), comment);
-      assertFalse(comment.contains("将首行缩进") || comment.contains("首行缩进为 2 字符"), comment);
+      assertTrue(comment.contains("宋体") && comment.contains("1.5 倍") && comment.contains("页码"), comment);
+      assertFalse(comment.contains("缩进"), comment);
       assertFalse(comment.contains("twips") || comment.contains("leftChars"), comment);
     }
   }
@@ -98,8 +161,12 @@ class ContentsIndentPolicyTest {
         .filter(r -> r.ruleId().equals("TOC-ENTRY-INDENT")).toList();
   }
 
-  private ParsedDocument parse(String entries) throws Exception {
+  private ParsedDocument parse(String entries, String... styles) throws Exception {
     var pkg = WordprocessingMLPackage.createPackage();
+    for (String style : styles) {
+      pkg.getMainDocumentPart().getStyleDefinitionsPart().getContents().getStyle()
+          .add((Style) XmlUtils.unmarshalString(style));
+    }
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
         "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
             + "<w:p><w:r><w:t xml:space=\"preserve\">目    录</w:t></w:r></w:p><w:p/>"
@@ -110,7 +177,26 @@ class ContentsIndentPolicyTest {
   }
 
   private static String entry(String style, String indent, String title) {
-    return "<w:p><w:pPr><w:pStyle w:val=\"" + style + "\"/>" + indent
+    return "<w:p><w:pPr>" + (style.isEmpty() ? "" : "<w:pStyle w:val=\"" + style + "\"/>") + indent
         + "</w:pPr><w:r><w:t xml:space=\"preserve\">" + title + "</w:t></w:r></w:p>";
+  }
+
+  @Test
+  void lowerLevelBodyHeadingAfterChapterStillRequiresTwoCharacterFirstLineIndent() throws Exception {
+    var parsed = parse(entry("TOC3", "<w:ind w:firstLineChars=\"400\"/>", "1.1.1 研究背景……1")
+        + "<w:p><w:pPr><w:outlineLvl w:val=\"0\"/></w:pPr><w:r><w:t>第一章  引言</w:t></w:r></w:p>"
+        + "<w:p/>" + entry("Heading3", "<w:ind w:firstLineChars=\"400\"/>", "1.1.1 研究背景")
+            .replace("<w:r><w:t", "<w:r><w:rPr><w:sz w:val=\"24\"/><w:b w:val=\"false\"/></w:rPr><w:t"));
+    var headingPath = parsed.paragraphs().getLast().source().elementPath();
+    var findings = new RuleEngine().check(parsed, RuleSet.schoolV1());
+    assertTrue(findings.stream().anyMatch(r -> r.ruleId().equals("HEAD-03-INDENT")
+        && r.source().elementPath().equals(headingPath) && r.judgement() == Judgement.FAIL), findings.toString());
+  }
+
+  private static String style(String id, String name, int firstLineChars) {
+    return "<w:style xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\""
+        + " w:type=\"paragraph\" w:styleId=\"" + id + "\"><w:name w:val=\"" + name + "\"/>"
+        + "<w:pPr><w:ind w:firstLineChars=\"" + firstLineChars + "\"/>"
+        + "<w:spacing w:line=\"360\" w:lineRule=\"auto\"/></w:pPr></w:style>";
   }
 }
