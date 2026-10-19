@@ -19,7 +19,7 @@ final class ImageRuleChecker implements RuleModule {
   private static final Pattern FIGURE_NUMBER = Pattern.compile("图[\\s\\p{Zs}]*((?:\\d+[-－]\\d+)|(?:[A-Z]\\d+))(?![A-Za-z\\d-])");
   private static final Pattern UNNUMBERED_FIGURE_REFERENCE = Pattern.compile("(?:如|见|参见)图(?!\\s*\\d)(?:所示|如下)?|下图所示");
   private static final Pattern FIGURE_CAPTION_FORMAT = Pattern.compile("^\\s*图(?:\\d+-\\d+|[A-Z]\\d+) \\S.*");
-  private static final Pattern FIGURE_SEQUENCE = Pattern.compile("^\\s*图(\\d+)-(\\d+) \\S.*");
+  private static final Pattern FIGURE_SEQUENCE = Pattern.compile("^\\s*图(\\d+)-(\\d+)(?![\\d-])");
   private static final Pattern TABLE_OR_FIGURE_CAPTION = Pattern.compile("^(续表|表|图)\\s*[0-9一二三四五六七八九十]+", Pattern.CASE_INSENSITIVE);
 
   private final ParagraphFormatChecker paragraphFormatChecker = new ParagraphFormatChecker();
@@ -87,7 +87,7 @@ final class ImageRuleChecker implements RuleModule {
       SourceAddress captionSource = image.captionSource() == null ? image.source() : image.captionSource();
       if (!seenCaptions.add(captionSource)) continue;
       Matcher matcher = FIGURE_SEQUENCE.matcher(image.captionText() == null ? "" : image.captionText());
-      if (!matcher.matches()) continue;
+      if (!matcher.find()) continue;
       checkNumberSequence(results, next, matcher.group(1), matcher.group(2), image.captionText(), captionSource);
     }
   }

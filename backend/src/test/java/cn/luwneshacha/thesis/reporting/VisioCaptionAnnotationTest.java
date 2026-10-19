@@ -33,7 +33,7 @@ class VisioCaptionAnnotationTest {
     var raw = new DocxReader().read(input);
     var parsed = new Docx4jDocumentParser().parse(raw);
     assertEquals(1, parsed.images().size());
-    assertEquals("图3-4" + separator + "登录时序图", parsed.images().get(0).captionText());
+    assertEquals("图3-1" + separator + "登录时序图", parsed.images().get(0).captionText());
     var source = parsed.images().get(0).captionSource();
     var results = new RuleEngine().check(parsed, RuleSet.schoolV1());
     var captionResults = results.stream().filter(r -> sameParagraph(r.source(), source)).toList();
@@ -47,6 +47,9 @@ class VisioCaptionAnnotationTest {
     var spacing = captionResults.stream().filter(r -> r.ruleId().equals("FIG-03")).toList();
     assertEquals(1, spacing.size());
     assertEquals(separator.equals(" ") ? Judgement.PASS : Judgement.FAIL, spacing.get(0).judgement());
+    var sequences = captionResults.stream().filter(r -> r.ruleId().equals("FIG-05")).toList();
+    assertEquals(1, sequences.size());
+    assertEquals(Judgement.PASS, sequences.get(0).judgement());
     assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("BODY-SIZE")
         && r.judgement() == Judgement.FAIL && r.actual().equals("21")),
         "普通正文仍须检查小四，不能全局放宽字号要求");
@@ -62,7 +65,7 @@ class VisioCaptionAnnotationTest {
     try (var zip = new ZipFile(annotated.toFile())) {
       String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(),
           StandardCharsets.UTF_8);
-      assertTrue(comments.contains("图3-4 登录时序图"), comments);
+      assertTrue(comments.contains("图3-1 登录时序图"), comments);
       assertTrue(comments.contains("空格"), comments);
       assertFalse(comments.contains("小四"), comments);
     }
@@ -93,14 +96,14 @@ class VisioCaptionAnnotationTest {
     String r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     String types = "http://schemas.openxmlformats.org/package/2006/content-types";
     String relationships = "http://schemas.openxmlformats.org/package/2006/relationships";
-    String captionRuns = List.of("图", "3-4", separator + "登录时序图").stream()
+    String captionRuns = List.of("图", "3-1", separator + "登录时序图").stream()
         .map(t -> "<w:r><w:rPr><w:sz w:val=\"" + size + "\"/><w:szCs w:val=\"" + size
             + "\"/></w:rPr><w:t xml:space=\"preserve\">" + t + "</w:t></w:r>")
         .reduce("", String::concat);
     String document = "<w:document xmlns:w=\"" + w + "\" xmlns:r=\"" + r
         + "\" xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\">"
         + "<w:body><w:p><w:r><w:t>第三章  系统设计</w:t></w:r></w:p>"
-        + "<w:p><w:r><w:rPr><w:sz w:val=\"21\"/></w:rPr><w:t>登录过程如图3-4所示。</w:t></w:r></w:p>"
+        + "<w:p><w:r><w:rPr><w:sz w:val=\"21\"/></w:rPr><w:t>登录过程如图3-1所示。</w:t></w:r></w:p>"
         + "<w:p><w:r><w:object><v:shape id=\"visio1\" style=\"width:100pt;height:80pt\">"
         + "<v:imagedata r:id=\"rIdImage\"/></v:shape><o:OLEObject ProgID=\"Visio.Drawing.15\" "
         + "ShapeID=\"visio1\" Type=\"Embed\"/></w:object></w:r></w:p>"

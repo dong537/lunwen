@@ -11,8 +11,45 @@ import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.document.TableModel;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ImageRuleModuleTest {
+  @ParameterizedTest
+  @ValueSource(strings = {"", "  ", "\u3000", "\u00a0", "\t", "\u200b", "\n"})
+  void captionSpacingFailureDoesNotRemoveItsNumberFromTheSequence(String separator) {
+    var findings = numberedFigures("图5-1 第一幅图", "图5-2" + separator + "第二幅图", "图5-3 第三幅图");
+    assertTrue(findings.stream().anyMatch(result -> result.ruleId().equals("FIG-03")
+        && result.judgement() == Judgement.FAIL), findings.toString());
+    var sequence = findings.stream().filter(result -> result.ruleId().equals("FIG-05")).toList();
+    assertEquals(3, sequence.size(), sequence.toString());
+    assertTrue(sequence.stream().allMatch(result -> result.judgement() == Judgement.PASS), sequence.toString());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2", "4"})
+  void duplicateAndSkippedNumbersStillFailAfterACaptionSpacingError(String lastNumber) {
+    var findings = numberedFigures("图5-1 第一幅图", "图5-2第二幅图", "图5-" + lastNumber + " 第三幅图");
+    var last = findings.stream().filter(result -> result.ruleId().equals("FIG-05")
+        && result.actual().endsWith("第三幅图")).findFirst().orElseThrow();
+    assertEquals(Judgement.FAIL, last.judgement());
+    assertEquals("图5-3", last.expected());
+  }
+
+  private static List<CheckResult> numberedFigures(String... captions) {
+    var paragraphs = new java.util.ArrayList<ParagraphModel>();
+    var images = new java.util.ArrayList<ImageModel>();
+    paragraphs.add(paragraph("第五章 系统设计", List.of(0, 0), "黑体", 32, "center"));
+    for (int index = 0; index < captions.length; index++) {
+      var caption = paragraph(captions[index], List.of(0, index * 2 + 2), "宋体", 21, "center");
+      paragraphs.add(caption);
+      images.add(new ImageModel(new SourceAddress("word/document.xml", List.of(0, index * 2 + 1), 0, 0),
+          caption.source(), captions[index], 100, 100, true, true, true));
+    }
+    return new ImageRuleChecker().check(new ParsedDocument("sha", paragraphs, List.of(), List.of(),
+        List.of(), List.of(), List.of(), images), RuleSet.schoolV1());
+  }
+
   @Test
   void reportsMissingCaptionForAnImageInTheMainBody() {
     var chapter = paragraph("第一章 绪论", List.of(0, 0), "黑体", 32, "left");

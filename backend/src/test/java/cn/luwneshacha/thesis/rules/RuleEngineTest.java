@@ -4053,17 +4053,19 @@ class RuleEngineTest {
   @Test
   void spacingOnlyFigureCaptionErrorDoesNotCascadeIntoSequenceErrors() {
     var first = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 3), 0, 0),
-        new SourceAddress("word/document.xml", List.of(0, 4), 0, 12), "鍥?-1  涓や釜绌烘牸", 1, 1, true, true, true);
+        new SourceAddress("word/document.xml", List.of(0, 4), 0, 12), "图1-1  两个空格", 1, 1, true, true, true);
     var second = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 6), 0, 0),
-        new SourceAddress("word/document.xml", List.of(0, 7), 0, 12), "鍥?-2 姝ｅ父鍥鹃", 1, 1, true, true, true);
+        new SourceAddress("word/document.xml", List.of(0, 7), 0, 12), "图1-2 正常图题", 1, 1, true, true, true);
     var document = new ParsedDocument("source", List.of(chapterHeading(),
-        paragraph("鍥?-1  涓や釜绌烘牸", List.of(0, 4)), paragraph("鍥?-2 姝ｅ父鍥鹃", List.of(0, 7))),
+        paragraph("图1-1  两个空格", List.of(0, 4)), paragraph("图1-2 正常图题", List.of(0, 7))),
         List.of(), List.of(), List.of(), List.of(), List.of(), List.of(first, second));
 
     var results = new RuleEngine().check(document, RuleSet.schoolV1());
 
     assertTrue(results.stream().anyMatch(item -> item.reasonCode().equals("FIGURE_CAPTION_NUMBER_FORMAT")));
-    assertTrue(results.stream().noneMatch(item -> item.ruleId().equals("FIG-05")));
+    var sequences = results.stream().filter(item -> item.ruleId().equals("FIG-05")).toList();
+    assertEquals(2, sequences.size(), sequences.toString());
+    assertTrue(sequences.stream().allMatch(item -> item.judgement() == Judgement.PASS), sequences.toString());
   }
 
   @Test
