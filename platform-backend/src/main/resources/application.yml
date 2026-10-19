@@ -1,0 +1,56 @@
+server:
+  port: ${SERVER_PORT:18099}
+  shutdown: graceful
+  servlet:
+    session:
+      timeout: 8h
+      cookie:
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:true}
+        same-site: lax
+  tomcat:
+    max-swallow-size: 52MB
+spring:
+  application:
+    name: thesis-platform
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 52MB
+  mvc:
+    async:
+      request-timeout: 330s
+  task:
+    execution:
+      pool:
+        core-size: 8
+        max-size: 8
+        queue-capacity: 16
+      thread-name-prefix: platform-download-
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+platform:
+  bootstrap:
+    enabled: true
+    username: ${INITIAL_ADMIN_USERNAME:}
+    password: ${INITIAL_ADMIN_PASSWORD:}
+logging:
+  level:
+    org.springframework.web: INFO
+  pattern:
+    level: '%5p [requestId=%X{requestId}]'

@@ -1,81 +1,54 @@
-# 毕业论文格式筛查
+﻿# 毕业论文格式审核平台
 
-面向学校论文格式要求的 DOCX 检测项目。上传论文后，系统解析 Word 底层 XML，执行格式规则，生成带中文批注的 Word 副本和 Word 检查报告。当前聚焦检测核心功能，不包含登录注册、教师端或学生端权限划分。
+学生上传 DOCX 并下载带中文批注的论文，教师查看名下学生的提交，管理员维护账号及批量导入名单。审核引擎沿用既有学校规范和 XML 格式解析；网页显示审核状态和问题总数，具体修改意见查看 Word 批注。
 
-## 技术栈与功能
+## 服务与数据
 
-- 后端：Java 21、Spring Boot、docx4j；JUnit 回归测试。
-- 前端：React、TypeScript、Vite；同源 API 上传和结果下载。
-- 部署：Docker Compose、Nginx；结果文件使用独立持久卷。
-- 规则：封面、摘要、目录、正文、标题、图表、公式、参考文献、页眉页脚和附录等模块。
-- 格式解析：字体、字号、加粗、样式继承、行距、首行缩进、左侧缩进、分节页边距及编号。
-- 批注与报告：问题中文说明和修改建议；同一位置的问题可合并批注；报告记录检查结果、覆盖情况和批注写入情况。
+| 目录/服务 | 职责 |
+| --- | --- |
+| `frontend/` | React、TypeScript、Vite；登录、强制改密、学生端、教师端、管理端 |
+| `platform-backend/` | Java 21、Spring Boot、Security、JPA；权限、账号导入、提交、任务队列、COS |
+| `backend/` | DOCX/XML 解析、章节规则、图表公式、Word 批注和内部检查报告 |
+| PostgreSQL 16 | `sys_user`、`submission` 两张业务表；Flyway 管理 schema |
+| 腾讯云 COS | 私有桶保存原始论文、标注论文和引擎结果 JSON |
 
-规则区分可从 XML 确定的属性与证据不足的情况。真实分页、字体替换和部分旧公式内部格式仍存在检查边界；不能将测试通过理解为所有论文都可百分之百准确判断。
+浏览器 → 同源平台 API → PostgreSQL/COS → 内部审核引擎。只有前端端口对外开放。管理员无法查看论文内容或下载；学生仅本人，教师仅当前名下学生。初始和重置密码为 `123456`，后端强制首次改密，无自助注册。
 
-## 本地启动
+上传仅支持非空 `.docx`，最大 50 MiB。提交状态为排队中、审核中、成功、失败；服务故障最多尝试 3 次，损坏文档直接失败。成功文件永久保留，失败记录保留但文件删除。教师的提交次数、最近提交时间、最新问题数都取成功审核记录。
 
-需要 JDK 21 或更高版本、Maven、Node.js 22.12+（建议使用近期 Node.js 22 LTS）及 npm。
+规则不能保证所有论文百分之百准确；实际分页、字体替换和部分旧公式内部结构仍有证据边界。
 
-启动后端：
+当前开发版本在 2026-10-19 的代码审计中确认了 9 项尚未修复的问题，涉及跨页签会话、缓存权限、COS 日志及超时、调度、引擎错误分类和批注产物校验。详见 [代码审计报告](docs/implementation/2026-10-19-代码审计报告.md)。本次源码提交不代表这些问题已修复或生产环境已验收。
 
-~~~bash
-mvn -f backend/pom.xml spring-boot:run
-~~~
+## Docker 启动
 
-另开一个终端启动前端：
+准备 Docker Compose、私有 COS 桶及具有相应权限的密钥。复制 `.env.example` 为本地 `.env`，填入数据库密码、初始管理员密码和 COS 配置；不要提交 `.env`。
 
-~~~bash
-cd frontend
-npm ci
-npm run dev
-~~~
-
-后端默认监听 18098，前端开发服务器将 /api 代理到后端；浏览器地址以 Vite 终端输出为准。构建时可通过 VITE_API_URL 指定独立 API 地址，默认使用同源路径。
-
-旧公式自动转换依赖 LibreOffice。Docker 后端镜像已安装；本地运行时需安装 LibreOffice，并通过 JVM 参数 -Dthesis.soffice 指定其可执行文件。使用方式见 [部署与开发说明](docs/部署与开发.md)。
-
-## 检查与构建
-
-~~~bash
-mvn -B -f backend/pom.xml verify
-cd frontend
-npm ci
-npm run build
-~~~
-
-2026-10-18 本次上传前，后端 1219 项测试全部通过，前端 TypeScript 检查与生产构建通过。测试使用程序生成的脱敏 DOCX 场景，真实论文和批注结果不提交到仓库。
-
-## Docker 部署
-
-当前后端 Dockerfile 使用本地 Maven 构建产物，因此需要先生成 backend/target/app.jar：
-
-~~~bash
-mvn -B -f backend/pom.xml verify
+```bash
+docker compose config --quiet
 docker compose up -d --build --wait
 docker compose ps
-~~~
+```
 
-默认前端映射到宿主机 8080 端口。后端仅在容器网络内开放；检测文件保存在 thesis-data 卷。具体配置、健康检查和结果保留时间见 [部署与开发说明](docs/部署与开发.md)。
+默认入口 `http://localhost:8080`。生产 HTTPS 环境设置 `SESSION_COOKIE_SECURE=true`。镜像在容器内编译，不需要预先复制本机 JAR。首次初始化账号来自环境配置，数据库已有管理员时不会重置其密码。
 
-## 项目结构
+本轮真实 COS 联调尚待用户提供桶与凭据配置；构建和单元/集成测试通过不代表云端文件流程已经验收。详见 [部署与开发说明](docs/部署与开发.md) 和任务验证记录。
 
-~~~text
-backend/
-  src/main/java/cn/luwneshacha/thesis/
-    api/          上传、检测和下载接口
-    conversion/   旧公式转换
-    document/     DOCX/XML 解析和文档模型
-    inspection/   检测编排与规则覆盖统计
-    rules/        章节规则与通用格式规则
-    reporting/    Word 批注与锚点处理
-    report/       中文说明与 Word 检查报告
-  src/test/       回归测试
-frontend/         上传及结果页面
-docs/             开发与部署说明
-compose.yaml      Docker 服务编排
-~~~
+## 开发与验证
 
-## 数据边界
+需要 JDK 21+、Maven、Node.js 22.12+、Docker。平台测试使用真实 PostgreSQL Testcontainers；外部 COS/引擎边界可在测试中替代，不用于生产路径。
 
-仓库包含源码、测试、依赖锁文件和通用部署配置。学校规范原件、学生论文、批注结果、运行日志、机器专属部署资料和私钥均保留在本地，不作为项目代码上传。
+```bash
+mvn -B -f backend/pom.xml verify
+mvn -B -f platform-backend/pom.xml verify
+cd frontend
+npm ci
+npm test
+npm run build
+```
+
+引擎默认 18098，平台默认 18099，Vite 将 `/api` 转发至平台。平台本地环境变量与启动方式见部署文档。旧公式转换需 LibreOffice；引擎 Docker 镜像已包含它。
+
+接口、状态和权限的权威契约见 [.trellis/spec/platform-contract.md](.trellis/spec/platform-contract.md)。任务计划、验证证据和未完成事项位于 `.trellis/tasks/10-18-thesis-platform/`。
+
+论文原件、批注结果、解包 XML、日志和私钥不提交到仓库。

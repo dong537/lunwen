@@ -18,9 +18,9 @@ public final class DocxReader {
   private static final String RELATIONSHIPS = "http://schemas.openxmlformats.org/package/2006/relationships";
   private static final String HYPERLINK_RELATIONSHIP = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
   private static final String STRICT_HYPERLINK_RELATIONSHIP = "http://purl.oclc.org/ooxml/officeDocument/relationships/hyperlink";
-  private static final int DEFAULT_MAX_PART_BYTES = 16 * 1024 * 1024;
-  private static final int DEFAULT_MAX_TOTAL_BYTES = 50 * 1024 * 1024;
-  private static final int DEFAULT_MAX_SOURCE_BYTES = 16 * 1024 * 1024;
+  private static final int DEFAULT_MAX_PART_BYTES = 64 * 1024 * 1024;
+  private static final int DEFAULT_MAX_TOTAL_BYTES = 256 * 1024 * 1024;
+  private static final int DEFAULT_MAX_SOURCE_BYTES = 50 * 1024 * 1024;
   private static final int MAX_ENTRIES = 10_000;
   private final int maxPartBytes;
   private final int maxTotalBytes;

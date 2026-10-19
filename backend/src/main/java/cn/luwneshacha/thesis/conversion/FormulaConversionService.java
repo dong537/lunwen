@@ -1,12 +1,12 @@
 package cn.luwneshacha.thesis.conversion;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.Duration;
 import java.util.zip.ZipFile;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -14,7 +14,7 @@ import org.w3c.dom.Element;
 
 /** Uses LibreOffice to turn legacy embedded equation objects into a DOCX that can be parsed as OMML. */
 public final class FormulaConversionService {
-  private static final String DEFAULT_SOFFICE = "C:\\Program Files\\LibreOffice\\program\\soffice.com";
+  private static final String DEFAULT_SOFFICE = "soffice";
   private static final String MATH = "http://schemas.openxmlformats.org/officeDocument/2006/math";
   private static final String STRICT_MATH = "http://purl.oclc.org/ooxml/officeDocument/math";
 
@@ -29,10 +29,11 @@ public final class FormulaConversionService {
     try {
       Files.createDirectories(odtDirectory);
       Files.createDirectories(docxDirectory);
-      run("--headless", "--convert-to", "odt", "--outdir", odtDirectory.toString(), source.toString());
+      String profile = "-env:UserInstallation=" + workDirectory.resolve("libreoffice-profile").toAbsolutePath().toUri();
+      run(workDirectory.resolve("formula-odt.log"), profile, "--headless", "--convert-to", "odt", "--outdir", odtDirectory.toString(), source.toString());
       Path odt = odtDirectory.resolve(stripExtension(source.getFileName().toString()) + ".odt");
       if (!Files.isRegularFile(odt)) throw new IOException("LibreOffice did not create ODT output");
-      run("--headless", "--convert-to", "docx", "--outdir", docxDirectory.toString(), odt.toString());
+      run(workDirectory.resolve("formula-docx.log"), profile, "--headless", "--convert-to", "docx", "--outdir", docxDirectory.toString(), odt.toString());
       Path converted = docxDirectory.resolve(stripExtension(source.getFileName().toString()) + ".docx");
       if (!Files.isRegularFile(converted)) throw new IOException("LibreOffice did not create DOCX output");
       validateConversion(source, converted);
@@ -144,12 +145,10 @@ public final class FormulaConversionService {
     return MATH.equals(element.getNamespaceURI()) || STRICT_MATH.equals(element.getNamespaceURI());
   }
 
-  private void run(String... arguments) throws IOException, InterruptedException {
+  private void run(Path log, String... arguments) throws IOException, InterruptedException {
     String executable = System.getProperty("thesis.soffice", DEFAULT_SOFFICE);
-    Process process = new ProcessBuilder(build(executable, arguments))
-        .redirectErrorStream(true).start();
-    String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-    if (process.waitFor() != 0) throw new IOException(output.isBlank() ? "LibreOffice returned a failure" : output.trim());
+    long seconds = Long.parseLong(System.getProperty("thesis.conversion-timeout-seconds", "120"));
+    ConversionProcess.run(List.of(build(executable, arguments)), log, Duration.ofSeconds(seconds));
   }
 
   private static String[] build(String executable, String[] arguments) {

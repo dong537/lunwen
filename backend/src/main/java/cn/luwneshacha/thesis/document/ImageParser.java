@@ -42,7 +42,14 @@ public final class ImageParser {
         && "drawing".equals(element.getLocalName()) && first(element, CHART, "chart") != null;
     boolean vmlPicture = XmlPartSupport.W.equals(element.getNamespaceURI()) && "pict".equals(element.getLocalName())
         && element.getElementsByTagNameNS(VML, "imagedata").getLength() > 0;
-    if ((drawingPicture || drawingChart || vmlPicture) && !isEquationPreview(element)) {
+    // Visio may place its VML preview directly inside w:object. Wrapped
+    // previews are collected from their pict/drawing node to avoid duplicates.
+    boolean directVmlObject = XmlPartSupport.W.equals(element.getNamespaceURI())
+        && "object".equals(element.getLocalName())
+        && element.getElementsByTagNameNS(VML, "imagedata").getLength() > 0
+        && element.getElementsByTagNameNS(XmlPartSupport.W, "pict").getLength() == 0
+        && element.getElementsByTagNameNS(XmlPartSupport.W, "drawing").getLength() == 0;
+    if ((drawingPicture || drawingChart || vmlPicture || directVmlObject) && !isEquationPreview(element)) {
       Element paragraph = ancestor(element, XmlPartSupport.W, "p");
       if (paragraph != null) {
         Element extent = drawingPicture || drawingChart ? first(element, DRAW, "extent") : null;
@@ -93,7 +100,8 @@ public final class ImageParser {
         || "proofErr".equals(local) || "permStart".equals(local) || "permEnd".equals(local)) return true;
     return "p".equals(local) && XmlPartSupport.isBlankText(XmlPartSupport.text(element))
         && element.getElementsByTagNameNS(XmlPartSupport.W, "drawing").getLength() == 0
-        && element.getElementsByTagNameNS(XmlPartSupport.W, "pict").getLength() == 0;
+        && element.getElementsByTagNameNS(XmlPartSupport.W, "pict").getLength() == 0
+        && element.getElementsByTagNameNS(XmlPartSupport.W, "object").getLength() == 0;
   }
 
   private static Boolean centered(Element paragraph, Element styles) {

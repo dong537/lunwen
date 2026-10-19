@@ -50,7 +50,7 @@ public final class InspectionService {
 
   public InspectionService(
       @Value("${thesis.storage-root}") String storageRoot,
-      @Value("${thesis.max-upload-bytes:16777216}") long maxUploadBytes,
+      @Value("${thesis.max-upload-bytes:52428800}") long maxUploadBytes,
       @Value("${thesis.annotation-retention:PT1H}") Duration annotationRetention) {
     if (maxUploadBytes < 1) throw new IllegalArgumentException("max upload bytes must be positive");
     if (annotationRetention.isNegative() || annotationRetention.isZero())
@@ -76,6 +76,8 @@ public final class InspectionService {
     try {
       try { file.transferTo(source); }
       catch (IOException error) { throw new InspectionException("STORAGE_FAILED", "cannot store uploaded DOCX", error); }
+      // Validate package expansion and external relationships before invoking an office process.
+      new cn.luwneshacha.thesis.document.DocxReader().read(source);
       Path inspectionSource;
       try {
         inspectionSource = formulaConversionService.convertIfNeeded(source, requestDir);

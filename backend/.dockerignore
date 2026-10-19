@@ -1,2 +1,5 @@
 .mvn
 *.log
+target
+settings.xml
+cp.txt

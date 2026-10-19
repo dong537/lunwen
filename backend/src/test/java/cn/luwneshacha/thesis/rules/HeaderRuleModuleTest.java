@@ -285,7 +285,7 @@ class HeaderRuleModuleTest {
   void recognizesCoverFromSchoolAndMultipleFieldLabelsWhenTypeHeadingIsMissing() {
     var result = new HeaderRuleModule().check(documentWithText(List.of(),
         List.of(section(3, false, false, false), section(5, true, false, false)),
-        "山东石油化工学院", "学生姓名：张三", "学 号：22061181010", "2026年6月",
+        "山东石油化工学院", "学生姓名：张三", "学 号：90000000001", "2026年6月",
         "摘    要", "摘要正文"), RuleSet.schoolV1());
 
     assertEquals(1, result.size());

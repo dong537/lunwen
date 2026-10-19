@@ -276,6 +276,69 @@ class ImageParserTest {
   }
 
   @Test
+  void recognizesDirectVmlVisioPreviewAndPreservesMissingCaptionSpace() {
+    String xml = vmlObjectDocument(vmlObject("Visio.Drawing.15", false)
+        + "<w:p><w:r><w:t>图3-4登录时序图</w:t></w:r></w:p>");
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    assertEquals("图3-4登录时序图", images.get(0).captionText());
+    assertEquals(java.util.List.of(0, 0), images.get(0).source().elementPath());
+    assertEquals(java.util.List.of(0, 1), images.get(0).captionSource().elementPath());
+  }
+
+  @Test
+  void doesNotTreatDirectVmlEquationPreviewsAsFigures() {
+    for (String progId : java.util.List.of("Equation.3", "MathType.MTEF.8")) {
+      String xml = vmlObjectDocument(vmlObject(progId, false)
+          + "<w:p><w:r><w:t>图3-4 登录时序图</w:t></w:r></w:p>");
+
+      assertTrue(new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8)).isEmpty(), progId);
+    }
+  }
+
+  @Test
+  void countsWrappedVmlVisioPreviewOnlyOnce() {
+    String xml = vmlObjectDocument(vmlObject("Visio.Drawing.15", true)
+        + "<w:p><w:r><w:t>图3-4 登录时序图</w:t></w:r></w:p>");
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    assertEquals("图3-4 登录时序图", images.get(0).captionText());
+  }
+
+  @Test
+  void doesNotLetAnEarlierPictureClaimCaptionPastAnOleObject() {
+    String xml = vmlObjectDocument(
+        "<w:p><w:r><w:pict><v:shape><v:imagedata r:id=\"rIdPicture\"/></v:shape></w:pict></w:r></w:p>"
+        + vmlObject("Visio.Drawing.15", false)
+        + "<w:p><w:r><w:t>图3-4 登录时序图</w:t></w:r></w:p>");
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertNull(images.get(0).captionText());
+    assertEquals(2, images.size());
+    assertEquals("图3-4 登录时序图", images.get(1).captionText());
+  }
+
+  private String vmlObjectDocument(String body) {
+    return "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" "
+        + "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:body>"
+        + body + "</w:body></w:document>";
+  }
+
+  private String vmlObject(String progId, boolean wrapped) {
+    String preview = "<v:shape id=\"shape1\" style=\"width:369.85pt;height:163.5pt\">"
+        + "<v:imagedata r:id=\"rIdPreview\"/></v:shape>";
+    return "<w:p><w:r><w:object>" + (wrapped ? "<w:pict>" + preview + "</w:pict>" : preview)
+        + "<o:OLEObject Type=\"Embed\" ProgID=\"" + progId + "\" ShapeID=\"shape1\" r:id=\"rIdOle\"/>"
+        + "</w:object></w:r></w:p>";
+  }
+
+  @Test
   void recognizesStrictOoXmlDrawingPicture() {
     String xml = "<w:document xmlns:w=\"http://purl.oclc.org/ooxml/wordprocessingml/main\" "
         + "xmlns:a=\"http://purl.oclc.org/ooxml/drawingml/main\" "

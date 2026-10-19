@@ -1629,7 +1629,7 @@ class RuleEngineTest {
   void acceptsCoverLabelsWithAlignmentWhitespaceInsideChineseFieldNames() {
     var source = new SourceAddress("word/document.xml", List.of(0, 1), 0, 20);
     var field = new ParagraphModel(List.of(
-        new RunModel("学    号：2206181200", "Times New Roman", "仿宋", null, 32, true, source)),
+        new RunModel("学    号：9000000001", "Times New Roman", "仿宋", null, 32, true, source)),
         0, null, null, null, null, source, 20, null, "left");
     var document = new ParsedDocument("source", List.of(
         paragraph("本科生毕业设计（论文）", List.of(0, 0)), field,
