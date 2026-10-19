@@ -150,15 +150,27 @@ class RuleDescriptionsTest {
 
   @Test
   void requiredSectionAdviceNamesTheMissingSection() {
-    CheckResult appendix = result("SECTION-REQUIRED", "REQUIRED_SECTION_MISSING",
-        "附录", "未找到", Judgement.FAIL);
     CheckResult conclusion = result("SECTION-REQUIRED", "REQUIRED_SECTION_MISSING",
         "结论", "未找到", Judgement.FAIL);
 
-    assertEquals("未找到“附录”章节，请补齐“附    录”总标题及附录内容后重新检测。",
-        RuleDescriptions.suggestion(appendix));
     assertEquals("未找到“结论”章节，请补齐第五章“结论”并与目录保持一致后重新检测。",
         RuleDescriptions.suggestion(conclusion));
+  }
+
+  @Test
+  void appendixAdviceDescribesExistingAppendixWithoutMakingItMandatory() {
+    var section = result("SECTION-REQUIRED", "APPENDIX_SECTION_MISSING",
+        "附录分项", "未找到", Judgement.FAIL);
+    var title = result("SECTION-REQUIRED", "APPENDIX_TITLE_MISSING");
+    var contents = result("TOC-REQUIRED-ENTRY", "TOC_REQUIRED_APPENDIX_MISSING");
+    var references = result("TOC-REQUIRED-ENTRY", "TOC_REQUIRED_REFERENCES_MISSING");
+
+    assertTrue(RuleDescriptions.reason(section).contains("已有附录总标题"));
+    assertTrue(RuleDescriptions.suggestion(section).contains("附录A"));
+    assertTrue(RuleDescriptions.suggestion(title).contains("附录A等分项之前"));
+    assertTrue(RuleDescriptions.reason(contents).contains("论文已有附录"));
+    assertTrue(RuleDescriptions.suggestion(contents).contains("论文已有附录"));
+    assertFalse(RuleDescriptions.suggestion(references).contains("附录"));
   }
 
   @Test

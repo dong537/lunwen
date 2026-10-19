@@ -103,7 +103,9 @@ final class RequiredSectionRuleChecker implements RuleModule {
     requireSection(results, "正文", hasChapter, anchor);
     requireSection(results, "参考文献", hasReferences, anchor);
     requireSection(results, "致谢", hasAcknowledgements, anchor);
-    requireSection(results, "附录", hasAppendix, anchor);
+    if (hasAppendixTitle && !hasAppendix) {
+      results.add(fail("SECTION-REQUIRED", "附录分项", "未找到", "APPENDIX_SECTION_MISSING", anchor));
+    }
     if (hasAppendix && !hasAppendixTitle) {
       results.add(fail("SECTION-REQUIRED", "附录总标题", "未找到", "APPENDIX_TITLE_MISSING", anchor));
     }
@@ -316,9 +318,7 @@ final class RequiredSectionRuleChecker implements RuleModule {
     }
     for (int index = lastRequiredEndMatter + 1; index < document.paragraphs().size(); index++) {
       ParagraphModel paragraph = document.paragraphs().get(index);
-      if (regions.isInsideTable(paragraph, document.tables())) continue;
-      String value = compact(texts.get(index));
-      if (value.equals("附录") || value.equalsIgnoreCase("APPENDIX")) return true;
+      if (regions.isMainAppendixTitle(paragraph, document)) return true;
     }
     return false;
   }

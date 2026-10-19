@@ -6,11 +6,8 @@ import cn.luwneshacha.thesis.document.RunModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 final class HeadingDocumentRuleModule implements RuleModule {
-  private static final Pattern TOC_ENTRY = Pattern.compile(".+(?:\\.{2,}|……+|\\t|[\\p{Zs}]{2,})\\s*\\d+$");
-
   private final HeadingRuleChecker headingRuleChecker;
   private final ParagraphFormatChecker paragraphFormatChecker;
   private final DocumentRegionClassifier regions = new DocumentRegionClassifier();
@@ -35,7 +32,7 @@ final class HeadingDocumentRuleModule implements RuleModule {
       String normalizedText = text.replaceAll("\\s+", "");
       boolean insideTable = regions.isInsideTable(paragraph, document.tables());
       boolean tocEntry = inToc && isTocEntryParagraph(document, index, paragraph, text);
-      boolean namedSectionTitle = !insideTable && checkNamedSectionTitle(findings, paragraph);
+      boolean namedSectionTitle = !insideTable && !tocEntry && checkNamedSectionTitle(findings, paragraph);
       if (!insideTable
           && ("目录".equals(normalizedText) || "CONTENTS".equalsIgnoreCase(normalizedText))) inToc = true;
 
@@ -217,26 +214,7 @@ final class HeadingDocumentRuleModule implements RuleModule {
 
   boolean isTocEntryParagraph(ParsedDocument document, int index,
       ParagraphModel paragraph, String text) {
-    if (regions.hasDefiniteContentsEvidence(paragraph)
-        || regions.looksLikeLowerLevelContentsEntry(paragraph) || TOC_ENTRY.matcher(text).matches()
-        || text.matches("^第[一二三四五六七八九十百千万零〇]+章\\s+.+\\d$")
-        || text.matches("^\\d+(?:\\.\\d+){1,2}\\s+.+\\d$")) return true;
-    String value = text.stripLeading();
-    if (!(value.matches("^第[一二三四五六七八九十百千万零〇]+章.*")
-        || value.matches("^\\d+(?:\\.\\d+){1,2}.*")
-        || compactTitleText(value).startsWith("附录"))) return false;
-    String expected = compactTitleText(value);
-    for (int candidateIndex = index + 1; candidateIndex < document.paragraphs().size(); candidateIndex++) {
-      ParagraphModel candidate = document.paragraphs().get(candidateIndex);
-      if (regions.isInsideTable(candidate, document.tables())
-          || !expected.equals(compactTitleText(paragraphText(candidate)))) continue;
-      if (headingRuleChecker.headingLevel(candidate) <= 0
-          || candidate.generatedTocField()
-          || (candidate.paragraphStyleId() != null
-              && candidate.paragraphStyleId().matches("(?i)TOC[1-3]"))) continue;
-      return true;
-    }
-    return false;
+    return regions.isPotentialContentsEntry(document, index, paragraph, text);
   }
 
   private static String paragraphText(ParagraphModel paragraph) {

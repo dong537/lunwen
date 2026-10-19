@@ -67,7 +67,7 @@ final class ContentsRuleChecker implements RuleModule {
         continue;
       }
       if (isVisualBlank(paragraph)) continue;
-      if (inContents && isPotentialEntry(document, index, paragraph, raw)) {
+      if (inContents && regions.isPotentialContentsEntry(document, index, paragraph, raw)) {
         checkEntryFormatting(results, paragraph, raw);
         relationItem(raw, paragraph, true).ifPresent(contentsEntries::add);
         continue;
@@ -81,13 +81,18 @@ final class ContentsRuleChecker implements RuleModule {
       if (isEntry(paragraph, raw)) checkEntrySpacing(results, paragraph, raw);
     }
     checkHeadingCorrespondence(results, contentsEntries, bodyHeadings);
-    if (contentsSeen) checkRequiredEntries(results, contentsEntries, contentsAnchor);
+    if (contentsSeen) {
+      boolean hasAppendix = document.paragraphs().stream().anyMatch(paragraph ->
+          regions.isMainAppendixTitle(paragraph, document)
+              || regions.appendixHeadingLetter(paragraph, document) != null);
+      checkRequiredEntries(results, contentsEntries, contentsAnchor, hasAppendix);
+    }
     return List.copyOf(results);
   }
 
   /** Checks the required landmarks on the contents page independently of body matching. */
   private void checkRequiredEntries(List<CheckResult> results,
-      List<RelationItem> entries, SourceAddress anchor) {
+      List<RelationItem> entries, SourceAddress anchor, boolean hasAppendix) {
     boolean chapter = entries.stream().anyMatch(item -> CHAPTER.matcher(item.key()).find());
     boolean references = entries.stream().anyMatch(item -> isContentsLandmark(item.key(), "参考文献"));
     boolean acknowledgement = entries.stream().anyMatch(item -> isContentsLandmark(item.key(), "致谢"));
@@ -95,7 +100,9 @@ final class ContentsRuleChecker implements RuleModule {
     checkRequiredEntry(results, entries, chapter, "正文各章", "TOC_REQUIRED_CHAPTER_MISSING", anchor);
     checkRequiredEntry(results, entries, references, "参考文献", "TOC_REQUIRED_REFERENCES_MISSING", anchor);
     checkRequiredEntry(results, entries, acknowledgement, "致谢", "TOC_REQUIRED_ACKNOWLEDGEMENT_MISSING", anchor);
-    checkRequiredEntry(results, entries, appendix, "附录", "TOC_REQUIRED_APPENDIX_MISSING", anchor);
+    if (hasAppendix) {
+      checkRequiredEntry(results, entries, appendix, "附录", "TOC_REQUIRED_APPENDIX_MISSING", anchor);
+    }
   }
 
   private void checkRequiredEntry(List<CheckResult> results, List<RelationItem> entries,
@@ -409,62 +416,6 @@ final class ContentsRuleChecker implements RuleModule {
 
   private boolean hasNonZero(Integer value) {
     return value != null && value != 0;
-  }
-
-  /**
-   * A missing-page entry cannot be identified from a bare title alone once
-   * the body starts.  TOC field paragraphs and paragraphs carrying the
-   * standard toc font/size remain deterministic XML evidence; bold heading
-   * paragraphs are left to the body-heading state machine.
-   */
-  private boolean isPotentialEntry(ParsedDocument document, int index, ParagraphModel paragraph,
-      String raw) {
-    String matchingText = matchingText(raw);
-    if (isEntry(paragraph, matchingText)) return true;
-    if (paragraph.generatedTocField()) return true;
-    if (isContentsStyle(paragraph)) return true;
-    String value = matchingText.stripLeading();
-    if (regions.looksLikeLowerLevelContentsEntry(paragraph)) return true;
-    if (looksLikeTocEntry(paragraph)
-        && (CHAPTER.matcher(value).find()
-            || isEndMatter(value))) return true;
-
-    // A hand-written entry can be missing its page number and can itself have
-    // the wrong font or size.  In that case formatting cannot identify it as a
-    // TOC row.  Keep it in the TOC region only when the same visible title is
-    // later confirmed as a real heading (style, outline, or automatic numbering
-    // evidence).  This preserves the body boundary while still reporting the
-    // malformed entry's font, size, indent, and page errors.
-    if (CHAPTER.matcher(value).find() || NUMERIC.matcher(value).matches()
-        || isEndMatter(value)) {
-      return hasBodyHeadingCounterpart(document, index, value);
-    }
-    return false;
-  }
-
-  private boolean hasBodyHeadingCounterpart(ParsedDocument document, int index, String raw) {
-    String expected = compact(raw);
-    for (int candidateIndex = index + 1; candidateIndex < document.paragraphs().size(); candidateIndex++) {
-      ParagraphModel candidate = document.paragraphs().get(candidateIndex);
-      if (regions.isInsideTable(candidate, document.tables())) continue;
-      if (!expected.equals(compact(text(candidate)))) continue;
-      if (headingChecker.headingLevel(candidate) <= 0) continue;
-      if (isContentsStyle(candidate) || candidate.generatedTocField()) continue;
-      if (candidate.paragraphStyleId() != null
-          && candidate.paragraphStyleId().matches("(?i)TOC[1-3]")) continue;
-      return true;
-    }
-    return false;
-  }
-
-  private boolean isContentsStyle(ParagraphModel paragraph) {
-    return regions.hasDefiniteContentsEvidence(paragraph);
-  }
-
-  private boolean looksLikeTocEntry(ParagraphModel paragraph) {
-    return paragraph.runs().stream().filter(run -> !run.text().isBlank())
-        .allMatch(run -> !Boolean.TRUE.equals(run.bold())
-            && run.fontSizeHalfPoints() != null && run.fontSizeHalfPoints() == 24);
   }
 
   private static boolean isEntry(ParagraphModel paragraph, String text) {

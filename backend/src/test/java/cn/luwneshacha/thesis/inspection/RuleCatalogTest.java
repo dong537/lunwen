@@ -10,6 +10,16 @@ import org.junit.jupiter.api.Test;
 
 class RuleCatalogTest {
   @Test
+  void appendixIsOptionalAndOnlyExistingAppendicesAreInScope() {
+    var required = RuleCatalog.find("SECTION-REQUIRED");
+    var appendix = RuleCatalog.find("APP-01");
+
+    assertFalse(required.description().contains("附录"));
+    assertTrue(appendix.description().contains("附录可选"));
+    assertTrue(appendix.scope().contains("实际存在"));
+  }
+
+  @Test
   void everyCatalogRuleIdIsUniqueAndResolvable() {
     var ids = RuleCatalog.entries().stream().map(RuleCatalog.Entry::ruleId).toList();
 

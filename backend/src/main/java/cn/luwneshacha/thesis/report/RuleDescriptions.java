@@ -148,7 +148,8 @@ public final class RuleDescriptions {
       case "BODY_HEADING_NOT_IN_TOC" -> "正文中有标题，但目录中没有对应条目";
       case "TOC_BODY_ORDER_MISMATCH" -> "目录条目顺序与正文标题顺序不一致";
       case "TOC_REQUIRED_CHAPTER_MISSING", "TOC_REQUIRED_REFERENCES_MISSING",
-          "TOC_REQUIRED_ACKNOWLEDGEMENT_MISSING", "TOC_REQUIRED_APPENDIX_MISSING" -> "目录缺少学校要求的必需条目";
+          "TOC_REQUIRED_ACKNOWLEDGEMENT_MISSING" -> "目录缺少学校要求的必需条目";
+      case "TOC_REQUIRED_APPENDIX_MISSING" -> "论文已有附录，但目录中没有对应的附录条目";
       case "TOC_REQUIRED_ENTRY_PAGE_MISSING" -> "目录必需条目没有对应的数字页码";
       case "TABLE_CONTINUATION_NUMBER_FORMAT" -> "续表标记只能写“续表”加编号，例如“续表4-1”";
       case "EQUATION_NUMBER_MISSING" -> "公式没有公式号";
@@ -163,6 +164,7 @@ public final class RuleDescriptions {
       case "REFERENCE_COUNT_TOO_LOW" -> "参考文献少于 10 篇";
       case "REQUIRED_SECTION_MISSING" -> "学校论文必须包含此章节，但没有找到";
       case "APPENDIX_TITLE_MISSING" -> "已找到附录分项，但没有找到附录总标题“附    录”";
+      case "APPENDIX_SECTION_MISSING" -> "已有附录总标题，但没有找到以字母编号的附录分项";
       case "THESIS_DOCUMENT_CLASSIFICATION_REVIEW" -> "文档结构线索不足，无法确认必需章节检查是否适用";
       case "COVER_MISSING" -> "未识别到规范封面信息";
       case "COVER_FIELD_MISSING" -> "封面缺少规范要求的字段";
@@ -448,7 +450,8 @@ public final class RuleDescriptions {
       case "TOC-02-ORDER" -> "按正文标题出现的先后重新生成目录，并更新目录页码。";
       case "TOC-REQUIRED-ENTRY" -> switch (result.reasonCode()) {
         case "TOC_REQUIRED_ENTRY_PAGE_MISSING" -> "在该目录条目末尾补充对应的阿拉伯数字页码。";
-        default -> "在目录中补齐正文各章、参考文献、致谢和附录条目，并填写对应页码。";
+        case "TOC_REQUIRED_APPENDIX_MISSING" -> "论文已有附录，请在目录中列出对应的附录标题，并填写页码。";
+        default -> "在目录中补齐正文各章、参考文献和致谢条目，并填写对应页码。";
       };
       case "HEADING-FONT" -> headingFontSuggestion(result);
       case "HEADING-SIZE" -> "按标题层级调整字号：一级标题三号、二级标题四号、三级标题小四号。";
@@ -645,8 +648,6 @@ public final class RuleDescriptions {
 
   private static String missingSectionSuggestion(CheckResult result) {
     String section = result.expected() == null ? "该章节" : result.expected().strip();
-    if ("附录".equals(section))
-      return "未找到“附录”章节，请补齐“附    录”总标题及附录内容后重新检测。";
     if ("结论".equals(section) || "结论与展望".equals(section))
       return "未找到“结论”章节，请补齐第五章“结论”并与目录保持一致后重新检测。";
     if (section.isBlank()) return "未找到学校要求的章节，请补齐对应标题和内容后重新检测。";
@@ -680,6 +681,7 @@ public final class RuleDescriptions {
       case "CITATION_RANGE_REVIEW" -> "逐个核对引用编号与文末条目，并按首次出现顺序排列。";
       case "REQUIRED_SECTION_MISSING" -> missingSectionSuggestion(result);
       case "APPENDIX_TITLE_MISSING" -> "在附录A等分项之前补充独立的“附    录”总标题，并在标题后保留一空行。";
+      case "APPENDIX_SECTION_MISSING" -> "在已有的“附    录”总标题后写明“附录A”等分项标题及内容，后续附录按 B、C 顺序编号。";
       case "THESIS_DOCUMENT_CLASSIFICATION_REVIEW" -> "确认上传的是完整毕业论文，并检查摘要、目录和正文标题等结构是否完整后重新检测。";
       case "COVER_MISSING", "COVER_FIELD_MISSING" -> "补齐封面学校名称、论文类型、个人信息、题目和日期等规范字段后重新检查。";
       case "EQUATION_ALIGNMENT_UNKNOWN" -> "文件中没有读到公式或编号的明确对齐设置，暂时不能确认是否符合要求；可在 Word 中查看公式是否居中、编号是否右对齐。";

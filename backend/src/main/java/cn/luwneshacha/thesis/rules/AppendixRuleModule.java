@@ -35,7 +35,7 @@ final class AppendixRuleModule implements RuleModule {
    */
   private void checkAppendixPageBreak(List<CheckResult> findings, ParsedDocument document) {
     for (ParagraphModel heading : document.paragraphs()) {
-      if (regions.isInsideTable(heading, document.tables()) || !isMainAppendixTitle(heading)) continue;
+      if (!regions.isMainAppendixTitle(heading, document)) continue;
       HeadingBreakModel evidence = document.chapterBreaks().stream()
           .filter(candidate -> sameParagraph(candidate.source(), heading.source()))
           .findFirst().orElse(null);
@@ -50,11 +50,6 @@ final class AppendixRuleModule implements RuleModule {
     }
   }
 
-  private boolean isMainAppendixTitle(ParagraphModel paragraph) {
-    String normalized = compact(text(paragraph));
-    return "附录".equals(normalized) || "APPENDIX".equalsIgnoreCase(normalized);
-  }
-
   private boolean sameParagraph(SourceAddress left, SourceAddress right) {
     return left != null && right != null && left.partName().equals(right.partName())
         && left.elementPath().equals(right.elementPath());
@@ -65,9 +60,7 @@ final class AppendixRuleModule implements RuleModule {
     List<ParagraphModel> paragraphs = document.paragraphs();
     for (int index = 0; index < paragraphs.size(); index++) {
       ParagraphModel heading = paragraphs.get(index);
-      if (regions.isInsideTable(heading, document.tables())) continue;
-      String normalized = compact(text(heading));
-      if (!"附录".equals(normalized) && !"APPENDIX".equalsIgnoreCase(normalized)) continue;
+      if (!regions.isMainAppendixTitle(heading, document)) continue;
 
       int next = index + 1;
       int blankLines = ManualLineBreakSupport.blankLinesAfter(heading);
@@ -171,19 +164,6 @@ final class AppendixRuleModule implements RuleModule {
         ? "APPENDIX_OBJECT_PREFIX_MISSING" : "APPENDIX_OBJECT_LETTER_MISMATCH";
     return result("APP-01", label + expected, actual, reason,
         matches ? Judgement.PASS : Judgement.FAIL, source);
-  }
-
-  private static String text(ParagraphModel paragraph) {
-    return ManualLineBreakSupport.text(paragraph);
-  }
-
-  private static String compact(String text) {
-    return text.codePoints()
-        .filter(codePoint -> !Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)
-            && codePoint != 0x200B && codePoint != 0x200C && codePoint != 0x200D
-            && codePoint != 0x2060 && codePoint != 0xFEFF)
-        .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
-        .toString();
   }
 
   private static boolean isVisualBlankParagraph(ParagraphModel paragraph) {

@@ -108,7 +108,7 @@ final class HeadingRuleChecker {
     return matcher.matches() ? Integer.parseInt(matcher.group(1)) : 0;
   }
 
-  private boolean hasHeadingEvidence(ParagraphModel paragraph) {
+  boolean hasHeadingEvidence(ParagraphModel paragraph) {
     return headingStyleLevel(paragraph) > 0
         || Integer.valueOf(0).equals(paragraph.outlineLevel())
         || paragraph.automaticNumberingActive();

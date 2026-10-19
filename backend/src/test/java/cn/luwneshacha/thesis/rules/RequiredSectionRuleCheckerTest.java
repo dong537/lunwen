@@ -33,7 +33,7 @@ class RequiredSectionRuleCheckerTest {
         && result.reasonCode().equals("REQUIRED_SECTION_MISSING")));
     assertTrue(findings.stream().anyMatch(result -> result.expected().equals("致谢")
         && result.reasonCode().equals("REQUIRED_SECTION_MISSING")));
-    assertTrue(findings.stream().anyMatch(result -> result.expected().equals("附录")
+    assertFalse(findings.stream().anyMatch(result -> result.expected().equals("附录")
         && result.reasonCode().equals("REQUIRED_SECTION_MISSING")), findings.toString());
   }
 
@@ -75,7 +75,7 @@ class RequiredSectionRuleCheckerTest {
   }
 
   @Test
-  void doesNotCountAppendixTextInsideATableAsTheRequiredAppendixSection() {
+  void appendixTextInsideATableDoesNotActivateOptionalAppendixChecks() {
     var texts = List.of(
         "山东石油化工学院", "本科生毕业设计（论文）", "题目：毕业论文", "学生姓名：张三", "学号：20260001",
         "院系：信息工程学院", "专业年级：计算机科学与技术", "指导教师：李四", "2026年6月",
@@ -97,8 +97,8 @@ class RequiredSectionRuleCheckerTest {
 
     var findings = new RequiredSectionRuleChecker().check(document);
 
-    assertTrue(findings.stream().anyMatch(result -> result.expected().equals("附录")
-        && result.reasonCode().equals("REQUIRED_SECTION_MISSING")), findings.toString());
+    assertFalse(findings.stream().anyMatch(result -> result.expected().startsWith("附录")),
+        findings.toString());
   }
 
   @Test
@@ -111,8 +111,8 @@ class RequiredSectionRuleCheckerTest {
 
     var findings = new RequiredSectionRuleChecker().check(document);
 
-    assertTrue(findings.stream().anyMatch(result -> result.expected().equals("附录")
-        && result.reasonCode().equals("REQUIRED_SECTION_MISSING")), findings.toString());
+    assertTrue(findings.stream().anyMatch(result -> result.expected().equals("附录分项")
+        && result.reasonCode().equals("APPENDIX_SECTION_MISSING")), findings.toString());
   }
 
   @Test
@@ -302,11 +302,11 @@ class RequiredSectionRuleCheckerTest {
         "山东石油化工学院", "本科生毕业设计（论文）", "题目：毕业论文", "学生姓名：张三", "学号：20260001",
         "院系：信息工程学院", "专业年级：计算机科学与技术", "指导教师：李四", "2026年6月",
         "摘要", "关键词：格式；检查", "ABSTRACT", "Keywords: format; check", "目录",
-        "第一章 表格中的标题", "第一章 绪论", "第五章 结论", "参考文献", "致谢");
+        "第一章 表格中的标题", "第一章 绪论", "第五章 结论", "参考文献");
     var document = documentWithTableParagraph(texts, 14);
 
     var finding = new RequiredSectionRuleChecker().check(document).stream()
-        .filter(result -> result.expected().equals("附录")
+        .filter(result -> result.expected().equals("致谢")
             && result.reasonCode().equals("REQUIRED_SECTION_MISSING"))
         .findFirst().orElseThrow();
 
@@ -411,7 +411,8 @@ class RequiredSectionRuleCheckerTest {
       String text = texts.get(index);
       var source = new SourceAddress("word/document.xml", List.of(0, index), 0, text.length());
       paragraphs.add(new ParagraphModel(List.of(new RunModel(text, null, null, null,
-          24, false, source)), null, null, null, null, null, source, null));
+          24, false, source)), null, null, null, null, null, null, source,
+          null, text.matches("^第[一二三四五六七八九十百千零〇]+章.*") ? 0 : null, null));
     }
     return new ParsedDocument("source", paragraphs, List.of(), List.of());
   }

@@ -16,6 +16,9 @@ final class DocumentRegionClassifier {
       "^(\\d+(?:[\\p{javaWhitespace}\\p{Z}\\u200B-\\u200D\\u2060\\uFEFF]*\\."
           + "[\\p{javaWhitespace}\\p{Z}\\u200B-\\u200D\\u2060\\uFEFF]*\\d+){1,2})(.*)$",
       Pattern.DOTALL);
+  private static final Pattern CONTENTS_CHAPTER = Pattern.compile("^第[一二三四五六七八九十百千万零〇]+章");
+  private static final Pattern CONTENTS_NUMERIC = Pattern.compile("^(\\d+(?:\\.\\d+){1,2})(.*)$", Pattern.DOTALL);
+  private static final Pattern CONTENTS_ENTRY = Pattern.compile(TOC_ENTRY.pattern(), Pattern.DOTALL);
   private static final Pattern APPENDIX_HEADING = Pattern.compile(
       "^(?:附录|Appendix)[\\s\\p{Zs}]*([A-Z])(?:$|[\\s\\p{Zs}]|[:：]|\\p{IsHan}).*",
       Pattern.CASE_INSENSITIVE);
@@ -42,6 +45,72 @@ final class DocumentRegionClassifier {
         && paragraph.runs().stream().filter(run -> !run.text().isBlank())
             .allMatch(run -> !Boolean.TRUE.equals(run.bold())
                 && Integer.valueOf(24).equals(run.fontSizeHalfPoints()));
+  }
+
+  /** Candidate evidence is only meaningful after a contents heading, before the body starts. */
+  boolean isPotentialContentsEntry(ParsedDocument document, int index, ParagraphModel paragraph, String raw) {
+    String value = raw.replace('\r', ' ').stripLeading();
+    if (hasDefiniteContentsEvidence(paragraph) || CONTENTS_ENTRY.matcher(value).matches()
+        || value.matches("^第[一二三四五六七八九十百千万零〇]+章\\s+.+\\d$")
+        || value.matches("^\\d+(?:\\.\\d+){1,2}\\s+.+\\d$")) return true;
+    var headings = new HeadingRuleChecker(new ParagraphFormatChecker());
+    if (headings.hasHeadingEvidence(paragraph)) return false;
+    if (looksLikeLowerLevelContentsEntry(paragraph)) return true;
+    boolean landmark = isContentsLandmarkCandidate(value);
+    boolean chapter = CONTENTS_CHAPTER.matcher(value).find();
+    boolean contentsFormatting = paragraph.runs().stream().filter(run -> !run.text().isBlank())
+        .allMatch(run -> !Boolean.TRUE.equals(run.bold())
+            && Integer.valueOf(24).equals(run.fontSizeHalfPoints()));
+    if (contentsFormatting && (chapter || landmark)) return true;
+    if (!chapter && !CONTENTS_NUMERIC.matcher(value).matches() && !landmark) return false;
+
+    // A malformed manual entry can still be identified by a later, explicitly styled heading.
+    String expected = compactContentsText(value);
+    for (int next = index + 1; next < document.paragraphs().size(); next++) {
+      ParagraphModel candidate = document.paragraphs().get(next);
+      if (isInsideTable(candidate, document.tables()) || candidate.insideTextBox()
+          || hasDefiniteContentsEvidence(candidate)) continue;
+      if (expected.equals(compactContentsText(ManualLineBreakSupport.text(candidate)))
+          && headings.headingLevel(candidate) > 0) return true;
+    }
+    return false;
+  }
+
+  boolean isContentsEntry(ParagraphModel target, ParsedDocument document) {
+    boolean inContents = false;
+    var headings = new HeadingRuleChecker(new ParagraphFormatChecker());
+    for (int index = 0; index < document.paragraphs().size(); index++) {
+      ParagraphModel paragraph = document.paragraphs().get(index);
+      if (paragraph.insideTextBox() || isInsideTable(paragraph, document.tables())) continue;
+      String raw = ManualLineBreakSupport.text(paragraph);
+      String normalized = compactContentsText(raw);
+      if (normalized.equals("目录") || normalized.equalsIgnoreCase("CONTENTS")) {
+        inContents = true;
+        continue;
+      }
+      boolean entry = inContents && isPotentialContentsEntry(document, index, paragraph, raw);
+      if (paragraph.source().partName().equals(target.source().partName())
+          && paragraph.source().elementPath().equals(target.source().elementPath())) return entry;
+      if (inContents && !entry && !normalized.isEmpty()
+          && (headings.headingLevel(paragraph) > 0 || isEndMatterHeading(paragraph)
+              || normalized.equals("绪论") || normalized.equals("引言"))) inContents = false;
+    }
+    return false;
+  }
+
+  private static boolean isContentsLandmarkCandidate(String text) {
+    String value = compactContentsText(text);
+    return value.equals("摘要") || value.equalsIgnoreCase("ABSTRACT") || value.equals("参考文献")
+        || value.equals("致谢") || value.equals("总结") || value.equals("结论") || value.startsWith("附录")
+        || value.equalsIgnoreCase("REFERENCES") || value.equalsIgnoreCase("ACKNOWLEDGMENTS")
+        || value.equalsIgnoreCase("ACKNOWLEDGEMENTS");
+  }
+
+  private static String compactContentsText(String text) {
+    return text.codePoints().filter(codePoint -> !Character.isWhitespace(codePoint)
+        && !Character.isSpaceChar(codePoint) && codePoint != 0x200B && codePoint != 0x200C
+        && codePoint != 0x200D && codePoint != 0x2060 && codePoint != 0xFEFF)
+        .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append).toString();
   }
 
   boolean isBeforeMainBody(ParsedDocument document, SourceAddress source) {
@@ -143,6 +212,14 @@ final class DocumentRegionClassifier {
     return paragraph.runs().stream().map(run -> run.text() == null ? "" : run.text()).reduce("", String::concat).trim();
   }
 
+  boolean isMainAppendixTitle(ParagraphModel paragraph, ParsedDocument document) {
+    if (paragraph.insideTextBox() || hasDefiniteContentsEvidence(paragraph)
+        || isInsideTable(paragraph, document.tables())) return false;
+    String normalized = compactContentsText(paragraphText(paragraph));
+    return (normalized.equals("附录") || normalized.equalsIgnoreCase("APPENDIX"))
+        && !isContentsEntry(paragraph, document);
+  }
+
   String appendixHeadingLetter(ParagraphModel paragraph) {
     if (paragraph.insideTextBox() || hasDefiniteContentsEvidence(paragraph)) return null;
     String text = paragraphText(paragraph).strip();
@@ -154,7 +231,8 @@ final class DocumentRegionClassifier {
   }
 
   String appendixHeadingLetter(ParagraphModel paragraph, ParsedDocument document) {
-    return isInsideTable(paragraph, document.tables()) ? null : appendixHeadingLetter(paragraph);
+    String letter = isInsideTable(paragraph, document.tables()) ? null : appendixHeadingLetter(paragraph);
+    return letter == null || isContentsEntry(paragraph, document) ? null : letter;
   }
 
   private boolean matchesAppendixHeading(ParagraphModel paragraph, String text, Matcher matcher) {
