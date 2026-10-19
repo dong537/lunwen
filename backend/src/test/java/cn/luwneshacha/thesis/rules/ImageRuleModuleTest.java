@@ -84,6 +84,44 @@ class ImageRuleModuleTest {
     assertTrue(findings.stream().anyMatch(f -> "CAPTION-SIZE".equals(f.ruleId())));
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"5- 4", "5 -4", "5 - 4", "5-\u00a04", "5\u3000-\u30004", "5\t-\t4"})
+  void recognizesHorizontalWhitespaceBesideTheReferenceHyphen(String number) {
+    assertEquals(Judgement.PASS, figureReference("5-4", "调酒师上传教程界面流程图，如图" + number + "所示。").judgement());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"没有图号的正文。", "如图5-40所示。", "如图5- 40所示。", "如图5－ 4所示。",
+      "如图5-\n4所示。", "如图5\n-4所示。", "如图5-\u20284所示。"})
+  void doesNotInventAMatchingReferenceFromOtherNumbersOrVerticalWhitespace(String reference) {
+    var result = figureReference("5-4", reference);
+    assertEquals(Judgement.FAIL, result.judgement());
+    assertEquals("FIGURE_NOT_CITED_IN_BODY", result.reasonCode());
+  }
+
+  @Test
+  void doesNotJoinDigitsOrParagraphsToCreateAReference() {
+    assertEquals(Judgement.FAIL, figureReference("50-4", "如图5 0-4所示。").judgement());
+    assertEquals(Judgement.FAIL, figureReference("5-40", "如图5-4 0所示。").judgement());
+    assertEquals(Judgement.FAIL, figureReference("5-4", "如图5-", "4所示。").judgement());
+  }
+
+  private static CheckResult figureReference(String number, String... references) {
+    var paragraphs = new java.util.ArrayList<ParagraphModel>();
+    paragraphs.add(paragraph("第五章 系统设计", List.of(0, 0), "黑体", 32, "center"));
+    for (int index = 0; index < references.length; index++) {
+      paragraphs.add(paragraph(references[index], List.of(0, index + 1), "宋体", 24, "left"));
+    }
+    var caption = paragraph("图" + number + " 系统结构图", List.of(0, references.length + 2), "宋体", 21, "center");
+    paragraphs.add(caption);
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(0, references.length + 1), 0, 0),
+        caption.source(), "图" + number + " 系统结构图", 100, 100, true, true, true);
+    var results = new ImageRuleChecker().check(document(paragraphs, image), RuleSet.schoolV1()).stream()
+        .filter(result -> result.ruleId().equals("FIG-01")).toList();
+    assertEquals(1, results.size(), results.toString());
+    return results.get(0);
+  }
+
   @Test
   void doesNotTreatAnUnnumberedFigureMentionInATableAsABodyReference() {
     var chapter = paragraph("第一章 绪论", List.of(0, 0), "黑体", 32, "left");

@@ -17,6 +17,8 @@ import java.util.regex.Pattern;
 
 final class ImageRuleChecker implements RuleModule {
   private static final Pattern FIGURE_NUMBER = Pattern.compile("图[\\s\\p{Zs}]*((?:\\d+[-－]\\d+)|(?:[A-Z]\\d+))(?![A-Za-z\\d-])");
+  private static final Pattern FIGURE_REFERENCE = Pattern.compile(
+      "图[\\s\\p{Zs}]*((?:\\d+[\\t\\p{Zs}]*[-－][\\t\\p{Zs}]*\\d+)|(?:[A-Z]\\d+))(?![A-Za-z\\d-])");
   private static final Pattern UNNUMBERED_FIGURE_REFERENCE = Pattern.compile("(?:如|见|参见)图(?!\\s*\\d)(?:所示|如下)?|下图所示");
   private static final Pattern FIGURE_CAPTION_FORMAT = Pattern.compile("^\\s*图(?:\\d+-\\d+|[A-Z]\\d+) \\S.*");
   private static final Pattern FIGURE_SEQUENCE = Pattern.compile("^\\s*图(\\d+)-(\\d+)(?![\\d-])");
@@ -46,10 +48,10 @@ final class ImageRuleChecker implements RuleModule {
         if (regions.appendixLetterAt(document, image.source()) == null) {
           if (!figureNumber.find())
             results.add(review("FIG-01", "body reference to figure", "FIGURE_NUMBER_UNKNOWN", image.source()));
-          else if (regions.isFigureReferencedInBody(document, figureNumber.group(1), image.captionSource(), FIGURE_NUMBER))
+          else if (regions.isFigureReferencedInBody(document, figureNumber.group(1), image.captionSource(), FIGURE_REFERENCE))
             results.add(result("FIG-01", "body reference to figure " + figureNumber.group(1), figureNumber.group(1), "",
                 Judgement.PASS, image.captionSource()));
-          else if (regions.hasUnnumberedFigureReference(document, image.captionSource(), FIGURE_NUMBER,
+          else if (regions.hasUnnumberedFigureReference(document, image.captionSource(), FIGURE_REFERENCE,
               UNNUMBERED_FIGURE_REFERENCE))
             results.add(result("FIG-01", "正文引用图号", "正文只有未指明图号的引用", "FIGURE_REFERENCE_NEEDS_REVIEW",
                 Judgement.FAIL, image.captionSource()));

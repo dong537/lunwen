@@ -86,12 +86,38 @@ class VisioCaptionAnnotationTest {
         && r.judgement() == Judgement.FAIL && r.expected().equals("21")));
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"", " "})
+  void recognizesSpacedBodyReferenceAcrossRunsIndependentlyOfCaptionFormatting(String captionSeparator) throws Exception {
+    String reference = "<w:p><w:r><w:t>登录过程如图</w:t></w:r>"
+        + "<w:r><w:t xml:space=\"preserve\">3- </w:t></w:r>"
+        + "<w:r><w:t>1</w:t></w:r><w:r><w:t>所示。</w:t></w:r></w:p>";
+    var parsed = new Docx4jDocumentParser().parse(new DocxReader().read(fixture(captionSeparator, "宋体", 21, reference)));
+    assertEquals(1, parsed.images().size());
+    assertEquals(List.of("登录过程如图", "3- ", "1", "所示。"),
+        parsed.paragraphs().get(1).runs().stream().map(run -> run.text()).toList());
+    var source = parsed.images().get(0).captionSource();
+    var results = new RuleEngine().check(parsed, RuleSet.schoolV1()).stream()
+        .filter(result -> sameParagraph(result.source(), source)).toList();
+    var references = results.stream().filter(result -> result.ruleId().equals("FIG-01")).toList();
+    assertEquals(1, references.size());
+    assertEquals(Judgement.PASS, references.get(0).judgement(), references.toString());
+    var formatting = results.stream().filter(result -> result.ruleId().equals("FIG-03")).toList();
+    assertEquals(1, formatting.size());
+    assertEquals(captionSeparator.isEmpty() ? Judgement.FAIL : Judgement.PASS, formatting.get(0).judgement());
+  }
+
   private static boolean sameParagraph(SourceAddress a, SourceAddress b) {
     return a != null && b != null && a.partName().equals(b.partName())
         && a.elementPath().equals(b.elementPath());
   }
 
   private Path fixture(String separator, String eastAsiaFont, int size) throws Exception {
+    return fixture(separator, eastAsiaFont, size,
+        "<w:p><w:r><w:rPr><w:sz w:val=\"21\"/></w:rPr><w:t>登录过程如图3-1所示。</w:t></w:r></w:p>");
+  }
+
+  private Path fixture(String separator, String eastAsiaFont, int size, String bodyReference) throws Exception {
     String w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     String r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     String types = "http://schemas.openxmlformats.org/package/2006/content-types";
@@ -103,7 +129,7 @@ class VisioCaptionAnnotationTest {
     String document = "<w:document xmlns:w=\"" + w + "\" xmlns:r=\"" + r
         + "\" xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\">"
         + "<w:body><w:p><w:r><w:t>第三章  系统设计</w:t></w:r></w:p>"
-        + "<w:p><w:r><w:rPr><w:sz w:val=\"21\"/></w:rPr><w:t>登录过程如图3-1所示。</w:t></w:r></w:p>"
+        + bodyReference
         + "<w:p><w:r><w:object><v:shape id=\"visio1\" style=\"width:100pt;height:80pt\">"
         + "<v:imagedata r:id=\"rIdImage\"/></v:shape><o:OLEObject ProgID=\"Visio.Drawing.15\" "
         + "ShapeID=\"visio1\" Type=\"Embed\"/></w:object></w:r></w:p>"
