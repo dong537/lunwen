@@ -71,6 +71,52 @@ class TableRuleModuleTest {
   }
 
   @Test
+  void reportsOnlyTheMissingBordersForNormalAndContinuationTables() {
+    record BorderCase(boolean top, boolean middle, boolean bottom, String missingLines) {}
+    var cases = List.of(
+        new BorderCase(false, false, false, "顶线、表头下横线、底线"),
+        new BorderCase(true, false, false, "表头下横线、底线"),
+        new BorderCase(false, true, false, "顶线、底线"),
+        new BorderCase(true, true, false, "底线"),
+        new BorderCase(false, false, true, "顶线、表头下横线"),
+        new BorderCase(true, false, true, "表头下横线"),
+        new BorderCase(false, true, true, "顶线"));
+    for (String caption : List.of("表1-1 测试结果", "续表1-1")) {
+      for (var borderCase : cases) {
+        var table = new TableModel(source(1), source(0), caption, 2, 2,
+            borderCase.top(), borderCase.middle(), borderCase.bottom(), false, true, false);
+        var document = new ParsedDocument("source", List.of(), List.of(), List.of(),
+            List.of(table), List.of(), List.of());
+
+        var findings = new TableRuleModule().check(document, RuleSet.schoolV1()).stream()
+            .filter(item -> item.ruleId().equals("TAB-02")).toList();
+
+        assertEquals(1, findings.size(), caption + ": " + borderCase);
+        var finding = findings.get(0);
+        assertEquals(Judgement.FAIL, finding.judgement());
+        assertEquals(caption.startsWith("续表")
+            ? "TABLE_CONTINUATION_BORDER_INVALID" : "TABLE_BORDER_INVALID", finding.reasonCode());
+        assertEquals(borderCase.missingLines(), finding.expected(), caption + ": " + borderCase);
+        assertEquals("缺少符合规范的" + borderCase.missingLines(), finding.actual(), caption + ": " + borderCase);
+        assertEquals(table.source(), finding.source());
+      }
+    }
+  }
+
+  @Test
+  void doesNotReportMissingBordersWhenAllThreeLinesArePresent() {
+    for (String caption : List.of("表1-1 测试结果", "续表1-1")) {
+      var table = new TableModel(source(1), source(0), caption, 2, 2,
+          true, true, true, false, true, false);
+      var document = new ParsedDocument("source", List.of(), List.of(), List.of(),
+          List.of(table), List.of(), List.of());
+
+      assertFalse(new TableRuleModule().check(document, RuleSet.schoolV1()).stream()
+          .anyMatch(item -> item.ruleId().equals("TAB-02")), caption);
+    }
+  }
+
+  @Test
   void comparesSplitContinuationHeaderWithItsAdjacentOriginalTable() {
     var findings = continuationFindings(List.of("项目", "结果"));
 

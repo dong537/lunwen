@@ -22,6 +22,54 @@ class RuleDescriptionsTest {
   @TempDir Path temp;
 
   @Test
+  void tableBorderAdviceKeepsGenericGuidanceWhenReasonCodeIsNull() {
+    CheckResult finding = result("TAB-02", null);
+
+    assertEquals("保留顶线、表头下横线和底线；辅助线按实际需要保留。",
+        RuleDescriptions.suggestion(finding));
+  }
+
+  @Test
+  void tableBorderAdviceIdentifiesTheMissingLinesAndTheirWordBorderLocations() {
+    for (String reason : List.of("TABLE_BORDER_INVALID", "TABLE_CONTINUATION_BORDER_INVALID")) {
+      CheckResult middle = result("TAB-02", reason, "表头下横线", "缺少符合规范的表头下横线", Judgement.FAIL);
+      CheckResult outer = result("TAB-02", reason, "顶线、底线", "缺少符合规范的顶线、底线", Judgement.FAIL);
+      CheckResult all = result("TAB-02", reason, "顶线、表头下横线、底线",
+          "缺少符合规范的顶线、表头下横线、底线", Judgement.FAIL);
+
+      assertEquals("缺少符合规范的表头下横线", RuleDescriptions.reason(middle));
+      assertEquals("缺少符合规范的顶线、底线", RuleDescriptions.reason(outer));
+      assertEquals("请在 Word 中为表头行的下边框补上横线。", RuleDescriptions.suggestion(middle));
+      assertEquals("请在 Word 中为首行的上边框、末行的下边框补上横线。", RuleDescriptions.suggestion(outer));
+      assertEquals("请在 Word 中为首行的上边框、表头行的下边框、末行的下边框补上横线。",
+          RuleDescriptions.suggestion(all));
+      assertEquals("缺少符合规范的表头下横线", RuleDescriptions.actualValue(middle));
+      assertEquals("表头下横线", RuleDescriptions.expectedValue(middle));
+    }
+  }
+
+  @Test
+  void wordReportKeepsPartialTableBorderFailuresSpecific() throws Exception {
+    Path target = temp.resolve("table-border-report.docx");
+    var finding = result("TAB-02", "TABLE_CONTINUATION_BORDER_INVALID", "表头下横线",
+        "缺少符合规范的表头下横线", Judgement.FAIL);
+    var report = new cn.luwneshacha.thesis.inspection.InspectionReport("hash", "school-v1",
+        List.of(finding), List.of());
+
+    new WordReportWriter().write(report, target);
+
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(),
+          java.nio.charset.StandardCharsets.UTF_8);
+      assertTrue(document.contains("缺少符合规范的表头下横线"));
+      assertTrue(document.contains("请在 Word 中为表头行的下边框补上横线。"));
+      assertFalse(document.contains("顶线"));
+      assertFalse(document.contains("底线"));
+      assertFalse(document.contains("XML"));
+    }
+  }
+
+  @Test
   void namesEveryEmittedRuleInChinese() {
     Map<String, String> names = Map.ofEntries(
         Map.entry("ABSTRACT-FONT", "摘要正文字体"), Map.entry("ABSTRACT-INDENT", "摘要首行缩进"),

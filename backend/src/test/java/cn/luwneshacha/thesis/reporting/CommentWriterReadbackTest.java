@@ -27,6 +27,37 @@ class CommentWriterReadbackTest {
   @TempDir Path temp;
 
   @Test
+  void tableBorderCommentsReadBackOnlyTheMissingLinesAndSpecificRepairAdvice() throws Exception {
+    Path source = validTableDocx();
+    var raw = new DocxReader().read(source);
+    var anchor = new Docx4jDocumentParser().parse(raw).tables().get(0).source();
+    String[][] cases = {
+        {"表头下横线", "表头行的下边框"},
+        {"顶线、底线", "首行的上边框、末行的下边框"},
+        {"顶线、表头下横线、底线", "首行的上边框、表头行的下边框、末行的下边框"}
+    };
+    for (String reason : List.of("TABLE_BORDER_INVALID", "TABLE_CONTINUATION_BORDER_INVALID")) {
+      for (int index = 0; index < cases.length; index++) {
+        String missing = cases[index][0];
+        var finding = new CheckResult("TAB-02", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+            Judgement.FAIL, missing, "缺少符合规范的" + missing, reason, anchor);
+        Path target = temp.resolve(reason + "-" + index + ".docx");
+
+        AnnotationReport report = new CommentWriter().writeCopy(source, target, raw.sourceSha256(), List.of(finding));
+
+        assertEquals(AnnotationStatus.WRITTEN, report.items().get(0).status());
+        var threads = CommentWriter.readThreads(target);
+        assertEquals(1, threads.size());
+        assertEquals("缺少符合规范的" + missing + "。请在 Word 中为" + cases[index][1] + "补上横线。",
+            threads.get(0).text());
+        var pkg = WordprocessingMLPackage.load(target.toFile());
+        var part = (CommentsPart) pkg.getParts().getParts().get(new PartName("/word/comments.xml"));
+        assertEquals(1, part.getContents().getComment().size());
+      }
+    }
+  }
+
+  @Test
   void docx4jReadsGeneratedCommentAndMainDocumentRelationship() throws Exception {
     Path source = validDocx();
     var raw = new DocxReader().read(source);
@@ -104,6 +135,21 @@ class CommentWriterReadbackTest {
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
         "<w:document " + NS + "><w:body><w:p><w:r><w:t>\u6b63\u6587</w:t></w:r></w:p><w:sectPr/></w:body></w:document>"));
     Path source = temp.resolve("source.docx");
+    pkg.save(source.toFile());
+    return source;
+  }
+
+  private Path validTableDocx() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + "><w:body><w:p><w:r><w:t>表1-1 测试结果</w:t></w:r></w:p>"
+            + "<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w=\"2400\"/><w:gridCol w:w=\"2400\"/></w:tblGrid>"
+            + "<w:tr><w:tc><w:p><w:r><w:t>项目</w:t></w:r></w:p></w:tc>"
+            + "<w:tc><w:p><w:r><w:t>结果</w:t></w:r></w:p></w:tc></w:tr>"
+            + "<w:tr><w:tc><w:p><w:r><w:t>甲</w:t></w:r></w:p></w:tc>"
+            + "<w:tc><w:p><w:r><w:t>一</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+            + "<w:sectPr/></w:body></w:document>"));
+    Path source = temp.resolve("table-source.docx");
     pkg.save(source.toFile());
     return source;
   }

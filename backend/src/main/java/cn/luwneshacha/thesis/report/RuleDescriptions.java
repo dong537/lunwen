@@ -199,7 +199,7 @@ public final class RuleDescriptions {
       case "TABLE_LAYOUT_REVIEW" -> "XML 无法证明表题是否位于表格上方，暂无法确认是否符合规范";
       case "TABLE_BORDER_REVIEW", "TABLE_CONTINUATION_BORDER_REVIEW" -> "表格边框可能来自样式继承或条件格式，XML 无法完整确认三线表边框";
       case "TABLE_AUXILIARY_BORDER_REVIEW" -> "表格存在辅助线；学校规范允许必要辅助线，仍须保留三条必需横线";
-      case "TABLE_BORDER_INVALID", "TABLE_CONTINUATION_BORDER_INVALID" -> "表格 XML 中已确认缺少三线表必需横线";
+      case "TABLE_BORDER_INVALID", "TABLE_CONTINUATION_BORDER_INVALID" -> result.actual();
       case "TABLE_BORDER_EVIDENCE_UNRESOLVED" -> "表格条件边框无法从 DOCX XML 完整解析，暂无法确认是否符合三线表规范";
       case "TABLE_XML_NUMERIC_INVALID" -> "表格 XML 中的跨度、偏移、宽度、高度或边框数值不是规范范围内的整数";
       case "IMAGE_XML_NUMERIC_INVALID" -> "图片 XML 中的宽度或高度不是有效的正整数";
@@ -460,7 +460,10 @@ public final class RuleDescriptions {
       case "TOC-01-SPACING" -> "将“目”和“录”之间留四个空格，标题使用三号黑体并居中。";
       case "TOC-01-BLANK" -> "目录标题后空一行，再开始目录内容。";
       case "TOC-01-LINE" -> "目录标题行距改为 1.5 倍。";
-      case "TAB-02" -> "保留顶线、表头下横线和底线；辅助线按实际需要保留。";
+      case "TAB-02" -> switch (result.reasonCode() == null ? "" : result.reasonCode()) {
+        case "TABLE_BORDER_INVALID", "TABLE_CONTINUATION_BORDER_INVALID" -> tableBorderSuggestion(result);
+        default -> "保留顶线、表头下横线和底线；辅助线按实际需要保留。";
+      };
       case "TAB-03" -> switch (result.reasonCode()) {
         case "TABLE_CONTINUATION_NUMBER_FORMAT" -> "删去续表编号后的文字，仅保留“续表”加编号，例如“续表4-1”。";
         case "TABLE_CONTINUATION_CAPTION_NOT_RIGHT" -> "将续表标记放在表格右上方并设为右对齐。";
@@ -534,6 +537,13 @@ public final class RuleDescriptions {
       case "ZH-01-ALIGNMENT", "EN-01-ALIGNMENT", "TOC-01-ALIGNMENT", "REF-01-ALIGNMENT", "END-01-ALIGNMENT", "APP-02-ALIGNMENT" -> "将标题段落设为居中。";
       default -> unknownSuggestion(result);
     };
+  }
+
+  private static String tableBorderSuggestion(CheckResult result) {
+    String locations = result.expected().replace("顶线", "首行的上边框")
+        .replace("表头下横线", "表头行的下边框")
+        .replace("底线", "末行的下边框");
+    return "请在 Word 中为" + locations + "补上横线。";
   }
 
   private static String indentSuggestion(CheckResult result) {
@@ -693,7 +703,7 @@ public final class RuleDescriptions {
       case "FIGURE_REFERENCE_NEEDS_REVIEW" -> "请在 Word 中检查正文是否出现该图号的引用；只有确认缺少时再补充引用。";
       case "TABLE_LAYOUT_REVIEW" -> "请在 Word 中确认表题是否位于表格上方并居中；只有确认位置不对时再调整。";
       case "TABLE_BORDER_REVIEW", "TABLE_CONTINUATION_BORDER_REVIEW", "TABLE_AUXILIARY_BORDER_REVIEW" -> "显式设置三线表边框，删除不必要的竖线。";
-      case "TABLE_BORDER_INVALID", "TABLE_CONTINUATION_BORDER_INVALID" -> "补齐表格顶线、表头下横线和底线。";
+      case "TABLE_BORDER_INVALID", "TABLE_CONTINUATION_BORDER_INVALID" -> tableBorderSuggestion(result);
       case "TABLE_BORDER_EVIDENCE_UNRESOLVED" -> "请在 Word 中确认表格是否为三线表；只有确认边框缺失或错误时再调整为三线表。";
       case "TABLE_XML_NUMERIC_INVALID" -> "在 Word 中重新设置表格列宽、行高、单元格合并和边框数值，删除非法或损坏的表格属性后重新检查。";
       case "TABLE_UNIT_DIMENSION_UNKNOWN" -> "将表头改为明确的量名称，并标注对应单位，例如“长度/mm”或“温度/℃”。";

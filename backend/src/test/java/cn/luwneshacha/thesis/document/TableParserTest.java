@@ -314,6 +314,156 @@ class TableParserTest {
   }
 
   @Test
+  void recognizesThreeLinesWhenTrailingGridSlotsAreOmittedUntilLaterMergedRows() {
+    String top = singleBorder("top");
+    String bottom = singleBorder("bottom");
+    String rows = borderRow(0, 1, borderCell(1, top + bottom) + borderCell(1, top + bottom))
+        + borderRow(0, 1, borderCell(1, top) + borderCell(1, top))
+        + borderRow(0, 1, borderCell(1, "") + borderCell(1, "")).repeat(3)
+        + borderRow(0, 0, borderCell(1, "") + borderCell(2, ""))
+        + borderRow(0, 0, borderCell(1, bottom) + borderCell(2, bottom));
+
+    var table = parseBorderTable(3, rows);
+
+    assertEquals(7, table.rows());
+    assertTrue(table.xmlNumericValuesValid());
+    assertAll(() -> assertTrue(table.topBorder()), () -> assertTrue(table.middleBorder()),
+        () -> assertTrue(table.bottomBorder()));
+  }
+
+  @Test
+  void recognizesBordersOnlyAcrossRealCellsBetweenLeadingAndTrailingOmittedSlots() {
+    String borders = singleBorder("top") + singleBorder("bottom");
+    String rows = borderRow(2, 1, borderCell(2, borders) + borderCell(1, borders)).repeat(2);
+
+    var table = parseBorderTable(6, rows);
+
+    assertAll(() -> assertTrue(table.topBorder()), () -> assertTrue(table.middleBorder()),
+        () -> assertTrue(table.bottomBorder()));
+  }
+
+  @Test
+  void doesNotRequireOuterRowsToCoverGridColumnsUsedOnlyByAnotherRow() {
+    String borders = singleBorder("top") + singleBorder("bottom");
+    String rows = borderRow(0, 0, borderCell(1, borders).repeat(2))
+        + borderRow(0, 0, borderCell(1, "").repeat(4))
+        + borderRow(0, 0, borderCell(1, singleBorder("bottom")).repeat(2));
+
+    var table = parseBorderTable(4, rows);
+
+    assertAll(() -> assertTrue(table.topBorder()), () -> assertTrue(table.middleBorder()),
+        () -> assertTrue(table.bottomBorder()));
+  }
+
+  @Test
+  void checksHeaderSeparatorOnlyWhereRealCellsOnBothRowsAreAdjacent() {
+    String rows = borderRow(0, 1, borderCell(1, "") + borderCell(1, singleBorder("bottom")))
+        + borderRow(1, 0, borderCell(1, "").repeat(2));
+
+    var table = parseBorderTable(3, rows);
+
+    assertTrue(table.middleBorder());
+  }
+
+  @Test
+  void doesNotBorrowBordersFromDifferentColumnsAcrossOffsetRows() {
+    String rows = borderRow(0, 1, borderCell(1, singleBorder("bottom")) + borderCell(1, ""))
+        + borderRow(1, 0, borderCell(1, "") + borderCell(1, singleBorder("top")));
+
+    var table = parseBorderTable(3, rows);
+
+    assertFalse(table.middleBorder());
+  }
+
+  @Test
+  void doesNotInventHeaderSeparatorWhenOffsetRowsHaveNoAdjacentCells() {
+    String rows = borderRow(0, 1, borderCell(1, singleBorder("bottom")))
+        + "<w:tr><w:trPr><w:gridBefore w:val=\"1\"/></w:trPr>"
+        + "<w:tblPrEx><w:tblBorders>" + singleBorder("top") + "</w:tblBorders></w:tblPrEx>"
+        + borderCell(1, "") + "</w:tr>";
+
+    var table = parseBorderTable(2, rows);
+
+    assertFalse(table.middleBorder());
+  }
+
+  @Test
+  void doesNotTreatRowsWithoutRealCellsAsBorderEvidence() {
+    String tableBorders = "<w:tblPr><w:tblBorders>" + singleBorder("top")
+        + singleBorder("insideH") + singleBorder("bottom") + "</w:tblBorders></w:tblPr>";
+
+    var table = parseBorderTable(2, tableBorders + "<w:tr/><w:tr/>");
+
+    assertAll(() -> assertFalse(table.topBorder()), () -> assertFalse(table.middleBorder()),
+        () -> assertFalse(table.bottomBorder()));
+  }
+
+  @Test
+  void requiresBordersOnWrappedCellsEvenWithoutDeclaredGridColumns() {
+    String borders = singleBorder("top") + singleBorder("bottom");
+    String cells = borderCell(1, borders) + "<w:customXml>" + borderCell(1, "") + "</w:customXml>";
+
+    var table = parseBorderTable(0, borderRow(0, 0, cells).repeat(2));
+
+    assertAll(() -> assertFalse(table.topBorder()), () -> assertFalse(table.middleBorder()),
+        () -> assertFalse(table.bottomBorder()));
+  }
+
+  @Test
+  void combinesOnlyCorrespondingMergedCellEdgesWithoutOverridingExplicitNil() {
+    String nilBottom = "<w:bottom w:val=\"nil\"/>";
+    String nilTop = "<w:top w:val=\"nil\"/>";
+    String upper = borderRow(1, 1, borderCell(2, singleBorder("bottom")) + borderCell(1, nilBottom));
+    String lower = borderRow(1, 1, borderCell(1, nilTop).repeat(2) + borderCell(1, singleBorder("top")));
+    String tableBorders = "<w:tblPr><w:tblBorders>" + singleBorder("insideH")
+        + "</w:tblBorders></w:tblPr>";
+
+    assertTrue(parseBorderTable(5, tableBorders + upper + lower).middleBorder());
+    assertFalse(parseBorderTable(5, tableBorders + upper
+        + lower.replace(singleBorder("top"), nilTop)).middleBorder());
+  }
+
+  @Test
+  void requiresBordersOnExplicitEmptyCellsAlongsideOmittedSlots() {
+    String borders = singleBorder("top") + singleBorder("bottom");
+    String rows = borderRow(1, 1, borderCell(1, borders) + borderCell(1, "")).repeat(2);
+
+    var table = parseBorderTable(4, rows);
+
+    assertAll(() -> assertFalse(table.topBorder()), () -> assertFalse(table.middleBorder()),
+        () -> assertFalse(table.bottomBorder()));
+  }
+
+  @Test
+  void preservesExplicitNilOverridesOnMergedCellsBetweenOmittedSlots() {
+    String rows = borderRow(1, 1,
+        borderCell(2, "<w:top w:val=\"nil\"/><w:bottom w:val=\"nil\"/>")).repeat(2);
+    String tableBorders = "<w:tblPr><w:tblBorders>" + singleBorder("top")
+        + singleBorder("insideH") + singleBorder("bottom") + "</w:tblBorders></w:tblPr>";
+
+    var table = parseBorderTable(4, tableBorders + rows);
+
+    assertAll(() -> assertFalse(table.topBorder()), () -> assertFalse(table.middleBorder()),
+        () -> assertFalse(table.bottomBorder()));
+  }
+
+  @Test
+  void rejectsInvalidOccupancyNumbersEvenWhenAllRealCellsHaveBorders() {
+    String borders = singleBorder("top") + singleBorder("bottom");
+    String validRows = borderRow(1, 1, borderCell(2, borders)).repeat(2);
+    for (String invalidRows : List.of(
+        validRows.replace("gridBefore w:val=\"1\"", "gridBefore w:val=\"-1\""),
+        validRows.replace("gridAfter w:val=\"1\"", "gridAfter w:val=\"2147483648\""),
+        validRows.replace("gridSpan w:val=\"2\"", "gridSpan w:val=\"0\""))) {
+      var table = parseBorderTable(4, invalidRows);
+
+      assertFalse(table.xmlNumericValuesValid());
+      assertAll(() -> assertFalse(table.topBorder()), () -> assertFalse(table.middleBorder()),
+          () -> assertFalse(table.bottomBorder()));
+    }
+  }
+
+  @Test
   void letsExplicitCellNilBordersOverrideTableBorders() {
     String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
         + "<w:tbl><w:tblPr><w:tblBorders><w:top w:val=\"single\" w:sz=\"4\" w:color=\"auto\" w:space=\"0\"/><w:insideH w:val=\"single\" w:sz=\"4\" w:color=\"auto\" w:space=\"0\"/><w:bottom w:val=\"single\" w:sz=\"4\" w:color=\"auto\" w:space=\"0\"/></w:tblBorders></w:tblPr>"
@@ -591,5 +741,26 @@ class TableParserTest {
     var table = new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8)).get(0);
 
     assertEquals("注1：单位为毫米。", table.noteText());
+  }
+
+  private static TableModel parseBorderTable(int columns, String rows) {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+        + "<w:tbl><w:tblGrid>" + "<w:gridCol w:w=\"1000\"/>".repeat(columns) + "</w:tblGrid>"
+        + rows + "</w:tbl></w:body></w:document>";
+    return new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8)).get(0);
+  }
+
+  private static String borderRow(int before, int after, String cells) {
+    return "<w:tr><w:trPr><w:gridBefore w:val=\"" + before + "\"/><w:gridAfter w:val=\""
+        + after + "\"/></w:trPr>" + cells + "</w:tr>";
+  }
+
+  private static String borderCell(int span, String borders) {
+    return "<w:tc><w:tcPr><w:gridSpan w:val=\"" + span + "\"/><w:tcBorders>" + borders
+        + "</w:tcBorders></w:tcPr><w:p/></w:tc>";
+  }
+
+  private static String singleBorder(String side) {
+    return "<w:" + side + " w:val=\"single\" w:sz=\"4\" w:color=\"auto\" w:space=\"0\"/>";
   }
 }

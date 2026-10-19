@@ -1529,6 +1529,10 @@ public final class CommentWriter {
           yield "三线表的辅助线不是必需项；必要时可以保留辅助线，重点保留顶线、表头下横线和底线。";
         if ("TABLE_XML_NUMERIC_INVALID".equals(result.reasonCode()))
           yield "表格的宽度、高度、合并或边框数值无效。请在 Word 中重新设置相关表格属性后再检查。";
+        if ("TABLE_BORDER_INVALID".equals(result.reasonCode())
+            || "TABLE_CONTINUATION_BORDER_INVALID".equals(result.reasonCode()))
+          yield cn.luwneshacha.thesis.report.RuleDescriptions.reason(result) + "。"
+              + cn.luwneshacha.thesis.report.RuleDescriptions.suggestion(result);
         String actual = result.actual();
         if (actual != null && !actual.isBlank())
           yield "表格边框检查：" + actual + "。请保留顶线、表头下横线和底线，只有必要时保留辅助竖线。";

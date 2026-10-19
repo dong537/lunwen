@@ -645,36 +645,53 @@ public final class TableParser {
 
   private static boolean borderCoversRow(Element table, Element row, String side, Boolean tableBorder,
       List<Map<String, Boolean>> styleCellBorders) {
-    int columns = gridColumnCount(table, List.of(row));
-    if (columns == 0) return false;
-    Boolean[] effective = new Boolean[columns];
-    java.util.Arrays.fill(effective, tableBorder);
-    applyStyleCellBorderStates(row, side, effective, styleCellBorders);
-    applyRowBorderStates(row, side, effective);
-    applyCellBorderStates(table, row, side, effective);
-    for (Boolean value : effective) if (!Boolean.TRUE.equals(value)) return false;
+    List<Element> cells = rowCells(row);
+    if (cells.isEmpty()) return false;
+    for (int index = 0; index < cells.size(); index++) {
+      Map<String, Boolean> conditional = index < styleCellBorders.size()
+          ? styleCellBorders.get(index) : Map.of();
+      if (!Boolean.TRUE.equals(effectiveCellBorderState(table, row, cells.get(index), side,
+          tableBorder, conditional))) return false;
+    }
     return true;
   }
 
   private static boolean borderCoversBoundary(Element table, Element upperRow, Element lowerRow,
       Boolean tableBorder, List<Map<String, Boolean>> upperStyleBorders,
       List<Map<String, Boolean>> lowerStyleBorders) {
-    int columns = gridColumnCount(table, List.of(upperRow, lowerRow));
-    if (columns == 0) return false;
-    Boolean[] upper = new Boolean[columns];
-    Boolean[] lower = new Boolean[columns];
-    applyStyleCellBorderStates(upperRow, "bottom", upper, upperStyleBorders);
-    applyStyleCellBorderStates(lowerRow, "top", lower, lowerStyleBorders);
-    applyRowBorderStates(upperRow, "bottom", upper);
-    applyRowBorderStates(lowerRow, "top", lower);
-    applyCellBorderStates(table, upperRow, "bottom", upper);
-    applyCellBorderStates(table, lowerRow, "top", lower);
-    for (int column = 0; column < columns; column++) {
-      if (upper[column] != null || lower[column] != null) {
-        if (!Boolean.TRUE.equals(upper[column]) && !Boolean.TRUE.equals(lower[column])) return false;
-      } else if (!Boolean.TRUE.equals(tableBorder)) return false;
+    List<Element> upperCells = rowCells(upperRow);
+    List<Element> lowerCells = rowCells(lowerRow);
+    int upperIndex = 0;
+    int lowerIndex = 0;
+    int upperStart = gridOffset(upperRow, "gridBefore");
+    int lowerStart = gridOffset(lowerRow, "gridBefore");
+    boolean adjacent = false;
+    while (upperIndex < upperCells.size() && lowerIndex < lowerCells.size()) {
+      Element upperCell = upperCells.get(upperIndex);
+      Element lowerCell = lowerCells.get(lowerIndex);
+      int upperEnd = upperStart + cellGridSpan(upperCell);
+      int lowerEnd = lowerStart + cellGridSpan(lowerCell);
+      // Omitted grid slots have no cell edge; only intersecting spans share this boundary.
+      if (Math.max(upperStart, lowerStart) < Math.min(upperEnd, lowerEnd)) {
+        adjacent = true;
+        Boolean upper = effectiveCellBorderState(table, upperRow, upperCell, "bottom", null,
+            upperIndex < upperStyleBorders.size() ? upperStyleBorders.get(upperIndex) : Map.of());
+        Boolean lower = effectiveCellBorderState(table, lowerRow, lowerCell, "top", null,
+            lowerIndex < lowerStyleBorders.size() ? lowerStyleBorders.get(lowerIndex) : Map.of());
+        if (upper != null || lower != null) {
+          if (!Boolean.TRUE.equals(upper) && !Boolean.TRUE.equals(lower)) return false;
+        } else if (!Boolean.TRUE.equals(tableBorder)) return false;
+      }
+      if (upperEnd <= lowerEnd) {
+        upperStart = upperEnd;
+        upperIndex++;
+      }
+      if (lowerEnd <= upperEnd) {
+        lowerStart = lowerEnd;
+        lowerIndex++;
+      }
     }
-    return true;
+    return adjacent;
   }
 
   private static boolean hasEffectiveVerticalBorder(Element table, List<Element> rows,
@@ -755,41 +772,6 @@ public final class TableParser {
   private static int cellGridSpan(Element cell) {
     Integer span = integerAttribute(direct(direct(cell, "tcPr"), "gridSpan"), "val");
     return span == null || span < 1 ? 1 : span;
-  }
-
-  private static void applyCellBorderStates(Element table, Element row, String side, Boolean[] states) {
-    int column = gridOffset(row, "gridBefore");
-    for (Element cell : rowCells(row)) {
-      int span = cellGridSpan(cell);
-      Boolean state = cellBorderState(table, row, cell, side);
-      if (state != null)
-        for (int position = column; position < Math.min(column + span, states.length); position++)
-          states[position] = state;
-      column += span;
-    }
-  }
-
-  private static void applyStyleCellBorderStates(Element row, String side, Boolean[] states,
-      List<Map<String, Boolean>> styleCellBorders) {
-    if (styleCellBorders == null) return;
-    int column = gridOffset(row, "gridBefore");
-    int cellIndex = 0;
-    for (Element cell : rowCells(row)) {
-      int span = cellGridSpan(cell);
-      Map<String, Boolean> borders = cellIndex < styleCellBorders.size()
-          ? styleCellBorders.get(cellIndex) : Map.of();
-      Boolean state = borders.get(side);
-      if (state != null)
-        for (int position = column; position < Math.min(column + span, states.length); position++)
-          states[position] = state;
-      column += span;
-      cellIndex++;
-    }
-  }
-
-  private static void applyRowBorderStates(Element row, String side, Boolean[] states) {
-    Boolean state = rowBorderState(row, side);
-    if (state != null) java.util.Arrays.fill(states, state);
   }
 
   private static Boolean rowBorderState(Element row, String side) {

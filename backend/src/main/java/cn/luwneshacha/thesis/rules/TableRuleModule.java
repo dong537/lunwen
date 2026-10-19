@@ -83,8 +83,13 @@ final class TableRuleModule implements RuleModule {
       results.add(result("TAB-02", "verifiable three-line borders", "table style border evidence is unresolved",
           "TABLE_BORDER_EVIDENCE_UNRESOLVED", Judgement.REVIEW, table.source()));
     } else if (!table.topBorder() || !table.middleBorder() || !table.bottomBorder()) {
+      var missingBorders = new ArrayList<String>();
+      if (!table.topBorder()) missingBorders.add("顶线");
+      if (!table.middleBorder()) missingBorders.add("表头下横线");
+      if (!table.bottomBorder()) missingBorders.add("底线");
+      String missing = String.join("、", missingBorders);
       boolean continuation = captionText != null && captionText.stripLeading().startsWith("续表");
-      results.add(result("TAB-02", "顶线、表头下横线、底线", "缺少符合规范的顶线、表头下横线、底线",
+      results.add(result("TAB-02", missing, "缺少符合规范的" + missing,
           continuation ? "TABLE_CONTINUATION_BORDER_INVALID" : "TABLE_BORDER_INVALID",
           Judgement.FAIL, table.source()));
     }
