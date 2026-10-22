@@ -33,12 +33,13 @@
 - GET /api/submissions?page=1&size=20 → PageResponse<SubmissionView>，仅学生本人
 - POST /api/submissions multipart(file) → 202 SubmissionView
 - GET /api/submissions/{id} → SubmissionView，仅本人/当前导师
-- GET /api/submissions/{id}/files/original|marked → 流式DOCX下载；FAILED拒绝，marked仅SUCCESS
+- GET /api/submissions/{id}/files/original|marked|report → 流式DOCX下载；FAILED拒绝，marked仅SUCCESS，report仅SUCCESS且report_available=true
+- GET /api/submissions/{id}/files/{kind}/url → 短期COS预签名下载；kind同上，复用相同授权与报告可用性检查，report仅指向当前attempt的report.docx。
 - GET /api/teacher/students?q=&page=1&size=20 → PageResponse<StudentSummary>
 - GET /api/teacher/students/{id} → UserView
 - GET /api/teacher/students/{id}/submissions?page=1&size=20 → PageResponse<SubmissionView>
 - StudentSummary={id,username,name,major,submissionCount,lastSubmittedAt,latestProblemCount}；后3项仅基于SUCCESS，最近时间与问题数来自同一条最近成功记录。
-- SubmissionView={id,studentId,submissionNumber,originalFilename,fileSize,status,problemCount,byScope,errorMessage,createdAt,startedAt,finishedAt,canDownloadOriginal,canDownloadMarked}。非SUCCESS problemCount=null、byScope=null。状态枚举PENDING/PROCESSING/SUCCESS/FAILED；byScope为中文章节名→数量或null。
+- SubmissionView={id,studentId,submissionNumber,originalFilename,fileSize,status,problemCount,byScope,errorMessage,createdAt,startedAt,finishedAt,canDownloadOriginal,canDownloadMarked,canDownloadReport,uploadReserved}。非SUCCESS problemCount=null、byScope=null。状态枚举PENDING/PROCESSING/SUCCESS/FAILED；byScope为中文章节名→数量或null。
 - GET /api/health → {status:UP} envelope，无敏感配置。
 
 ## 安全与流程
@@ -49,7 +50,7 @@
 
 失败文件保留策略以需求第7.3节为准，覆盖第8节一般永久保留规则。成功记录/文件不自动清理。旧引擎临时文件保留清理与COS永久文件互不混用。
 
-上传顺序固定为校验→短事务持久PENDING预留→COS原稿→短事务条件释放。attempts=0且updatedAt在未来代表尚未释放的上传预留；默认10分钟，预留期间不可领取/下载。COS失败持久标记FAILED并补偿删除；释放失败不删原稿，到期由正常worker恢复，缺稿最终FAILED。每次审核以attempts和租约条件更新完成，结果放独立attempt-N目录；清理先确认持久状态，数据库状态不可读时保留文件，绝不删除同attempt的SUCCESS文件。COS请求及整个下载流共用5分钟总预算，引擎审核加标注下载共用默认10分钟总预算；worker默认30分钟，启动验证lease必须大于engine timeout加16分钟存储/提交预算。所有外部调用在数据库短事务之外。
+上传顺序固定为校验→短事务持久PENDING预留→COS原稿→短事务条件释放。attempts=0且updatedAt在未来代表尚未释放的上传预留；默认10分钟，预留期间不可领取/下载。COS失败持久标记FAILED并补偿删除；释放失败不删原稿，到期由正常worker恢复，缺稿最终FAILED。每次审核以attempts和租约条件更新完成，结果放独立attempt-N目录；清理先确认持久状态，数据库状态不可读时保留文件，绝不删除同attempt的SUCCESS文件。COS请求及整个下载流共用5分钟总预算，引擎审核加标注下载共用默认10分钟总预算；worker默认40分钟，启动验证lease必须大于engine timeout加21分钟存储/提交预算。所有外部调用在数据库短事务之外。
 
 初始管理员账号/密码通过环境注入，只有数据库尚无管理员时创建；不提供默认生产管理员密码。BCrypt支持6–128字符须处理72字节限制，统一预哈希后BCrypt且测试长中文密码不截断。
 

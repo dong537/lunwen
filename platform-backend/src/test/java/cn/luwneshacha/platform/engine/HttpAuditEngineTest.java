@@ -24,6 +24,7 @@ class HttpAuditEngineTest {
   @BeforeEach void start() throws IOException {
     server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
     executor=Executors.newVirtualThreadPerTaskExecutor(); server.setExecutor(executor); server.start();
+    respond("/api/inspections/abc/report",200,docx("<w:p><w:r><w:t>检查报告</w:t></w:r></w:p>",false));
   }
   @AfterEach void stop() { server.stop(0); executor.shutdownNow(); }
   HttpAuditEngine engine(Duration timeout) { return new HttpAuditEngine(new EngineProperties(URI.create("http://127.0.0.1:"+server.getAddress().getPort()),timeout),new ObjectMapper()); }
@@ -38,7 +39,9 @@ class HttpAuditEngineTest {
     var bytes=new ByteArrayOutputStream();
     try(var zip=new ZipOutputStream(bytes)) {
       zip.putNextEntry(new ZipEntry("[Content_Types].xml"));
-      zip.write("<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"/>".getBytes()); zip.closeEntry();
+      zip.write("<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/></Types>".getBytes()); zip.closeEntry();
+      zip.putNextEntry(new ZipEntry("_rels/.rels"));
+      zip.write("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"doc\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>".getBytes());zip.closeEntry();
       zip.putNextEntry(new ZipEntry("word/document.xml"));
       zip.write(("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\"><w:body>"+body+"</w:body></w:document>").getBytes(StandardCharsets.UTF_8)); zip.closeEntry();
       if(comments) {
@@ -52,22 +55,115 @@ class HttpAuditEngineTest {
   }
   void respond(String path,int status,byte[] content) {
     server.createContext(path,exchange->{
-      requestBody.set(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));
+      byte[] body=exchange.getRequestBody().readAllBytes();
+      if(exchange.getRequestMethod().equals("POST")) requestBody.set(new String(body,StandardCharsets.UTF_8));
       exchange.sendResponseHeaders(status,content.length);
       try(var output=exchange.getResponseBody()){output.write(content);}
     });
   }
   String report(String findings,String annotations,String download) {
-    return "{\"report\":{\"results\":["+findings+"]},\"annotation\":{\"available\":true,\"items\":["+annotations+"],\"downloadPath\":\""+download+"\"}}";
+    return "{\"requestId\":\"abc\",\"report\":{\"results\":["+findings+"]},\"annotation\":{\"available\":true,\"items\":["+annotations+"],\"downloadPath\":\""+download+"\"},\"reportFile\":{\"available\":true,\"downloadPath\":\"/api/inspections/abc/report\"}}";
+  }
+  String reportResponse(String reportFile) {
+    return "{\"requestId\":\"abc\",\"report\":{\"results\":[]},\"annotation\":{\"available\":false},\"reportFile\":"+reportFile+"}";
+  }
+  @Test void downloadsTheWordReportFromTheSameInspection() throws Exception {
+    byte[] reportBytes;
+    try(var report=new org.apache.poi.xwpf.usermodel.XWPFDocument();var output=new ByteArrayOutputStream()) {
+      report.createParagraph().createRun().setText("检查报告：存在格式问题");
+      report.write(output);reportBytes=output.toByteArray();
+    }
+    respond("/api/inspections",200,reportResponse("{\"available\":true,\"downloadPath\":\"/api/inspections/abc/report\"}").getBytes());
+    server.removeContext("/api/inspections/abc/report");
+    respond("/api/inspections/abc/report",200,reportBytes);
+    var result=engine(Duration.ofSeconds(5)).inspect(original(),directory);
+    assertTrue(Files.isRegularFile(directory.resolve("report.docx")),"报告必须从引擎下载");
+    assertArrayEquals(reportBytes,Files.readAllBytes(directory.resolve("report.docx")));
+    assertEquals(directory.resolve("report.docx"),result.reportDocx());
+  }
+  @Test void requiresAvailableReportFromThisInspection() throws Exception {
+    for(String reportFile:java.util.List.of("null","{\"available\":false}",
+        "{\"available\":\"true\",\"downloadPath\":\"/api/inspections/abc/report\"}",
+        "{\"available\":true,\"downloadPath\":\"https://example.com/report\"}",
+        "{\"available\":true,\"downloadPath\":\"/api/inspections/other/report\"}",
+        "{\"available\":true,\"downloadPath\":\"/api/inspections/abc/../other/report\"}")) {
+      respond("/api/inspections",200,reportResponse(reportFile).getBytes());
+      assertTrue(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)).retryable());
+      server.removeContext("/api/inspections");
+      Files.deleteIfExists(directory.resolve("marked.docx"));
+      Files.deleteIfExists(directory.resolve("report.docx"));
+    }
+  }
+  @Test void reportHttpFailuresCannotBecomeSuccessfulArtifacts() throws Exception {
+    respond("/api/inspections",200,reportResponse("{\"available\":true,\"downloadPath\":\"/api/inspections/abc/report\"}").getBytes());
+    for(int status:java.util.List.of(302,404,503)) {
+      server.removeContext("/api/inspections/abc/report");
+      respond("/api/inspections/abc/report",status,docx());
+      assertTrue(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)).retryable());
+      Files.deleteIfExists(directory.resolve("marked.docx"));
+      Files.deleteIfExists(directory.resolve("report.docx"));
+    }
+  }
+  @Test void reportMustBeReadableNonemptyDocxWithoutEntities() throws Exception {
+    respond("/api/inspections",200,reportResponse("{\"available\":true,\"downloadPath\":\"/api/inspections/abc/report\"}").getBytes());
+    for(byte[] invalid:java.util.List.of("<html>gateway failure</html>".getBytes(),docx("",false),
+        docx("<w:tbl/>",false),replacePart(docx(),"word/document.xml","<broken"),
+        replacePart(docx(),"word/document.xml","<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:t>not body text</w:t><w:body/></w:document>"),
+        replacePart(docx(),"[Content_Types].xml","<Types xmlns='http://schemas.openxmlformats.org/package/2006/content-types'/>"),
+        replacePart(docx(),"_rels/.rels","<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'/>"),
+        replacePart(docx(),"word/document.xml","<!DOCTYPE w:document [<!ENTITY xxe SYSTEM 'file:///nonexistent-sensitive-file'>]><w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body><w:p><w:r><w:t>&xxe;</w:t></w:r></w:p></w:body></w:document>"),
+        replacePart(docx(),"[Content_Types].xml","<!DOCTYPE Types [<!ENTITY x 'bad'>]><Types xmlns='http://schemas.openxmlformats.org/package/2006/content-types'>&x;</Types>"),
+        replacePart(docx(),"_rels/.rels","<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'><Relationship Id='doc' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument' Target='https://example.com/report' TargetMode='External'/></Relationships>"))) {
+      server.removeContext("/api/inspections/abc/report");
+      respond("/api/inspections/abc/report",200,invalid);
+      assertTrue(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)).retryable());
+      Files.deleteIfExists(directory.resolve("marked.docx"));
+      Files.deleteIfExists(directory.resolve("report.docx"));
+    }
+  }
+  @Test void reportDownloadSharesTheInspectionDeadline() throws Exception {
+    server.removeContext("/api/inspections/abc/report");
+    server.createContext("/api/inspections",exchange->{
+      exchange.getRequestBody().readAllBytes();
+      try {Thread.sleep(400);} catch(InterruptedException error) {Thread.currentThread().interrupt();}
+      byte[] body=reportResponse("{\"available\":true,\"downloadPath\":\"/api/inspections/abc/report\"}").getBytes();
+      exchange.sendResponseHeaders(200,body.length);
+      try(var output=exchange.getResponseBody()) {output.write(body);}
+    });
+    server.createContext("/api/inspections/abc/report",exchange->{
+      exchange.sendResponseHeaders(200,0);
+      byte[] body=docx();
+      try(var output=exchange.getResponseBody()) {
+        output.write(body,0,1);output.flush();
+        try {Thread.sleep(500);} catch(InterruptedException error) {Thread.currentThread().interrupt();}
+        output.write(body,1,body.length-1);
+      }
+    });
+    Path original=original();
+    assertTimeout(Duration.ofSeconds(2),()->assertTrue(assertThrows(EngineFailure.class,
+        ()->engine(Duration.ofMillis(700)).inspect(original,directory)).retryable()));
+  }
+  byte[] replacePart(byte[] original,String part,String replacement) throws IOException {
+    var bytes=new ByteArrayOutputStream();
+    try(var input=new ZipInputStream(new ByteArrayInputStream(original));var output=new ZipOutputStream(bytes)) {
+      ZipEntry entry;
+      while((entry=input.getNextEntry())!=null) {
+        output.putNextEntry(new ZipEntry(entry.getName()));
+        output.write(entry.getName().equals(part)?replacement.getBytes(StandardCharsets.UTF_8):input.readAllBytes());
+        output.closeEntry();
+      }
+    }
+    return bytes.toByteArray();
   }
   @Test void countsFailuresAndDownloadsReadableMarkedDocx() throws Exception {
+    byte[] marked = markedDocx();
     respond("/api/inspections",200,report(finding,annotation,"/api/inspections/abc/annotated").getBytes());
-    respond("/api/inspections/abc/annotated",200,markedDocx());
+    respond("/api/inspections/abc/annotated",200,marked);
     var result=engine(Duration.ofSeconds(5)).inspect(original(),directory);
-    assertEquals(1,result.problemCount()); assertArrayEquals(markedDocx(),Files.readAllBytes(result.marked()));
+    assertEquals(1,result.problemCount()); assertArrayEquals(marked,Files.readAllBytes(result.marked()));
   }
   @Test void zeroFailuresCopiesOriginalAndSendsMultipartAnnotationFlag() throws Exception {
-    respond("/api/inspections",200,"{\"report\":{\"results\":[]},\"annotation\":{\"available\":false}}".getBytes());
+    respond("/api/inspections",200,reportResponse("{\"available\":true,\"downloadPath\":\"/api/inspections/abc/report\"}").getBytes());
     Path original=original(); var result=engine(Duration.ofSeconds(5)).inspect(original,directory);
     assertEquals(0,result.problemCount()); assertArrayEquals(Files.readAllBytes(original),Files.readAllBytes(result.marked()));
     assertTrue(requestBody.get().contains("name=\"annotate\"\r\n\r\ntrue"));
@@ -82,6 +178,11 @@ class HttpAuditEngineTest {
     assertFalse(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)).retryable());
     server.removeContext("/api/inspections");
     respond("/api/inspections",200,report(finding,annotation,"https://example.com/steal").getBytes());
+    assertTrue(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)).retryable());
+  }
+  @Test void rejectsAnnotatedDocumentFromAnotherInspection() throws Exception {
+    respond("/api/inspections",200,report(finding,annotation,"/api/inspections/other/annotated").getBytes());
+    respond("/api/inspections/other/annotated",200,markedDocx());
     assertTrue(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)).retryable());
   }
   @Test void malformedDocumentIsPermanentButServerFailureRetries() throws Exception {
@@ -108,7 +209,7 @@ class HttpAuditEngineTest {
     assertTrue(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)).retryable());
   }
   @Test void zeroFailureResponseCannotAuthorizeAnUnreadableOriginal() throws Exception {
-    respond("/api/inspections",200,"{\"report\":{\"results\":[]},\"annotation\":{\"available\":false}}".getBytes());
+    respond("/api/inspections",200,reportResponse("{\"available\":true,\"downloadPath\":\"/api/inspections/abc/report\"}").getBytes());
     Path invalid=Files.writeString(directory.resolve("original.docx"),"invalid");
     assertTrue(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(invalid,directory)).retryable());
   }

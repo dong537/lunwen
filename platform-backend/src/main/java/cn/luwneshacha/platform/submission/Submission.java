@@ -15,6 +15,7 @@ public class Submission {
   @Enumerated(EnumType.STRING) @Column(nullable = false, length = 16) private SubmissionStatus status;
   @Column(nullable = false, unique = true, length = 255) private String storageDir;
   @Column(nullable = false) private int problemCount;
+  @Column(nullable = false) private boolean reportAvailable;
   @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb") private Map<String, Integer> byScope;
   @Column(length = 500) private String errorMessage;
   @Column(nullable = false) private int attempts;
@@ -38,6 +39,7 @@ public class Submission {
   public SubmissionStatus getStatus() { return status; }
   public String getStorageDir() { return storageDir; }
   public int getProblemCount() { return problemCount; }
+  public boolean isReportAvailable() { return reportAvailable; }
   public Map<String,Integer> getByScope() { return byScope; }
   public String getErrorMessage() { return errorMessage; }
   public int getAttempts() { return attempts; }

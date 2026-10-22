@@ -330,7 +330,13 @@ export function SubmissionDetailPage() {
     retry: false,
   })
   const fileDownload = useMutation({
-    mutationFn: async ({ kind, name }: { kind: 'original' | 'marked'; name: string }) => {
+    mutationFn: async ({
+      kind,
+      name,
+    }: {
+      kind: 'original' | 'marked' | 'report'
+      name: string
+    }) => {
       if (mode.data === 'direct') {
         const ticket = await submissionApi.downloadUrl(id, kind)
         openDownloadUrl(ticket.url)
@@ -445,6 +451,21 @@ export function SubmissionDetailPage() {
               >
                 <Download size={16} aria-hidden="true" />
                 下载批注论文
+              </button>
+            )}
+            {data.status === 'SUCCESS' && data.canDownloadReport && (
+              <button
+                className="button secondary"
+                disabled={fileDownload.isPending}
+                onClick={() =>
+                  fileDownload.mutate({
+                    kind: 'report',
+                    name: data.originalFilename.replace(/\.docx$/i, '.report.docx'),
+                  })
+                }
+              >
+                <Download size={16} aria-hidden="true" />
+                下载检查报告
               </button>
             )}
           </div>

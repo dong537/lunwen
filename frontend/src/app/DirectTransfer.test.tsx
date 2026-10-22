@@ -32,6 +32,7 @@ const submission: Submission = {
   finishedAt: null,
   canDownloadOriginal: true,
   canDownloadMarked: false,
+  canDownloadReport: false,
   uploadReserved: false,
 }
 const docx = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'

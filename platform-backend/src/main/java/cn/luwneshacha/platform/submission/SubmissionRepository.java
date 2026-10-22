@@ -32,19 +32,19 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
   List<Submission> candidates(@Param("now") Instant now, @Param("cutoff") Instant cutoff, Pageable limit);
 
   @Modifying(clearAutomatically = true, flushAutomatically = true)
-  @Query("update Submission s set s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING, s.attempts=s.attempts+1, s.startedAt=:now, s.updatedAt=:now, s.errorMessage=null where s.id=:id and s.attempts=:attempt and s.attempts<3 and ((s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PENDING and s.updatedAt<=:now) or (s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING and s.startedAt<:cutoff))")
+  @Query("update Submission s set s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING, s.attempts=s.attempts+1, s.reportAvailable=false, s.startedAt=:now, s.updatedAt=:now, s.errorMessage=null where s.id=:id and s.attempts=:attempt and s.attempts<3 and ((s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PENDING and s.updatedAt<=:now) or (s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING and s.startedAt<:cutoff))")
   int claim(@Param("id") long id, @Param("attempt") int attempt, @Param("now") Instant now, @Param("cutoff") Instant cutoff);
 
   @Modifying(clearAutomatically = true, flushAutomatically = true)
-  @Query("update Submission s set s.status=cn.luwneshacha.platform.submission.SubmissionStatus.SUCCESS, s.problemCount=:count, s.errorMessage=null, s.finishedAt=:now, s.updatedAt=:now where s.id=:id and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING and s.attempts=:attempt and s.startedAt>=:cutoff")
+  @Query("update Submission s set s.status=cn.luwneshacha.platform.submission.SubmissionStatus.SUCCESS, s.problemCount=:count, s.reportAvailable=true, s.errorMessage=null, s.finishedAt=:now, s.updatedAt=:now where s.id=:id and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING and s.attempts=:attempt and s.startedAt>=:cutoff")
   int succeed(@Param("id") long id, @Param("attempt") int attempt, @Param("count") int count, @Param("now") Instant now, @Param("cutoff") Instant cutoff);
 
   @Modifying(clearAutomatically = true, flushAutomatically = true)
-  @Query("update Submission s set s.status=:status, s.problemCount=0, s.byScope=null, s.errorMessage=:message, s.finishedAt=:finished, s.updatedAt=:next where s.id=:id and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING and s.attempts=:attempt and s.startedAt>=:cutoff")
+  @Query("update Submission s set s.status=:status, s.problemCount=0, s.reportAvailable=false, s.byScope=null, s.errorMessage=:message, s.finishedAt=:finished, s.updatedAt=:next where s.id=:id and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING and s.attempts=:attempt and s.startedAt>=:cutoff")
   int fail(@Param("id") long id, @Param("attempt") int attempt, @Param("status") SubmissionStatus status, @Param("message") String message, @Param("finished") Instant finished, @Param("next") Instant next, @Param("cutoff") Instant cutoff);
 
   @Modifying(clearAutomatically = true, flushAutomatically = true)
-  @Query("update Submission s set s.status=cn.luwneshacha.platform.submission.SubmissionStatus.FAILED, s.problemCount=0, s.byScope=null, s.errorMessage='审核服务异常，请重新提交或联系管理员', s.finishedAt=:now, s.updatedAt=:now where s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING and s.attempts>=3 and s.startedAt<:cutoff")
+  @Query("update Submission s set s.status=cn.luwneshacha.platform.submission.SubmissionStatus.FAILED, s.problemCount=0, s.reportAvailable=false, s.byScope=null, s.errorMessage='审核服务异常，请重新提交或联系管理员', s.finishedAt=:now, s.updatedAt=:now where s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING and s.attempts>=3 and s.startedAt<:cutoff")
   int recoverExhausted(@Param("now") Instant now, @Param("cutoff") Instant cutoff);
 
   List<Submission> findByIdGreaterThanOrderById(long id, Pageable page);

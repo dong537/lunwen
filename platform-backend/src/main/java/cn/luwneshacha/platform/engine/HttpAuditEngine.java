@@ -34,6 +34,8 @@ public class HttpAuditEngine implements AuditEngine {
       checkStatus(response.statusCode());
       byte[] bytes=response.body();
       JsonNode root=json.readTree(bytes);
+      String requestId=root.path("requestId").asText();
+      if(!root.path("requestId").isTextual()||!requestId.matches("[A-Za-z0-9-]{1,128}")) throw new EngineFailure(true,SERVICE_ERROR);
       JsonNode findings=root.path("report").path("results");
       if(!findings.isArray()) throw new EngineFailure(true,SERVICE_ERROR);
       int failures=0;
@@ -54,7 +56,7 @@ public class HttpAuditEngine implements AuditEngine {
       Path marked=directory.resolve("marked.docx");
       if(annotation.path("available").asBoolean()) {
         String download=annotation.path("downloadPath").asText();
-        if(!download.matches("/api/inspections/[A-Za-z0-9-]+/annotated")) throw new EngineFailure(true,SERVICE_ERROR);
+        if(!download.equals("/api/inspections/"+requestId+"/annotated")) throw new EngineFailure(true,SERVICE_ERROR);
         var output=send(HttpRequest.newBuilder(properties.baseUrl().resolve(download)).timeout(properties.timeout()).GET().build(),
             limited(HttpResponse.BodyHandlers.ofFile(marked),100L*1024*1024),deadline);
         if(output.statusCode()!=200) throw new EngineFailure(true,SERVICE_ERROR);
@@ -66,8 +68,17 @@ public class HttpAuditEngine implements AuditEngine {
         if(!part.isBlank()) anchorParts.add(part);
       }
       MarkedDocumentValidator.validate(original,marked,failures>0,anchorParts);
+      JsonNode reportFile=root.path("reportFile");
+      String reportDownload=reportFile.path("downloadPath").asText();
+      if(!reportFile.path("available").isBoolean()||!reportFile.path("available").booleanValue()
+          ||!reportDownload.equals("/api/inspections/"+requestId+"/report")) throw new EngineFailure(true,SERVICE_ERROR);
+      Path reportDocx=directory.resolve("report.docx");
+      var reportOutput=send(HttpRequest.newBuilder(properties.baseUrl().resolve(reportDownload)).timeout(properties.timeout()).GET().build(),
+          limited(HttpResponse.BodyHandlers.ofFile(reportDocx),100L*1024*1024),deadline);
+      if(reportOutput.statusCode()!=200) throw new EngineFailure(true,SERVICE_ERROR);
+      MarkedDocumentValidator.validateReport(reportDocx);
       if(System.nanoTime()>=deadline) throw new HttpTimeoutException("engine total deadline exceeded");
-      return new Result(failures,marked,bytes);
+      return new Result(failures,marked,reportDocx,bytes);
     } catch(EngineFailure error) { throw error; }
     catch(InterruptedException error) { Thread.currentThread().interrupt(); throw new EngineFailure(true,SERVICE_ERROR,error); }
     catch(IOException|RuntimeException error) { throw new EngineFailure(true,SERVICE_ERROR,error); }

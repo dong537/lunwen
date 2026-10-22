@@ -25,9 +25,9 @@ public class SubmissionWorker {
   @Autowired public SubmissionWorker(SubmissionTasks tasks,SubmissionRepository repository,ObjectStorage storage,AuditEngine engine,
       EngineProperties engineProperties,WorkerProperties workerProperties) {
     this(tasks,repository,storage,engine);
-    var required=engineProperties.timeout().plus(CosObjectStorage.REQUEST_BUDGET.multipliedBy(3)).plusMinutes(1);
+    var required=engineProperties.timeout().plus(CosObjectStorage.REQUEST_BUDGET.multipliedBy(4)).plusMinutes(1);
     if(workerProperties.lease().compareTo(required)<=0)
-      throw new IllegalArgumentException("platform.worker.lease 必须大于审核引擎总超时 + 16分钟存储及提交预算");
+      throw new IllegalArgumentException("platform.worker.lease 必须大于审核引擎总超时 + 21分钟存储及提交预算");
   }
   public SubmissionWorker(SubmissionTasks tasks,SubmissionRepository repository,ObjectStorage storage,AuditEngine engine) {
     this.tasks=tasks; this.repository=repository; this.storage=storage; this.engine=engine;
@@ -51,6 +51,9 @@ public class SubmissionWorker {
       var result=engine.inspect(input,directory);
       try(var content=Files.newInputStream(result.marked())) {
         storage.put(claim.attemptPrefix()+"marked.docx",content,Files.size(result.marked()),SubmissionService.DOCX);
+      }
+      try(var content=Files.newInputStream(result.reportDocx())) {
+        storage.put(claim.attemptPrefix()+"report.docx",content,Files.size(result.reportDocx()),SubmissionService.DOCX);
       }
       try(var content=new ByteArrayInputStream(result.reportJson())) {
         storage.put(claim.attemptPrefix()+"report.json",content,result.reportJson().length,"application/json");

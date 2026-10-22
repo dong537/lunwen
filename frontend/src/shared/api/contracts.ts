@@ -46,6 +46,7 @@ export interface Submission {
   finishedAt: string | null
   canDownloadOriginal: boolean
   canDownloadMarked: boolean
+  canDownloadReport: boolean
   uploadReserved?: boolean
 }
 export interface StudentSummary {

@@ -14,6 +14,58 @@ final class MarkedDocumentValidator {
   private static final long MAX_XML=100L*1024*1024;
   private record WordPart(boolean body,boolean content,Set<String> references) {}
 
+  static void validateReport(Path report) throws IOException {
+    try(var archive=new ZipFile(report.toFile())) {
+      boolean[] contentTypes={false},mainType={false},officeDocument={false};
+      read(archive,"[Content_Types].xml",xml->{
+        if(xml.getEventType()!=XMLStreamConstants.START_ELEMENT) return;
+        boolean types="http://schemas.openxmlformats.org/package/2006/content-types".equals(xml.getNamespaceURI());
+        if(!contentTypes[0]) {
+          if(!types||!xml.getLocalName().equals("Types")) throw new IOException("invalid OOXML content types");
+          contentTypes[0]=true;
+        }
+        if(types&&xml.getLocalName().equals("Override")&&"/word/document.xml".equals(xml.getAttributeValue(null,"PartName"))
+            &&"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml".equals(xml.getAttributeValue(null,"ContentType"))) mainType[0]=true;
+      });
+      if(!mainType[0]) throw new IOException("missing Word document content type");
+      read(archive,"_rels/.rels",xml->{
+        if(xml.getEventType()!=XMLStreamConstants.START_ELEMENT||!xml.getLocalName().equals("Relationship")
+            ||!"http://schemas.openxmlformats.org/package/2006/relationships".equals(xml.getNamespaceURI())) return;
+        String type=xml.getAttributeValue(null,"Type"),target=xml.getAttributeValue(null,"Target");
+        if(("http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument".equals(type)
+            ||"http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument".equals(type))
+            &&!"External".equals(xml.getAttributeValue(null,"TargetMode"))&&target!=null
+            &&URI.create("/").resolve(target).normalize().toString().equals("/word/document.xml")) officeDocument[0]=true;
+      });
+      if(!officeDocument[0]) throw new IOException("missing Word document relationship");
+      requireReportBodyText(archive);
+    }
+  }
+
+  private static void requireReportBodyText(ZipFile archive) throws IOException {
+    int[] depth={0},bodyDepth={0};
+    boolean[] document={false},bodyText={false};
+    read(archive,MAIN,xml->{
+      if(xml.getEventType()==XMLStreamConstants.END_ELEMENT) {
+        if(depth[0]==bodyDepth[0]) bodyDepth[0]=0;
+        depth[0]--;
+        return;
+      }
+      depth[0]++;
+      boolean word=isWord(xml.getNamespaceURI());String name=xml.getLocalName();
+      if(!document[0]) {
+        if(!word||!name.equals("document")) throw new IOException("invalid Word document root");
+        document[0]=true;
+      }
+      if(word&&name.equals("body")&&depth[0]==2) bodyDepth[0]=depth[0];
+      if(word&&name.equals("t")) {
+        if(!xml.getElementText().isBlank()&&bodyDepth[0]>0) bodyText[0]=true;
+        depth[0]--;
+      }
+    });
+    if(!bodyText[0]) throw new IOException("Word report body is empty");
+  }
+
   static void validate(Path original,Path marked,boolean requireComments,Set<String> anchorParts) throws IOException {
     try(var output=new ZipFile(marked.toFile());var input=new ZipFile(original.toFile())) {
       if(output.getEntry("[Content_Types].xml")==null) throw new IOException("missing OOXML content types");

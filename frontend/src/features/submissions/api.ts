@@ -99,7 +99,7 @@ export const submissionApi = {
     api<UploadTicket>(`/submissions/${encodeURIComponent(id)}/upload-url`, { method: 'POST' }),
   completeUpload: (id: string) =>
     api<Submission>(`/submissions/${encodeURIComponent(id)}/upload-complete`, { method: 'POST' }),
-  downloadUrl: (id: string, kind: 'original' | 'marked') =>
+  downloadUrl: (id: string, kind: 'original' | 'marked' | 'report') =>
     api<DownloadTicket>(`/submissions/${encodeURIComponent(id)}/files/${kind}/url`),
   uploadToCos,
 }

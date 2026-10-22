@@ -32,6 +32,7 @@ const pending: Submission = {
   finishedAt: null,
   canDownloadOriginal: true,
   canDownloadMarked: false,
+  canDownloadReport: false,
 }
 const ok = (data: unknown) =>
   new Response(JSON.stringify({ data, error: null, requestId: 'test' }), { status: 200 })

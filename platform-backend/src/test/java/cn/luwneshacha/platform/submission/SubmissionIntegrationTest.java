@@ -55,6 +55,7 @@ class SubmissionIntegrationTest {
   @Autowired SubmissionRepository submissions;
   @Autowired UserRepository users;
   @Autowired PlatformTransactionManager transactions;
+  @Autowired javax.sql.DataSource dataSource;
   final MemoryBoundary storage = new MemoryBoundary();
   final FakePresigner presigner = new FakePresigner();
   SubmissionService service;
@@ -158,15 +159,19 @@ class SubmissionIntegrationTest {
       try {
         assertArrayEquals(new byte[]{1,2}, Files.readAllBytes(original));
         Path marked = Files.write(directory.resolve("marked.docx"), new byte[]{3,4});
-        return new AuditEngine.Result(9, marked, "{}".getBytes());
+        return new AuditEngine.Result(9, marked, Files.write(directory.resolve("report.docx"), new byte[]{5,6}), "{}".getBytes());
       } catch (IOException error) { throw new EngineFailure(true,"test read failed",error); }
     }).process(claim);
-    assertEquals(SubmissionStatus.SUCCESS, service.detail(actor(student), Long.parseLong(view.id())).status());
+    var completed=service.detail(actor(student), Long.parseLong(view.id()));
+    assertEquals(SubmissionStatus.SUCCESS, completed.status());
+    assertTrue(completed.canDownloadReport());
     var download = service.prepareDownload(actor(teacher), claim.id(), "marked");
     assertEquals("论文.marked.docx", download.filename());
     try (var object = service.openDownload(download)) { assertArrayEquals(new byte[]{3,4}, object.stream().readAllBytes()); }
     assertTrue(storage.data.containsKey(claim.directory()+"/original.docx"));
     assertTrue(storage.data.containsKey(claim.attemptPrefix()+"report.json"));
+    var report=service.prepareDownload(actor(student),claim.id(),"report");
+    try(var object=service.openDownload(report)) { assertArrayEquals(new byte[]{5,6},object.stream().readAllBytes()); }
   }
 
   @Test void cleanupCannotDeleteCommittedSuccessWhenCompletionAcknowledgementIsLost() throws Exception {
@@ -179,7 +184,7 @@ class SubmissionIntegrationTest {
       }
     };
     new SubmissionWorker(lostAcknowledgement, submissions, storage, (original,directory) ->
-        new AuditEngine.Result(0,original,"{}".getBytes())).process(claim);
+        new AuditEngine.Result(0,original,original,"{}".getBytes())).process(claim);
     assertEquals(SubmissionStatus.SUCCESS, submissions.findById(claim.id()).orElseThrow().getStatus());
     assertTrue(storage.data.containsKey(claim.attemptPrefix()+"marked.docx"));
   }
@@ -281,7 +286,7 @@ class SubmissionIntegrationTest {
     var second=tasks.claim(now.plusSeconds(901)).orElseThrow();
     storage.data.put(second.attemptPrefix()+"marked.docx",new byte[]{9});
     tasks.succeed(second,0,now.plusSeconds(902));
-    new SubmissionWorker(tasks,submissions,storage,(original,directory)->new AuditEngine.Result(0,original,new byte[]{1})).process(first);
+    new SubmissionWorker(tasks,submissions,storage,(original,directory)->new AuditEngine.Result(0,original,original,new byte[]{1})).process(first);
     assertArrayEquals(new byte[]{9},storage.data.get(second.attemptPrefix()+"marked.docx"));
     assertFalse(storage.data.containsKey(first.attemptPrefix()+"marked.docx"));
   }
@@ -370,6 +375,99 @@ class SubmissionIntegrationTest {
     assertEquals("DIRECT_TRANSFER_DISABLED",disabled.code());
   }
 
+  @Test void successfulReportUsesItsOwnObjectInProxyAndDirectDownloads() throws Exception {
+    long id=Long.parseLong(service.upload(actor(student),file("论文.docx",new byte[]{1})).id());
+    var claim=tasks.claim(Instant.now()).orElseThrow();
+    storage.data.put(claim.attemptPrefix()+"marked.docx",new byte[]{2});
+    storage.data.put(claim.attemptPrefix()+"report.docx",new byte[]{3,4});
+    assertTrue(tasks.succeed(claim,7,Instant.now()));
+    assertTrue(service.detail(actor(student),id).canDownloadReport());
+    for (User user:List.of(student,teacher)) {
+      var plan=service.prepareDownload(actor(user),id,"report");
+      assertEquals("论文.report.docx",plan.filename());
+      try(var object=service.openDownload(plan)) {
+        assertArrayEquals(new byte[]{3,4},object.stream().readAllBytes());
+      }
+      var ticket=service.prepareDownloadUrl(actor(user),id,"report");
+      assertEquals("https://cos.test/"+claim.attemptPrefix()+"report.docx",ticket.url());
+      assertEquals("论文.report.docx",ticket.filename());
+    }
+    for(User user:List.of(other,admin)) {
+      assertEquals("FORBIDDEN",assertThrows(ApiException.class,
+          ()->service.prepareDownload(actor(user),id,"report")).code());
+      assertEquals("FORBIDDEN",assertThrows(ApiException.class,
+          ()->service.prepareDownloadUrl(actor(user),id,"report")).code());
+    }
+    assertEquals("INVALID_FILE_KIND",assertThrows(ApiException.class,
+        ()->service.prepareDownload(actor(student),id,"anything")).code());
+  }
+
+  @Test void unfinishedAndFailedSubmissionsCannotDownloadReportsThroughEitherRoute() {
+    long id=Long.parseLong(service.upload(actor(student),file("论文.docx",new byte[]{1})).id());
+    assertReportUnavailable(id);
+    var claim=tasks.claim(Instant.now()).orElseThrow();
+    assertReportUnavailable(id);
+    assertTrue(tasks.fail(claim,false,"审核失败",Instant.now()));
+    assertReportUnavailable(id);
+  }
+
+  private void assertReportUnavailable(long id) {
+    assertFalse(service.detail(actor(student),id).canDownloadReport());
+    assertEquals("FILE_NOT_AVAILABLE",assertThrows(ApiException.class,
+        ()->service.prepareDownload(actor(student),id,"report")).code());
+    assertEquals("FILE_NOT_AVAILABLE",assertThrows(ApiException.class,
+        ()->service.prepareDownloadUrl(actor(student),id,"report")).code());
+  }
+
+  @Test void historicalSuccessKeepsOriginalAndMarkedButHasNoReport() {
+    long id=Long.parseLong(service.upload(actor(student),file("历史论文.docx",new byte[]{1})).id());
+    var claim=tasks.claim(Instant.now()).orElseThrow();
+    assertTrue(tasks.succeed(claim,4,Instant.now()));
+    new org.springframework.jdbc.core.JdbcTemplate(dataSource)
+        .update("update submission set report_available=false where id=?",id);
+    var view=service.detail(actor(student),id);
+    assertEquals(SubmissionStatus.SUCCESS,view.status());
+    assertTrue(view.canDownloadOriginal()); assertTrue(view.canDownloadMarked());
+    assertReportUnavailable(id);
+    assertEquals("历史论文.marked.docx",service.prepareDownload(actor(student),id,"marked").filename());
+  }
+
+  @Test void reportOrJsonUploadFailureCannotPublishPartialResult() {
+    for(String artifact:List.of("report.docx","report.json")) {
+      long id=Long.parseLong(service.upload(actor(student),file("论文.docx",new byte[]{1})).id());
+      var claim=tasks.claim(Instant.now()).orElseThrow();
+      storage.failKey=claim.attemptPrefix()+artifact;
+      new SubmissionWorker(tasks,submissions,storage,
+          (original,directory)->new AuditEngine.Result(0,original,original,"{}".getBytes())).process(claim);
+      assertEquals(SubmissionStatus.PENDING,service.detail(actor(student),id).status());
+      assertReportUnavailable(id);
+      assertTrue(storage.data.containsKey(claim.directory()+"/original.docx"));
+      assertTrue(storage.data.keySet().stream().noneMatch(key->key.startsWith(claim.attemptPrefix())));
+      storage.failKey=null;
+    }
+  }
+
+  @Test void reportStreamingRechecksPermissionsAndUsesCurrentAttempt() throws Exception {
+    long id=Long.parseLong(service.upload(actor(student),file("论文.docx",new byte[]{1})).id());
+    Instant now=Instant.now();
+    var first=tasks.claim(now).orElseThrow();
+    var second=tasks.claim(now.plusSeconds(901)).orElseThrow();
+    storage.data.put(first.attemptPrefix()+"report.docx",new byte[]{2});
+    storage.data.put(second.attemptPrefix()+"report.docx",new byte[]{3});
+    assertTrue(tasks.succeed(second,0,now.plusSeconds(902)));
+    assertFalse(tasks.succeed(first,0,now.plusSeconds(903)));
+    var plan=service.prepareDownload(actor(teacher),id,"report");
+    try(var object=service.openDownload(plan)) {assertArrayEquals(new byte[]{3},object.stream().readAllBytes());}
+    var controller=new SubmissionController(service);
+    var response=controller.download(actor(teacher),id,"report");
+    assertEquals(SubmissionService.DOCX,response.getHeaders().getContentType().toString());
+    assertEquals("论文.report.docx",response.getHeaders().getContentDisposition().getFilename());
+    student.updateProfile("学生","计算机",null);users.save(student);
+    int reads=storage.reads;
+    assertThrows(ApiException.class,()->response.getBody().writeTo(new ByteArrayOutputStream()));
+    assertEquals(reads,storage.reads);
+  }
+
   private static CurrentUser actor(User user) {
     return new CurrentUser(user.getId(), user.getUsername(), user.getRole(), user.getName(), user.isMustChangePassword());
   }
@@ -377,13 +475,14 @@ class SubmissionIntegrationTest {
   static class MemoryBoundary implements ObjectStorage {
     final Map<String, byte[]> data = new HashMap<>();
     boolean failUpload, failDeletion;
+    String failKey;
     int reads;
     String contentType=SubmissionService.DOCX;
     Runnable beforeUpload=()->{};
     public void put(String key, InputStream stream, long size, String type) throws IOException {
       beforeUpload.run();
       data.put(key, stream.readAllBytes());
-      if(failUpload) throw new IOException("object accepted but response lost");
+      if(failUpload || key.equals(failKey)) throw new IOException("object accepted but response lost");
     }
     public StoredObject get(String key) throws IOException {
       reads++;

@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties("platform.worker")
 public record WorkerProperties(@DefaultValue("true") boolean enabled,
-    @DefaultValue("PT30M") Duration lease) {
+    @DefaultValue("PT40M") Duration lease) {
   public WorkerProperties {
     if (lease == null || lease.compareTo(Duration.ofSeconds(30)) < 0)
       throw new IllegalArgumentException("platform.worker.lease 必须至少30秒");
