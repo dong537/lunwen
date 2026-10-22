@@ -95,6 +95,16 @@ export async function download(path: string, fallbackName: string): Promise<void
   saveBlob(await response.blob(), filename)
 }
 
+export function openDownloadUrl(url: string): void {
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.rel = 'noopener'
+  anchor.style.display = 'none'
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
 export function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')

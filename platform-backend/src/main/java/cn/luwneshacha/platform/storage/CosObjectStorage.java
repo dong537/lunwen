@@ -2,6 +2,7 @@ package cn.luwneshacha.platform.storage;
 
 import com.qcloud.cos.*;
 import com.qcloud.cos.auth.BasicCOSCredentials;
+import com.qcloud.cos.endpoint.SuffixEndpointBuilder;
 import com.qcloud.cos.exception.CosServiceException;
 import com.qcloud.cos.http.HttpProtocol;
 import com.qcloud.cos.model.*;
@@ -9,6 +10,7 @@ import com.qcloud.cos.region.Region;
 import jakarta.annotation.PreDestroy;
 import java.io.*;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.*;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -17,19 +19,26 @@ import org.springframework.stereotype.Component;
 public class CosObjectStorage implements ObjectStorage {
   public static final Duration REQUEST_BUDGET=Duration.ofMinutes(5);
   private final COSClient client;
+  private final COSClient metadataClient;
   private final String bucket;
   private final ScheduledExecutorService deadlines=Executors.newSingleThreadScheduledExecutor(
       Thread.ofPlatform().daemon(true).name("cos-read-deadline").factory());
   public CosObjectStorage(CosProperties properties) {
+    client = createClient(properties,10_000,60_000,Math.toIntExact(REQUEST_BUDGET.toMillis()));
+    metadataClient = createClient(properties,5_000,15_000,15_000);
+    bucket = properties.bucket();
+  }
+  private static COSClient createClient(CosProperties properties,int connectionTimeout,int socketTimeout,int requestTimeout) {
     var config = new ClientConfig(new Region(properties.region()));
     config.setHttpProtocol(HttpProtocol.https);
-    config.setConnectionTimeout(10_000);
-    config.setSocketTimeout(60_000);
+    if (properties.endpoint() != null)
+      config.setEndpointBuilder(new SuffixEndpointBuilder(properties.endpoint()));
+    config.setConnectionTimeout(connectionTimeout);
+    config.setSocketTimeout(socketTimeout);
     config.setRequestTimeOutEnable(true);
-    config.setRequestTimeout(Math.toIntExact(REQUEST_BUDGET.toMillis()));
+    config.setRequestTimeout(requestTimeout);
     config.setMaxErrorRetry(0);
-    client = new COSClient(new BasicCOSCredentials(properties.secretId(), properties.secretKey()), config);
-    bucket = properties.bucket();
+    return new COSClient(new BasicCOSCredentials(properties.secretId(), properties.secretKey()), config);
   }
   @Override public void put(String key, InputStream content, long size, String type) throws IOException {
     var metadata = new ObjectMetadata(); metadata.setContentLength(size); metadata.setContentType(type);
@@ -45,6 +54,15 @@ public class CosObjectStorage implements ObjectStorage {
       var object = client.getObject(bucket, key);
       return new StoredObject(boundedDownload(object.getObjectContent(),deadlines,deadline),object.getObjectMetadata().getContentLength());
     } catch (RuntimeException error) { throw failure("download",error); }
+  }
+  @Override public Optional<StoredMetadata> head(String key) throws IOException {
+    try {
+      var metadata=metadataClient.getObjectMetadata(bucket,key);
+      return Optional.of(new StoredMetadata(metadata.getContentLength(),metadata.getContentType(),metadata.getETag()));
+    } catch (CosServiceException error) {
+      if (error.getStatusCode()==404) return Optional.empty();
+      throw failure("head",error);
+    } catch (RuntimeException error) { throw failure("head",error); }
   }
   static InputStream boundedDownload(COSObjectInputStream source,ScheduledExecutorService scheduler,long deadline) {
     var abort=scheduler.schedule(()->{
@@ -95,5 +113,5 @@ public class CosObjectStorage implements ObjectStorage {
     // SDK messages and nested causes can contain signed URLs or credentials.
     return new IOException("COS "+operation+" failed "+detail);
   }
-  @PreDestroy public void close() { deadlines.shutdownNow();client.shutdown(); }
+  @PreDestroy public void close() { deadlines.shutdownNow();client.shutdown();metadataClient.shutdown(); }
 }

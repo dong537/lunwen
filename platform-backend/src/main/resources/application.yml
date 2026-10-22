@@ -49,6 +49,9 @@ platform:
     enabled: true
     username: ${INITIAL_ADMIN_USERNAME:}
     password: ${INITIAL_ADMIN_PASSWORD:}
+  transfer:
+    mode: ${TRANSFER_MODE:proxy}
+    presign-expire-seconds: ${PRESIGN_EXPIRE_SECONDS:600}
 logging:
   level:
     org.springframework.web: INFO

@@ -1,14 +1,39 @@
 package cn.luwneshacha.platform.storage;
 
 import static org.junit.jupiter.api.Assertions.*;
+import com.qcloud.cos.endpoint.SuffixEndpointBuilder;
 import com.qcloud.cos.exception.CosServiceException;
 import com.qcloud.cos.model.COSObjectInputStream;
+import jakarta.validation.Validation;
 import java.io.*;
 import java.time.Duration;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.Test;
 
 class CosObjectStorageTest {
+  @Test void internalEndpointSuffixKeepsBucketPrefix() {
+    var builder=new SuffixEndpointBuilder("cos-internal.ap-shanghai.myqcloud.com");
+    assertEquals("thesis-1250000000.cos-internal.ap-shanghai.myqcloud.com",
+        builder.buildGeneralApiEndpoint("thesis-1250000000"));
+  }
+
+  @Test void blankEndpointFallsBackToPublicDefault() {
+    var blank=new CosProperties("thesis-1250000000","ap-shanghai","id","key","  ",null);
+    assertNull(blank.endpoint());
+    var internal=new CosProperties("thesis-1250000000","ap-shanghai","id","key",
+        " cos-internal.ap-shanghai.myqcloud.com ",null);
+    assertEquals("cos-internal.ap-shanghai.myqcloud.com",internal.endpoint());
+  }
+
+  @Test void endpointMustBeHostSuffix() {
+    try(var factory=Validation.buildDefaultValidatorFactory()) {
+      var validator=factory.getValidator();
+      assertTrue(validator.validate(new CosProperties("thesis-1250000000","ap-shanghai","id","key","  ",null)).isEmpty());
+      assertFalse(validator.validate(new CosProperties("thesis-1250000000","ap-shanghai","id","key",
+          "https://cos-internal.ap-shanghai.myqcloud.com",null)).isEmpty());
+    }
+  }
+
   @Test void storageFailureDoesNotExposeSdkMessageOrCause() {
     var raw=new CosServiceException("secret signed URL",new IllegalArgumentException("credential"));
     raw.setRequestId("request-123"); raw.setStatusCode(503);

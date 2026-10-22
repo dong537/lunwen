@@ -40,6 +40,8 @@ public class SecurityConfig {
             .requestMatchers("/api/admin/**").hasRole("ADMIN")
             .requestMatchers("/api/teacher/**").hasRole("TEACHER")
             .requestMatchers("/api/submissions").hasRole("STUDENT")
+            .requestMatchers(HttpMethod.POST, "/api/submissions/uploads",
+                "/api/submissions/*/upload-complete", "/api/submissions/*/upload-url").hasRole("STUDENT")
             .requestMatchers("/api/submissions/**").hasAnyRole("STUDENT", "TEACHER")
             .anyRequest().denyAll()).build();
   }

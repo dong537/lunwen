@@ -1,9 +1,9 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Upload, Download, ArrowLeft } from 'lucide-react'
 import type { Submission } from '../../shared/api/contracts'
-import { blocksCachedData, download } from '../../shared/api/http'
+import { ApiError, blocksCachedData, download, openDownloadUrl } from '../../shared/api/http'
 import {
   Empty,
   ErrorNotice,
@@ -17,36 +17,130 @@ import { submissionApi } from './api'
 import { needsPolling, outcomeText } from './submission-state'
 import { useSession } from '../auth/session'
 
+function expiresSoon(value: string): boolean {
+  return new Date(value).getTime() - Date.now() < 60_000
+}
+
 function UploadForm() {
   const input = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [validation, setValidation] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  const [progress, setProgress] = useState<number | null>(null)
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const [uploaded, setUploaded] = useState(false)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(true)
+  const { user } = useSession()
   const client = useQueryClient()
   const navigate = useNavigate()
-  const upload = useMutation({
-    mutationFn: submissionApi.upload,
+  const mode = useQuery({
+    queryKey: ['transfer-mode'],
+    queryFn: ({ signal }) => submissionApi.transferMode(signal),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
   })
+  const direct = mode.data === 'direct'
+  function refreshSubmissionList() {
+    void client.invalidateQueries({ queryKey: ['submissions'] })
+  }
+  function completeSuccess(submitted: Submission) {
+    if (!mountedRef.current) return
+    abortRef.current = null
+    setPendingId(null)
+    setUploaded(false)
+    setProgress(null)
+    client.setQueryData(['submission', submitted.id], submitted)
+    refreshSubmissionList()
+    navigate(`/submissions/${submitted.id}`)
+  }
+  const retry = useMutation({
+    mutationFn: async (id: string) => {
+      const submitted = await submissionApi.completeUpload(id)
+      refreshSubmissionList()
+      return submitted
+    },
+    onSuccess: completeSuccess,
+    onError: refreshSubmissionList,
+  })
+  const upload = useMutation({
+    mutationFn: async (selected: File) => {
+      if (!direct) {
+        const submitted = await submissionApi.upload(selected)
+        refreshSubmissionList()
+        return submitted
+      }
+      setProgress(0)
+      const controller = new AbortController()
+      abortRef.current = controller
+      let ticket = await submissionApi.createUpload(selected.name, selected.size)
+      setPendingId(ticket.submissionId)
+      if (expiresSoon(ticket.expiresAt))
+        ticket = await submissionApi.refreshUpload(ticket.submissionId)
+      try {
+        await submissionApi.uploadToCos(ticket, selected, setProgress, controller.signal)
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 403) throw error
+        ticket = await submissionApi.refreshUpload(ticket.submissionId)
+        await submissionApi.uploadToCos(ticket, selected, setProgress, controller.signal)
+      }
+      setUploaded(true)
+      const submitted = await submissionApi.completeUpload(ticket.submissionId)
+      refreshSubmissionList()
+      return submitted
+    },
+    onSuccess: completeSuccess,
+    onError: refreshSubmissionList,
+  })
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+  useEffect(() => {
+    if (!selectedUserId || !user || user.id === selectedUserId) return
+    abortRef.current?.abort()
+    abortRef.current = null
+    setFile(null)
+    setProgress(null)
+    setPendingId(null)
+    setUploaded(false)
+    setSelectedUserId(null)
+    setValidation('登录身份已变化，请重新选择文件。')
+    if (input.current) input.current.value = ''
+  }, [selectedUserId, user])
+  const busy = upload.isPending || retry.isPending
   function choose(files: FileList | null) {
-    if (upload.isPending) return
+    if (busy) return
     upload.reset()
-    if (!files?.length) return
+    retry.reset()
+    setProgress(null)
+    setPendingId(null)
+    setUploaded(false)
+    setValidation(null)
+    if (!files?.length) {
+      setFile(null)
+      setSelectedUserId(null)
+      return
+    }
     const error = files.length !== 1 ? '每次只能提交一篇论文。' : validateFile(files[0], 'docx')
     setValidation(error)
     setFile(error ? null : files[0])
+    setSelectedUserId(error ? null : (user?.id ?? null))
   }
   function submit(event: FormEvent) {
     event.preventDefault()
-    if (file && !validation) {
-      upload.mutate(file, {
-        // 离开上传页或切换账号后仍保留后台任务，但不再写回旧页面状态。
-        onSuccess: (submitted) => {
-          client.setQueryData(['submission', submitted.id], submitted)
-          void client.invalidateQueries({ queryKey: ['submissions'] })
-          navigate(`/submissions/${submitted.id}`)
-        },
-      })
+    if (!file || validation) return
+    if (selectedUserId && user?.id !== selectedUserId) {
+      setFile(null)
+      setSelectedUserId(null)
+      setValidation('登录身份已变化，请重新选择文件。')
+      if (input.current) input.current.value = ''
+      return
     }
+    upload.mutate(file, { onSuccess: completeSuccess })
   }
   return (
     <form className="panel upload-panel" onSubmit={submit} aria-label="提交论文">
@@ -76,7 +170,7 @@ function UploadForm() {
           id="thesis-file"
           type="file"
           accept=".docx"
-          disabled={upload.isPending}
+          disabled={busy}
           onChange={(event) => choose(event.target.files)}
         />
         <p className="help">也可以将文件拖放到此处。每次提交都会保留独立的审核记录。</p>
@@ -87,9 +181,10 @@ function UploadForm() {
             <button
               type="button"
               className="button plain"
-              disabled={upload.isPending}
+              disabled={busy}
               onClick={() => {
                 setFile(null)
+                setSelectedUserId(null)
                 if (input.current) input.current.value = ''
               }}
             >
@@ -98,9 +193,23 @@ function UploadForm() {
           </div>
         )}
       </div>
-      <ErrorNotice error={validation ?? upload.error} />
-      <button className="button primary" disabled={!file || upload.isPending}>
-        {upload.isPending ? '正在上传，请稍候…' : '提交审核'}
+      {progress !== null && upload.isPending && (
+        <p className="help" role="status">
+          正在上传：{progress}%
+        </p>
+      )}
+      {uploaded && pendingId && !busy && upload.isError && (
+        <button type="button" className="button secondary" onClick={() => retry.mutate(pendingId)}>
+          重试完成上传
+        </button>
+      )}
+      <ErrorNotice error={validation ?? upload.error ?? retry.error} />
+      <button className="button primary" disabled={!file || busy || mode.isPending}>
+        {busy
+          ? direct && progress !== null
+            ? `正在上传 ${progress}%`
+            : '正在上传，请稍候…'
+          : '提交审核'}
       </button>
     </form>
   )
@@ -109,7 +218,9 @@ function UploadForm() {
 export function StatusBadge({ submission }: { submission: Submission }) {
   return (
     <span className={`status-badge ${submission.status.toLowerCase()}`}>
-      {outcomeText(submission.status, submission.problemCount)}
+      {submission.status === 'PENDING' && submission.uploadReserved
+        ? '上传中'
+        : outcomeText(submission.status, submission.problemCount)}
     </span>
   )
 }
@@ -212,9 +323,21 @@ export function SubmissionDetailPage() {
     refetchInterval: (query) =>
       query.state.data && needsPolling(query.state.data.status) ? 3000 : false,
   })
+  const mode = useQuery({
+    queryKey: ['transfer-mode'],
+    queryFn: ({ signal }) => submissionApi.transferMode(signal),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
   const fileDownload = useMutation({
-    mutationFn: ({ kind, name }: { kind: 'original' | 'marked'; name: string }) =>
-      download(`/submissions/${encodeURIComponent(id)}/files/${kind}`, name),
+    mutationFn: async ({ kind, name }: { kind: 'original' | 'marked'; name: string }) => {
+      if (mode.data === 'direct') {
+        const ticket = await submissionApi.downloadUrl(id, kind)
+        openDownloadUrl(ticket.url)
+        return
+      }
+      await download(`/submissions/${encodeURIComponent(id)}/files/${kind}`, name)
+    },
   })
   const data = blocksCachedData(detail.error) ? undefined : detail.data
   if (detail.isPending) return <Loading>正在读取提交记录…</Loading>
@@ -251,7 +374,12 @@ export function SubmissionDetailPage() {
         <section className="panel">
           <div className="result-heading" aria-live="polite">
             <StatusBadge submission={data} />
-            {needsPolling(data.status) && <span className="muted">页面会自动更新审核进度。</span>}
+            {data.uploadReserved && (
+              <span className="muted">文件正在上传，完成后自动进入审核。</span>
+            )}
+            {!data.uploadReserved && needsPolling(data.status) && (
+              <span className="muted">页面会自动更新审核进度。</span>
+            )}
           </div>
           <dl className="detail-grid">
             <dt>提交时间</dt>

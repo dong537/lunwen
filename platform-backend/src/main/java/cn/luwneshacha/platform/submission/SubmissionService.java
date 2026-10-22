@@ -4,6 +4,7 @@ import cn.luwneshacha.platform.account.*;
 import cn.luwneshacha.platform.auth.CurrentUser;
 import cn.luwneshacha.platform.auth.PasswordHasher;
 import cn.luwneshacha.platform.common.*;
+import cn.luwneshacha.platform.storage.ObjectPresigner;
 import cn.luwneshacha.platform.storage.ObjectStorage;
 import java.io.*;
 import java.time.*;
@@ -22,18 +23,33 @@ import org.springframework.web.multipart.MultipartFile;
 public class SubmissionService {
   public static final long MAX_BYTES = 50L * 1024 * 1024;
   public static final String DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  public static final Duration UPLOAD_RESERVATION = Duration.ofMinutes(10);
+  public static final Duration UPLOAD_RESERVATION = Duration.ofMinutes(15);
   private static final Logger log = LoggerFactory.getLogger(SubmissionService.class);
   private final SubmissionRepository submissions;
   private final UserRepository users;
   private final ObjectStorage storage;
+  private final ObjectPresigner presigner;
+  private final TransferProperties transfer;
   private final TransactionTemplate transaction;
-  public SubmissionService(SubmissionRepository submissions, UserRepository users, ObjectStorage storage, PlatformTransactionManager manager) {
-    this.submissions=submissions; this.users=users; this.storage=storage; transaction=new TransactionTemplate(manager);
+  public SubmissionService(SubmissionRepository submissions, UserRepository users, ObjectStorage storage,
+      PlatformTransactionManager manager, ObjectPresigner presigner, TransferProperties transfer) {
+    this.submissions=submissions; this.users=users; this.storage=storage; this.presigner=presigner;
+    this.transfer=transfer; transaction=new TransactionTemplate(manager);
   }
   public record StudentSummary(String id, String username, String name, String major,
       long submissionCount, Instant lastSubmittedAt, Integer latestProblemCount) {}
   public record Dashboard(long activeStudents, long activeTeachers, long totalSubmissions) {}
+  public record UploadTicket(String submissionId, String url, String method,
+      Map<String,String> headers, Instant expiresAt) {
+    @Override public String toString() {
+      return "UploadTicket[submissionId="+submissionId+", url=REDACTED, method="+method+", expiresAt="+expiresAt+"]";
+    }
+  }
+  public record DownloadTicket(String url, String filename, Instant expiresAt) {
+    @Override public String toString() {
+      return "DownloadTicket[url=REDACTED, filename="+filename+", expiresAt="+expiresAt+"]";
+    }
+  }
   public static final class DownloadPlan {
     private final String filename;
     private final CurrentUser current;
@@ -44,6 +60,104 @@ public class SubmissionService {
       this.filename=filename;this.current=current;this.id=id;this.kind=kind;this.passwordFingerprint=passwordFingerprint;
     }
     public String filename() {return filename;}
+  }
+
+  public String transferMode() { return transfer.mode().name().toLowerCase(Locale.ROOT); }
+
+  public UploadTicket createUpload(CurrentUser current, String filename, long size) {
+    requireDirect();
+    User actor = actor(current); requireRole(actor, Role.STUDENT);
+    if (size <= 0) throw bad("EMPTY_FILE", "请选择非空的 DOCX 文件");
+    if (size > MAX_BYTES) throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", "论文文件不能超过50MiB");
+    String name = filename(filename);
+    if (!name.toLowerCase(Locale.ROOT).endsWith(".docx")) throw bad("INVALID_FILE_TYPE", "仅支持 DOCX 文件");
+    String directory = "submissions/" + UUID.randomUUID();
+    Instant now = Instant.now();
+    Instant reservedUntil = now.plus(UPLOAD_RESERVATION);
+    Submission item = transaction.execute(status -> {
+      var pending = new Submission(actor.getId(), name, size, directory, now);
+      pending.reserveUploadUntil(reservedUntil);
+      return submissions.saveAndFlush(pending);
+    });
+    Instant expiresAt = uploadExpiry(now, reservedUntil);
+    try {
+      return ticket(item, presigner.uploadUrl(directory + "/original.docx", size, DOCX, expiresAt), expiresAt);
+    } catch (RuntimeException error) {
+      log.warn("submission_upload_presign_failed submission={} student={} type={}", item.getId(), actor.getId(), error.getClass().getSimpleName());
+      boolean failed=Boolean.TRUE.equals(transaction.execute(status -> submissions.failUpload(item.getId(),Instant.now())==1));
+      if(failed) cleanupUpload(directory);
+      throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "PRESIGN_UNAVAILABLE", "文件服务暂时不可用，请稍后重试");
+    }
+  }
+
+  public SubmissionView completeUpload(CurrentUser current, long id) {
+    requireDirect();
+    User actor=actor(current); requireRole(actor, Role.STUDENT);
+    Submission item=owned(actor,id);
+    if (item.getStatus()==SubmissionStatus.SUCCESS || item.getStatus()==SubmissionStatus.PROCESSING)
+      return view(item);
+    if (item.getStatus()==SubmissionStatus.FAILED)
+      throw new ApiException(HttpStatus.CONFLICT,"FILE_NOT_AVAILABLE","当前审核状态不允许该操作");
+    if (item.getAttempts()>0) return view(item);
+    Optional<ObjectStorage.StoredMetadata> found;
+    try { found=storage.head(downloadKey(item,"original")); }
+    catch (IOException error) {
+      log.warn("submission_upload_head_failed submission={}",item.getId(),error);
+      throw storageUnavailable();
+    }
+    if (found.isEmpty()) {
+      if (item.isUploadReserved(Instant.now()))
+        throw new ApiException(HttpStatus.CONFLICT,"UPLOAD_NOT_FOUND","未检测到已上传的文件，请重试");
+      throw new ApiException(HttpStatus.CONFLICT,"UPLOAD_EXPIRED","上传已超时，请重新提交");
+    }
+    var metadata=found.get();
+    if (metadata.size()!=item.getFileSize())
+      failUploadAndCleanup(item,"UPLOAD_SIZE_MISMATCH","上传文件与提交信息不一致，请重新选择文件");
+    if (!isDocx(metadata.contentType()))
+      failUploadAndCleanup(item,"UPLOAD_TYPE_MISMATCH","上传文件类型不正确，请重新选择 DOCX");
+    Instant now=Instant.now();
+    if (item.isUploadReserved(now)) {
+      boolean released=Boolean.TRUE.equals(transaction.execute(status -> submissions.releaseUpload(item.getId(),now)==1));
+      if (!released) {
+        Submission latest=submissions.findById(item.getId()).orElseThrow(SubmissionService::notFound);
+        if (latest.getStatus()==SubmissionStatus.FAILED)
+          throw new ApiException(HttpStatus.CONFLICT,"FILE_NOT_AVAILABLE","当前审核状态不允许该操作");
+        return view(latest);
+      }
+    }
+    return view(submissions.findById(item.getId()).orElseThrow(SubmissionService::notFound));
+  }
+
+  public UploadTicket refreshUpload(CurrentUser current, long id) {
+    requireDirect();
+    User actor=actor(current); requireRole(actor, Role.STUDENT);
+    Submission item=owned(actor,id);
+    Instant now=Instant.now();
+    if (item.getStatus()!=SubmissionStatus.PENDING || item.getAttempts()!=0 || !item.isUploadReserved(now))
+      throw new ApiException(HttpStatus.CONFLICT,"UPLOAD_EXPIRED","上传已超时，请重新提交");
+    Instant expiresAt=uploadExpiry(now,item.getUpdatedAt());
+    try {
+      return ticket(item,presigner.uploadUrl(downloadKey(item,"original"),item.getFileSize(),DOCX,expiresAt),expiresAt);
+    } catch (RuntimeException error) {
+      log.warn("submission_upload_presign_failed submission={} student={} type={}",item.getId(),actor.getId(),error.getClass().getSimpleName());
+      throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"PRESIGN_UNAVAILABLE","文件服务暂时不可用，请稍后重试");
+    }
+  }
+
+  public DownloadTicket prepareDownloadUrl(CurrentUser current, long id, String kind) {
+    requireDirect();
+    User actor=actor(current);
+    Submission item=authorized(actor,id);
+    requireDownloadable(item,kind);
+    String filename=downloadFilename(item,kind);
+    Instant expiresAt=Instant.now().plusSeconds(transfer.presignExpireSeconds());
+    try {
+      return new DownloadTicket(presigner.downloadUrl(downloadKey(item,kind),filename,expiresAt).url().toString(),
+          filename,expiresAt);
+    } catch (RuntimeException error) {
+      log.warn("submission_download_presign_failed submission={} kind={} type={}",id,kind,error.getClass().getSimpleName());
+      throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"PRESIGN_UNAVAILABLE","文件服务暂时不可用，请稍后重试");
+    }
   }
 
   public SubmissionView upload(CurrentUser current, MultipartFile file) {
@@ -90,9 +204,7 @@ public class SubmissionService {
     User actor=actor(current);
     Submission item = authorized(actor, id);
     requireDownloadable(item,kind);
-    String filename = item.getOriginalFilename();
-    if (kind.equals("marked")) filename = filename.substring(0, filename.length()-5)+".marked.docx";
-    return new DownloadPlan(filename,current,id,kind,PasswordHasher.fingerprint(actor.getPasswordHash()));
+    return new DownloadPlan(downloadFilename(item,kind),current,id,kind,PasswordHasher.fingerprint(actor.getPasswordHash()));
   }
   public ObjectStorage.StoredObject openDownload(DownloadPlan plan) {
     User actor=actor(plan.current);
@@ -100,9 +212,7 @@ public class SubmissionService {
       throw new ApiException(HttpStatus.UNAUTHORIZED,"SESSION_EXPIRED","登录已失效，请重新登录");
     Submission item=authorized(actor,plan.id);
     requireDownloadable(item,plan.kind);
-    String key=plan.kind.equals("original")?item.getStorageDir()+"/original.docx"
-        :item.getStorageDir()+"/attempt-"+item.getAttempts()+"/marked.docx";
-    try { return storage.get(key); }
+    try { return storage.get(downloadKey(item,plan.kind)); }
     catch (IOException error) {
       log.warn("submission_download_failed submission={}",plan.id,error);
       throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "STORAGE_UNAVAILABLE", "文件暂时无法下载，请稍后重试");
@@ -160,10 +270,15 @@ public class SubmissionService {
   }
   private Submission authorized(User actor,long id) {
     if (actor.getRole()==Role.ADMIN) throw forbidden();
-    Submission item=submissions.findById(id).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"SUBMISSION_NOT_FOUND","提交记录不存在"));
+    Submission item=submissions.findById(id).orElseThrow(SubmissionService::notFound);
     if (actor.getRole()==Role.STUDENT && item.getStudentId().equals(actor.getId())) return item;
     if (actor.getRole()==Role.TEACHER) { assigned(actor,item.getStudentId()); return item; }
     throw forbidden();
+  }
+  private Submission owned(User actor,long id) {
+    Submission item=submissions.findById(id).orElseThrow(SubmissionService::notFound);
+    if (!item.getStudentId().equals(actor.getId())) throw forbidden();
+    return item;
   }
   private User assigned(User teacher,long id) {
     User student=users.findById(id).orElseThrow(SubmissionService::forbidden);
@@ -179,6 +294,8 @@ public class SubmissionService {
   private static void requireRole(User user,Role role) { if(user.getRole()!=role) throw forbidden(); }
   private static ApiException forbidden() { return new ApiException(HttpStatus.FORBIDDEN,"FORBIDDEN","无权访问该内容"); }
   private static ApiException bad(String code,String message) { return new ApiException(HttpStatus.BAD_REQUEST,code,message); }
+  private static ApiException notFound() { return new ApiException(HttpStatus.NOT_FOUND,"SUBMISSION_NOT_FOUND","提交记录不存在"); }
+  private static ApiException storageUnavailable() { return new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"STORAGE_UNAVAILABLE","文件服务暂时不可用，请稍后重试"); }
   private static Pageable pageable(int page,int size,Sort sort) {
     if(page<1||size<1||size>100) throw bad("INVALID_PAGE","页码须大于0，每页数量为1至100");
     return PageRequest.of(page-1,size,sort);
@@ -188,6 +305,39 @@ public class SubmissionService {
     String name=supplied.replace('\\','/'); name=name.substring(name.lastIndexOf('/')+1).replaceAll("[\\p{Cntrl}]","").strip();
     if(name.isEmpty()||name.length()>255) throw bad("INVALID_FILENAME","文件名长度须为1至255字符");
     return name;
+  }
+  private static String downloadFilename(Submission item,String kind) {
+    String filename=item.getOriginalFilename();
+    if (kind.equals("marked")) filename=filename.substring(0,filename.length()-5)+".marked.docx";
+    return filename;
+  }
+  private static String downloadKey(Submission item,String kind) {
+    return kind.equals("original") ? item.getStorageDir()+"/original.docx"
+        : item.getStorageDir()+"/attempt-"+item.getAttempts()+"/marked.docx";
+  }
+  private static boolean isDocx(String contentType) {
+    if(contentType==null) return false;
+    int separator=contentType.indexOf(';');
+    return (separator<0?contentType:contentType.substring(0,separator)).trim().equalsIgnoreCase(DOCX);
+  }
+  private Instant uploadExpiry(Instant now,Instant reservedUntil) {
+    Instant expiry=now.plusSeconds(transfer.presignExpireSeconds());
+    Instant cap=reservedUntil.minusSeconds(60);
+    if (expiry.isAfter(cap)) expiry=cap;
+    if (!expiry.isAfter(now)) throw new ApiException(HttpStatus.CONFLICT,"UPLOAD_EXPIRED","上传已超时，请重新提交");
+    return expiry;
+  }
+  private static UploadTicket ticket(Submission item,ObjectPresigner.UploadTicket ticket,Instant expiresAt) {
+    return new UploadTicket(item.getId().toString(),ticket.url().toString(),"PUT",Map.of("Content-Type",DOCX),expiresAt);
+  }
+  private void requireDirect() {
+    if (transfer.mode()!=TransferProperties.Mode.DIRECT)
+      throw new ApiException(HttpStatus.CONFLICT,"DIRECT_TRANSFER_DISABLED","当前未启用浏览器直传");
+  }
+  private void failUploadAndCleanup(Submission item,String code,String message) {
+    boolean failed=Boolean.TRUE.equals(transaction.execute(status -> submissions.failUpload(item.getId(),Instant.now())==1));
+    if (failed) cleanupUpload(item.getStorageDir());
+    throw new ApiException(HttpStatus.CONFLICT,code,message);
   }
   private void cleanupUpload(String directory) {
     try { storage.deletePrefix(directory+"/"); }

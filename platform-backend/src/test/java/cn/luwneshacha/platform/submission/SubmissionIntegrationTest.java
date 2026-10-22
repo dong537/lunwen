@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import cn.luwneshacha.platform.account.*;
 import cn.luwneshacha.platform.auth.CurrentUser;
 import cn.luwneshacha.platform.common.ApiException;
+import cn.luwneshacha.platform.storage.ObjectPresigner;
 import cn.luwneshacha.platform.storage.ObjectStorage;
 import cn.luwneshacha.platform.engine.*;
 import java.io.*;
+import java.net.URI;
 import java.nio.file.*;
 import java.time.*;
 import java.util.*;
@@ -54,6 +56,7 @@ class SubmissionIntegrationTest {
   @Autowired UserRepository users;
   @Autowired PlatformTransactionManager transactions;
   final MemoryBoundary storage = new MemoryBoundary();
+  final FakePresigner presigner = new FakePresigner();
   SubmissionService service;
   SubmissionTasks tasks;
   User student, other, teacher, admin;
@@ -64,7 +67,8 @@ class SubmissionIntegrationTest {
     student = users.save(new User("student", "hash", Role.STUDENT, "学生", "计算机", teacher.getId(), false));
     other = users.save(new User("other", "hash", Role.STUDENT, "其他", null, null, false));
     admin = users.save(new User("admin", "hash", Role.ADMIN, "管理员", null, null, false));
-    service = new SubmissionService(submissions, users, storage, transactions);
+    service = new SubmissionService(submissions, users, storage, transactions, presigner,
+        new TransferProperties(TransferProperties.Mode.DIRECT,600));
     tasks = new SubmissionTasks(submissions, transactions, Duration.ofMinutes(15));
   }
 
@@ -248,7 +252,8 @@ class SubmissionIntegrationTest {
         transactions.commit(status);
       }
     };
-    var unavailableRelease=new SubmissionService(submissions,users,storage,failSecondCommit);
+    var unavailableRelease=new SubmissionService(submissions,users,storage,failSecondCommit,presigner,
+        new TransferProperties(TransferProperties.Mode.DIRECT,600));
     assertThrows(IllegalStateException.class,()->unavailableRelease.upload(actor(student),file("a.docx",new byte[]{1})));
     var row=submissions.findAll().get(0);
     assertTrue(storage.data.containsKey(row.getStorageDir()+"/original.docx"));
@@ -302,6 +307,69 @@ class SubmissionIntegrationTest {
     assertEquals(0,storage.reads);
   }
 
+  @Test void directUploadCompletesOnlyAfterObjectMetadataMatches() {
+    var ticket=service.createUpload(actor(student),"论文.docx",4);
+    long id=Long.parseLong(ticket.submissionId());
+    assertTrue(ticket.url().startsWith("https://cos.test/submissions/"));
+    assertTrue(storage.data.isEmpty());
+    var row=submissions.findById(id).orElseThrow();
+    assertTrue(row.isUploadReserved(Instant.now()));
+    storage.data.put(row.getStorageDir()+"/original.docx",new byte[]{1,2,3,4});
+    var view=service.completeUpload(actor(student),id);
+    assertFalse(view.uploadReserved()); assertTrue(view.canDownloadOriginal());
+    assertTrue(tasks.claim(Instant.now().plusSeconds(1)).isPresent());
+    assertFalse(service.completeUpload(actor(student),id).uploadReserved());
+  }
+
+  @Test void directUploadRejectsMissingAndMismatchedObjects() {
+    long missing=Long.parseLong(service.createUpload(actor(student),"missing.docx",4).submissionId());
+    var missingError=assertThrows(ApiException.class,()->service.completeUpload(actor(student),missing));
+    assertEquals("UPLOAD_NOT_FOUND",missingError.code());
+    assertTrue(submissions.findById(missing).orElseThrow().isUploadReserved(Instant.now()));
+
+    long wrongSize=Long.parseLong(service.createUpload(actor(student),"size.docx",4).submissionId());
+    var sizeRow=submissions.findById(wrongSize).orElseThrow();
+    storage.data.put(sizeRow.getStorageDir()+"/original.docx",new byte[]{1,2,3});
+    var sizeError=assertThrows(ApiException.class,()->service.completeUpload(actor(student),wrongSize));
+    assertEquals("UPLOAD_SIZE_MISMATCH",sizeError.code());
+    assertEquals(SubmissionStatus.FAILED,submissions.findById(wrongSize).orElseThrow().getStatus());
+    assertFalse(storage.data.containsKey(sizeRow.getStorageDir()+"/original.docx"));
+
+    storage.contentType="text/plain";
+    long wrongType=Long.parseLong(service.createUpload(actor(student),"type.docx",4).submissionId());
+    var typeRow=submissions.findById(wrongType).orElseThrow();
+    storage.data.put(typeRow.getStorageDir()+"/original.docx",new byte[]{1,2,3,4});
+    var typeError=assertThrows(ApiException.class,()->service.completeUpload(actor(student),wrongType));
+    assertEquals("UPLOAD_TYPE_MISMATCH",typeError.code());
+    assertEquals(SubmissionStatus.FAILED,submissions.findById(wrongType).orElseThrow().getStatus());
+  }
+
+  @Test void directDownloadUrlReusesAuthorizationAndOnlyMarksSuccess() {
+    long id=Long.parseLong(service.createUpload(actor(student),"论文.docx",4).submissionId());
+    var row=submissions.findById(id).orElseThrow();
+    storage.data.put(row.getStorageDir()+"/original.docx",new byte[]{1,2,3,4});
+    service.completeUpload(actor(student),id);
+    var studentUrl=service.prepareDownloadUrl(actor(student),id,"original");
+    assertEquals("论文.docx",studentUrl.filename());
+    assertTrue(studentUrl.url().startsWith("https://cos.test/"));
+    assertEquals(studentUrl.url(),service.prepareDownloadUrl(actor(teacher),id,"original").url());
+    assertThrows(ApiException.class,()->service.prepareDownloadUrl(actor(other),id,"original"));
+    assertThrows(ApiException.class,()->service.prepareDownloadUrl(actor(admin),id,"original"));
+    assertThrows(ApiException.class,()->service.prepareDownloadUrl(actor(student),id,"marked"));
+  }
+
+  @Test void directModeCanBeDisabledAndRefreshKeepsSameKey() {
+    var ticket=service.createUpload(actor(student),"a.docx",4);
+    var refreshed=service.refreshUpload(actor(student),Long.parseLong(ticket.submissionId()));
+    assertEquals(ticket.submissionId(),refreshed.submissionId());
+    assertEquals(ticket.url(),refreshed.url());
+    var proxy=new SubmissionService(submissions,users,storage,transactions,presigner,
+        new TransferProperties(TransferProperties.Mode.PROXY,600));
+    assertEquals("proxy",proxy.transferMode());
+    var disabled=assertThrows(ApiException.class,()->proxy.createUpload(actor(student),"a.docx",4));
+    assertEquals("DIRECT_TRANSFER_DISABLED",disabled.code());
+  }
+
   private static CurrentUser actor(User user) {
     return new CurrentUser(user.getId(), user.getUsername(), user.getRole(), user.getName(), user.isMustChangePassword());
   }
@@ -310,6 +378,7 @@ class SubmissionIntegrationTest {
     final Map<String, byte[]> data = new HashMap<>();
     boolean failUpload, failDeletion;
     int reads;
+    String contentType=SubmissionService.DOCX;
     Runnable beforeUpload=()->{};
     public void put(String key, InputStream stream, long size, String type) throws IOException {
       beforeUpload.run();
@@ -322,9 +391,27 @@ class SubmissionIntegrationTest {
       if(bytes==null) throw new FileNotFoundException("test object does not exist");
       return new StoredObject(new ByteArrayInputStream(bytes), bytes.length);
     }
+    public Optional<StoredMetadata> head(String key) {
+      byte[] bytes=data.get(key);
+      if(bytes==null) return Optional.empty();
+      return Optional.of(new StoredMetadata(bytes.length,contentType,"test-etag"));
+    }
     public void deletePrefix(String prefix) throws IOException {
       if(failDeletion) throw new IOException("storage unavailable");
       data.keySet().removeIf(key -> key.startsWith(prefix));
+    }
+  }
+
+  static class FakePresigner implements ObjectPresigner {
+    public UploadTicket uploadUrl(String key,long size,String contentType,Instant expiresAt) {
+      return new UploadTicket(url(key),expiresAt);
+    }
+    public DownloadTicket downloadUrl(String key,String filename,Instant expiresAt) {
+      return new DownloadTicket(url(key),filename,expiresAt);
+    }
+    private static java.net.URL url(String key) {
+      try { return URI.create("https://cos.test/"+key).toURL(); }
+      catch(java.net.MalformedURLException error) { throw new IllegalStateException(error); }
     }
   }
 }

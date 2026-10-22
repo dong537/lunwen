@@ -18,6 +18,19 @@ export interface Page<T> {
   size: number
 }
 export type SubmissionStatus = 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'FAILED'
+export type TransferMode = 'proxy' | 'direct'
+export interface UploadTicket {
+  submissionId: string
+  url: string
+  method: 'PUT'
+  headers: Record<string, string>
+  expiresAt: string
+}
+export interface DownloadTicket {
+  url: string
+  filename: string
+  expiresAt: string
+}
 export interface Submission {
   id: string
   studentId: string
@@ -33,6 +46,7 @@ export interface Submission {
   finishedAt: string | null
   canDownloadOriginal: boolean
   canDownloadMarked: boolean
+  uploadReserved?: boolean
 }
 export interface StudentSummary {
   id: string
