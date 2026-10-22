@@ -1,0 +1,101 @@
+name: docx-check
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: thesis
+      POSTGRES_USER: thesis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - platform-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U thesis -d thesis"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 384m
+    logging: *default-logging
+
+  backend:
+    image: 15688463267/thesis-backend:${IMAGE_TAG:?IMAGE_TAG is required}
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 18098
+      THESIS_STORAGE_ROOT: /data/thesis-inspection
+      THESIS_MAX_UPLOAD_BYTES: 52428800
+      THESIS_ANNOTATION_RETENTION: PT1H
+    volumes:
+      - thesis-data:/data/thesis-inspection
+    expose:
+      - "18098"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:18098/api/inspections/health | grep -q 'UP'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 1280m
+    logging: *default-logging
+
+  platform:
+    image: 15688463267/thesis-platform:${IMAGE_TAG:?IMAGE_TAG is required}
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 18099
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/thesis
+      SPRING_DATASOURCE_USERNAME: thesis
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      INITIAL_ADMIN_USERNAME: ${PLATFORM_ADMIN_USERNAME:-admin}
+      INITIAL_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:?PLATFORM_ADMIN_PASSWORD is required}
+      PLATFORM_COS_BUCKET: ${COS_BUCKET:?COS_BUCKET is required}
+      PLATFORM_COS_REGION: ${COS_REGION:?COS_REGION is required}
+      PLATFORM_COS_ENDPOINT: ${COS_ENDPOINT:-}
+      PLATFORM_COS_PUBLIC_ENDPOINT: ${COS_PUBLIC_ENDPOINT:-}
+      PLATFORM_COS_SECRET_ID: ${COS_SECRET_ID:?COS_SECRET_ID is required}
+      PLATFORM_COS_SECRET_KEY: ${COS_SECRET_KEY:?COS_SECRET_KEY is required}
+      PLATFORM_TRANSFER_MODE: ${TRANSFER_MODE:-proxy}
+      PLATFORM_TRANSFER_PRESIGN_EXPIRE_SECONDS: ${PRESIGN_EXPIRE_SECONDS:-600}
+      PLATFORM_ENGINE_BASE_URL: http://backend:18098
+      SERVER_SERVLET_SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+    expose:
+      - "18099"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18099/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    stop_grace_period: 45s
+    mem_limit: 768m
+    logging: *default-logging
+
+  frontend:
+    image: 15688463267/thesis-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    restart: unless-stopped
+    depends_on:
+      platform:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${PLATFORM_HTTP_PORT:-18090}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 96m
+    logging: *default-logging
+
+volumes:
+  thesis-data:
+  platform-db:

@@ -1,0 +1,84 @@
+name: deploy-production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "要部署的镜像 tag；留空使用当前 main 的 sha-<commit>"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: 解析镜像 tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.image_tag }}
+        run: |
+          tag="${INPUT_TAG:-}"
+          if [ -z "$tag" ]; then
+            tag="sha-${GITHUB_SHA}"
+          fi
+          if ! printf '%s' "$tag" | grep -Eq '^[A-Za-z0-9._-]+$'; then
+            echo "非法的镜像 tag: $tag" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: 检查镜像已推送到 Docker Hub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -Eeuo pipefail
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login docker.io -u "$DOCKERHUB_USERNAME" --password-stdin >/dev/null
+          for image in thesis-backend thesis-platform thesis-frontend; do
+            if ! docker manifest inspect "$DOCKERHUB_USERNAME/$image:$IMAGE_TAG" >/dev/null 2>&1; then
+              echo "Docker Hub 上找不到 $DOCKERHUB_USERNAME/$image:$IMAGE_TAG，请先等 CI 完成或检查 tag" >&2
+              exit 1
+            fi
+          done
+          docker logout docker.io >/dev/null 2>&1 || true
+
+      - name: SSH 部署到生产服务器
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -Eeuo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+          scp -i "$HOME/.ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            deploy/compose.prod.yaml deploy/deploy.sh \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+
+          ssh -i "$HOME/.ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$DEPLOY_PATH' && chmod +x deploy.sh && ./deploy.sh '$IMAGE_TAG'"

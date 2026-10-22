@@ -63,3 +63,10 @@ research-spikes/mtef/private-output/
 /页边距定位修复*/
 /验证-*/
 /压缩/
+
+# 本地 macOS/虚拟环境
+.DS_Store
+.venv-xlsx/
+
+# 含服务器凭据的本地临时记录，不进入版本库
+docs/gqt/10.22/1.md
