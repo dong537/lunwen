@@ -17,9 +17,9 @@
 - 触发命令：
 
 ```bash
-gh workflow run deploy.yml -R dong537/lunwen --ref main
+gh workflow run deploy-production -R dong537/lunwen --ref main
 # 或部署指定 tag：
-gh workflow run deploy.yml -R dong537/lunwen --ref main -f image_tag=sha-<commit>
+gh workflow run deploy-production -R dong537/lunwen --ref main -f image_tag=sha-<commit>
 ```
 
 - 工作流会把 `deploy/compose.prod.yaml` 和 `deploy/deploy.sh` 传到服务器，然后执行 `deploy.sh`。

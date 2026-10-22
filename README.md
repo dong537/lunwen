@@ -36,6 +36,8 @@ docker compose ps
 
 2026-10-19 已在腾讯云完成 Docker 部署，入口为 https://124.223.86.157 。真实 COS 上传、审核、Word 下载及四个账号的浏览器登录已验收；具体版本、验证边界和回退方式见 [账号平台生产部署记录](docs/implementation/2026-10-19-账号平台生产部署.md)。通用开发环境配置见 [部署与开发说明](docs/部署与开发.md)。
 
+2026-10-22 新生产环境入口为 https://docx-check.test.chatgqt.top（`101.35.223.219`）。镜像由 GitHub Actions 自动构建并推送到 Docker Hub，生产发布通过 `gh workflow run deploy-production` 手动触发；部署、回退和服务器初始化见 [deploy/README.md](deploy/README.md)。
+
 ## 开发与验证
 
 需要 JDK 21+、Maven、Node.js 22.12+、Docker。平台测试使用真实 PostgreSQL Testcontainers；外部 COS/引擎边界可在测试中替代，不用于生产路径。
