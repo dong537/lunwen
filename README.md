@@ -32,7 +32,7 @@ docker compose up -d --build --wait
 docker compose ps
 ```
 
-默认入口 `http://localhost:8080`。生产 HTTPS 环境设置 `SESSION_COOKIE_SECURE=true`。镜像在容器内编译，不需要预先复制本机 JAR。首次初始化账号来自环境配置，数据库已有管理员时不会重置其密码。
+`.env.example` 按生产模板使用 `PLATFORM_HTTP_PORT=18090`、`SESSION_COOKIE_SECURE=true`；本地 HTTP 调试时改为 `8080` 和 `false`，入口为 `http://localhost:8080`。镜像在容器内编译，不需要预先复制本机 JAR。首次初始化账号来自环境配置，数据库已有管理员时不会重置其密码。
 
 2026-10-19 已在腾讯云完成 Docker 部署，入口为 https://124.223.86.157 。真实 COS 上传、审核、Word 下载及四个账号的浏览器登录已验收；具体版本、验证边界和回退方式见 [账号平台生产部署记录](docs/implementation/2026-10-19-账号平台生产部署.md)。通用开发环境配置见 [部署与开发说明](docs/部署与开发.md)。
 

@@ -49,8 +49,15 @@ platform:
     enabled: true
     username: ${INITIAL_ADMIN_USERNAME:}
     password: ${INITIAL_ADMIN_PASSWORD:}
+  cos:
+    bucket: ${COS_BUCKET:}
+    region: ${COS_REGION:}
+    endpoint: ${COS_ENDPOINT:}
+    public-endpoint: ${COS_PUBLIC_ENDPOINT:}
+    secret-id: ${COS_SECRET_ID:}
+    secret-key: ${COS_SECRET_KEY:}
   transfer:
-    mode: ${TRANSFER_MODE:proxy}
+    mode: ${TRANSFER_MODE:direct}
     presign-expire-seconds: ${PRESIGN_EXPIRE_SECONDS:600}
 logging:
   level:
