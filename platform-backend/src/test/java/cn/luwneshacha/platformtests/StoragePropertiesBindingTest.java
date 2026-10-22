@@ -17,9 +17,11 @@ class StoragePropertiesBindingTest {
           "platform.cos.secret-id=id",
           "platform.cos.secret-key=secret",
           "platform.cos.endpoint=",
-          "platform.cos.public-endpoint=");
+          "platform.cos.public-endpoint=",
+          "platform.transfer.mode=proxy",
+          "platform.transfer.presign-expire-seconds=600");
 
-  @Test void defaultsToProxyAndPublicCosEndpoint() {
+  @Test void bindsProxyModeAndPublicCosEndpoint() {
     runner.run(context -> {
       var cos=context.getBean(CosProperties.class);
       assertNull(cos.endpoint());
@@ -28,6 +30,20 @@ class StoragePropertiesBindingTest {
       assertEquals(TransferProperties.Mode.PROXY,transfer.mode());
       assertEquals(600,transfer.presignExpireSeconds());
     });
+  }
+
+  @Test void failsWithoutTransferMode() {
+    new ApplicationContextRunner()
+        .withUserConfiguration(Config.class)
+        .withPropertyValues(
+            "platform.cos.bucket=thesis-1250000000",
+            "platform.cos.region=ap-beijing",
+            "platform.cos.secret-id=id",
+            "platform.cos.secret-key=secret",
+            "platform.cos.endpoint=",
+            "platform.cos.public-endpoint=",
+            "platform.transfer.presign-expire-seconds=600")
+        .run(context -> assertNotNull(context.getStartupFailure()));
   }
 
   @Test void bindsDirectModeAndPublicEndpoint() {

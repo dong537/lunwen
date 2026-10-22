@@ -1,12 +1,12 @@
 server:
-  port: ${SERVER_PORT:18099}
+  port: ${SERVER_PORT}
   shutdown: graceful
   servlet:
     session:
       timeout: 8h
       cookie:
         http-only: true
-        secure: ${SESSION_COOKIE_SECURE:true}
+        secure: ${SESSION_COOKIE_SECURE}
         same-site: lax
   tomcat:
     max-swallow-size: 52MB
@@ -14,9 +14,9 @@ spring:
   application:
     name: thesis-platform
   datasource:
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
     open-in-view: false
     hibernate:
@@ -47,18 +47,18 @@ spring:
 platform:
   bootstrap:
     enabled: true
-    username: ${INITIAL_ADMIN_USERNAME:}
-    password: ${INITIAL_ADMIN_PASSWORD:}
+    username: ${INITIAL_ADMIN_USERNAME}
+    password: ${INITIAL_ADMIN_PASSWORD}
   cos:
-    bucket: ${COS_BUCKET:}
-    region: ${COS_REGION:}
-    endpoint: ${COS_ENDPOINT:}
-    public-endpoint: ${COS_PUBLIC_ENDPOINT:}
-    secret-id: ${COS_SECRET_ID:}
-    secret-key: ${COS_SECRET_KEY:}
+    bucket: ${COS_BUCKET}
+    region: ${COS_REGION}
+    endpoint: ${COS_ENDPOINT}
+    public-endpoint: ${COS_PUBLIC_ENDPOINT}
+    secret-id: ${COS_SECRET_ID}
+    secret-key: ${COS_SECRET_KEY}
   transfer:
-    mode: ${TRANSFER_MODE:direct}
-    presign-expire-seconds: ${PRESIGN_EXPIRE_SECONDS:600}
+    mode: ${TRANSFER_MODE}
+    presign-expire-seconds: ${PRESIGN_EXPIRE_SECONDS}
 logging:
   level:
     org.springframework.web: INFO

@@ -16,7 +16,7 @@ public class AdministratorBootstrap implements ApplicationRunner {
   private final String username;
   private final String password;
   public AdministratorBootstrap(UserRepository users, PasswordHasher passwords,
-      @Value("${platform.bootstrap.username:}") String username, @Value("${platform.bootstrap.password:}") String password) {
+      @Value("${platform.bootstrap.username}") String username, @Value("${platform.bootstrap.password}") String password) {
     this.users = users; this.passwords = passwords; this.username = username; this.password = password;
   }
   @Override @Transactional public void run(ApplicationArguments args) {
