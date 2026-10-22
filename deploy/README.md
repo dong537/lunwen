@@ -33,7 +33,8 @@ gh workflow run deploy-production -R dong537/lunwen --ref main -f image_tag=sha-
 2. 创建 `/opt/docx-check`，创建 `.env`（权限 600），内容参考仓库根目录 `.env.example`，其中：
    - `PLATFORM_HTTP_PORT=18090`
    - `SESSION_COOKIE_SECURE=true`
-   - `TRANSFER_MODE=proxy`（配置 COS CORS 并验证后再改 `direct`）
+   - 当前生产使用 `TRANSFER_MODE=direct`、`COS_REGION=ap-shanghai`、`COS_ENDPOINT=cos-internal.ap-shanghai.myqcloud.com`、`COS_PUBLIC_ENDPOINT=cos.ap-shanghai.myqcloud.com`
+   - COS CORS 允许 `https://docx-check.test.chatgqt.top` 的 `PUT/GET/HEAD`，并允许 `Content-Type` 请求头；新环境未配置 CORS 前先保持 `proxy`
 3. 安装 `deploy/nginx.conf` 到 `/etc/nginx/sites-available/docx-check`，启用站点。
 4. 执行 `certbot --nginx -d docx-check.test.chatgqt.top --redirect`。
 5. 确保 `ubuntu` 用户可免密 `sudo`，并且 `/opt/docx-check` 可写。
