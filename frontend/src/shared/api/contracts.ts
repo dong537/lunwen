@@ -47,6 +47,7 @@ export interface Submission {
   canDownloadOriginal: boolean
   canDownloadMarked: boolean
   canDownloadReport: boolean
+  canDownloadPdfReport: boolean
   uploadReserved?: boolean
 }
 export interface StudentSummary {

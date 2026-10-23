@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class SubmissionService {
   public static final long MAX_BYTES = 50L * 1024 * 1024;
   public static final String DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  public static final String PDF = "application/pdf";
   public static final Duration UPLOAD_RESERVATION = Duration.ofMinutes(15);
   private static final Logger log = LoggerFactory.getLogger(SubmissionService.class);
   private final SubmissionRepository submissions;
@@ -219,11 +220,12 @@ public class SubmissionService {
     }
   }
   private static void requireDownloadable(Submission item,String kind) {
-    if (!kind.equals("original") && !kind.equals("marked") && !kind.equals("report"))
+    if (!kind.equals("original") && !kind.equals("marked") && !kind.equals("report") && !kind.equals("report-pdf"))
       throw bad("INVALID_FILE_KIND", "不支持的文件类型");
     if (item.getStatus() == SubmissionStatus.FAILED || item.isUploadReserved(Instant.now())
         || !kind.equals("original") && item.getStatus()!=SubmissionStatus.SUCCESS
-        || kind.equals("report") && !item.isReportAvailable())
+        || kind.equals("report") && !item.isReportAvailable()
+        || kind.equals("report-pdf") && !item.isPdfAvailable())
       throw new ApiException(HttpStatus.CONFLICT, "FILE_NOT_AVAILABLE", "当前审核状态不允许下载该文件");
   }
   public PageResponse<StudentSummary> students(CurrentUser current, String query, int page, int size) {
@@ -314,6 +316,7 @@ public class SubmissionService {
       case "original" -> filename;
       case "marked" -> filename.substring(0,filename.length()-5)+".marked.docx";
       case "report" -> filename.substring(0,filename.length()-5)+".report.docx";
+      case "report-pdf" -> filename.substring(0,filename.length()-5)+".report.pdf";
       default -> throw bad("INVALID_FILE_KIND", "不支持的文件类型");
     };
   }
@@ -322,6 +325,7 @@ public class SubmissionService {
       case "original" -> item.getStorageDir()+"/original.docx";
       case "marked" -> item.getStorageDir()+"/attempt-"+item.getAttempts()+"/marked.docx";
       case "report" -> item.getStorageDir()+"/attempt-"+item.getAttempts()+"/report.docx";
+      case "report-pdf" -> item.getStorageDir()+"/attempt-"+item.getAttempts()+"/report.pdf";
       default -> throw bad("INVALID_FILE_KIND", "不支持的文件类型");
     };
   }

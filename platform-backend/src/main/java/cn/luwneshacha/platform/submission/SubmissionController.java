@@ -56,7 +56,8 @@ public class SubmissionController {
   public ResponseEntity<StreamingResponseBody> download(@AuthenticationPrincipal CurrentUser user,@PathVariable long id,@PathVariable String kind) {
     var download=service.prepareDownload(user,id,kind);
     StreamingResponseBody body=output->{try(var object=service.openDownload(download)){object.stream().transferTo(output);}};
-    return ResponseEntity.ok().contentType(MediaType.parseMediaType(SubmissionService.DOCX))
+    String contentType = "report-pdf".equals(kind) ? SubmissionService.PDF : SubmissionService.DOCX;
+    return ResponseEntity.ok().contentType(MediaType.parseMediaType(contentType))
         .header(HttpHeaders.CACHE_CONTROL,"private, no-store")
         .header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.attachment().filename(download.filename(),StandardCharsets.UTF_8).build().toString()).body(body);
   }

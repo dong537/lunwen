@@ -16,6 +16,7 @@ public class Submission {
   @Column(nullable = false, unique = true, length = 255) private String storageDir;
   @Column(nullable = false) private int problemCount;
   @Column(nullable = false) private boolean reportAvailable;
+  @Column(nullable = false) private boolean pdfAvailable;
   @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb") private Map<String, Integer> byScope;
   @Column(length = 500) private String errorMessage;
   @Column(nullable = false) private int attempts;
@@ -40,6 +41,7 @@ public class Submission {
   public String getStorageDir() { return storageDir; }
   public int getProblemCount() { return problemCount; }
   public boolean isReportAvailable() { return reportAvailable; }
+  public boolean isPdfAvailable() { return pdfAvailable; }
   public Map<String,Integer> getByScope() { return byScope; }
   public String getErrorMessage() { return errorMessage; }
   public int getAttempts() { return attempts; }

@@ -31,8 +31,12 @@ public class SubmissionTasks {
     return Optional.empty();
   }
   public boolean succeed(Claim claim, int problems, Instant now) {
+    return succeed(claim, problems, false, now);
+  }
+  public boolean succeed(Claim claim, int problems, boolean pdfAvailable, Instant now) {
     if (problems < 0) throw new IllegalArgumentException("negative problem count");
-    return Boolean.TRUE.equals(transaction.execute(status -> repository.succeed(claim.id(), claim.attempt(), problems, now, now.minus(lease)) == 1));
+    return Boolean.TRUE.equals(transaction.execute(status -> repository.succeed(claim.id(), claim.attempt(), problems,
+        pdfAvailable, now, now.minus(lease)) == 1));
   }
   public boolean fail(Claim claim, boolean retryable, String message, Instant now) {
     boolean retry = retryable && claim.attempt() < 3;

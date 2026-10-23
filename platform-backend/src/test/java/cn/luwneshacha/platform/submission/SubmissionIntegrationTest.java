@@ -7,6 +7,7 @@ import cn.luwneshacha.platform.common.ApiException;
 import cn.luwneshacha.platform.storage.ObjectPresigner;
 import cn.luwneshacha.platform.storage.ObjectStorage;
 import cn.luwneshacha.platform.engine.*;
+import cn.luwneshacha.platform.report.PdfSummaryReportGenerator;
 import java.io.*;
 import java.net.URI;
 import java.nio.file.*;
@@ -58,14 +59,23 @@ class SubmissionIntegrationTest {
   @Autowired javax.sql.DataSource dataSource;
   final MemoryBoundary storage = new MemoryBoundary();
   final FakePresigner presigner = new FakePresigner();
+  final java.util.concurrent.atomic.AtomicReference<Instant> pdfFinishedAt = new java.util.concurrent.atomic.AtomicReference<>();
+  PdfSummaryReportGenerator pdfGenerator;
   SubmissionService service;
   SubmissionTasks tasks;
   User student, other, teacher, admin;
 
   @BeforeEach void setup() {
     submissions.deleteAllInBatch(); users.deleteAllInBatch(); storage.data.clear();
+    pdfFinishedAt.set(null);
     teacher = users.save(new User("teacher", "hash", Role.TEACHER, "教师", null, null, false));
     student = users.save(new User("student", "hash", Role.STUDENT, "学生", "计算机", teacher.getId(), false));
+    pdfGenerator = (json, metadata, target) -> {
+      assertTrue(metadata.submissionNumber() > 0);
+      assertEquals(student.getName(), metadata.student().name());
+      pdfFinishedAt.set(metadata.finishedAt());
+      Files.write(target, new byte[]{'%', 'P', 'D', 'F'});
+    };
     other = users.save(new User("other", "hash", Role.STUDENT, "其他", null, null, false));
     admin = users.save(new User("admin", "hash", Role.ADMIN, "管理员", null, null, false));
     service = new SubmissionService(submissions, users, storage, transactions, presigner,
@@ -83,6 +93,7 @@ class SubmissionIntegrationTest {
     var view = service.upload(actor(student), file("论文.docx", new byte[]{1, 2}));
     assertEquals(SubmissionStatus.PENDING, view.status()); assertNull(view.problemCount());
     assertTrue(view.canDownloadOriginal()); assertFalse(view.canDownloadMarked());
+    assertFalse(view.canDownloadPdfReport());
     long id = Long.parseLong(view.id());
     assertEquals(view.id(), service.detail(actor(teacher), id).id());
     assertThrows(ApiException.class, () -> service.detail(actor(other), id));
@@ -155,7 +166,7 @@ class SubmissionIntegrationTest {
   @Test void successfulWorkerPreservesOriginalAndDownloadsOnlyCurrentMarkedResult() throws Exception {
     var view = service.upload(actor(student), file("论文.docx", new byte[]{1,2}));
     var claim = tasks.claim(Instant.now()).orElseThrow();
-    new SubmissionWorker(tasks, submissions, storage, (original, directory) -> {
+    worker((original, directory) -> {
       try {
         assertArrayEquals(new byte[]{1,2}, Files.readAllBytes(original));
         Path marked = Files.write(directory.resolve("marked.docx"), new byte[]{3,4});
@@ -164,12 +175,16 @@ class SubmissionIntegrationTest {
     }).process(claim);
     var completed=service.detail(actor(student), Long.parseLong(view.id()));
     assertEquals(SubmissionStatus.SUCCESS, completed.status());
+    assertEquals(pdfFinishedAt.get(), completed.finishedAt(),
+        "PDF and persisted success must expose the same completion timestamp");
     assertTrue(completed.canDownloadReport());
+    assertTrue(completed.canDownloadPdfReport());
     var download = service.prepareDownload(actor(teacher), claim.id(), "marked");
     assertEquals("论文.marked.docx", download.filename());
     try (var object = service.openDownload(download)) { assertArrayEquals(new byte[]{3,4}, object.stream().readAllBytes()); }
     assertTrue(storage.data.containsKey(claim.directory()+"/original.docx"));
     assertTrue(storage.data.containsKey(claim.attemptPrefix()+"report.json"));
+    assertArrayEquals(new byte[]{'%', 'P', 'D', 'F'}, storage.data.get(claim.attemptPrefix()+"report.pdf"));
     var report=service.prepareDownload(actor(student),claim.id(),"report");
     try(var object=service.openDownload(report)) { assertArrayEquals(new byte[]{5,6},object.stream().readAllBytes()); }
   }
@@ -178,12 +193,12 @@ class SubmissionIntegrationTest {
     service.upload(actor(student), file("paper.docx", new byte[]{1}));
     var claim = tasks.claim(Instant.now()).orElseThrow();
     SubmissionTasks lostAcknowledgement = new SubmissionTasks(submissions, transactions, Duration.ofMinutes(15)) {
-      @Override public boolean succeed(Claim value, int count, Instant now) {
-        super.succeed(value,count,now);
+      @Override public boolean succeed(Claim value, int count, boolean pdfAvailable, Instant now) {
+        super.succeed(value,count,pdfAvailable,now);
         throw new IllegalStateException("connection lost after commit");
       }
     };
-    new SubmissionWorker(lostAcknowledgement, submissions, storage, (original,directory) ->
+    worker(lostAcknowledgement, (original,directory) ->
         new AuditEngine.Result(0,original,original,"{}".getBytes())).process(claim);
     assertEquals(SubmissionStatus.SUCCESS, submissions.findById(claim.id()).orElseThrow().getStatus());
     assertTrue(storage.data.containsKey(claim.attemptPrefix()+"marked.docx"));
@@ -193,7 +208,7 @@ class SubmissionIntegrationTest {
     service.upload(actor(student), file("bad.docx", new byte[]{1}));
     var claim = tasks.claim(Instant.now()).orElseThrow();
     storage.failDeletion = true;
-    var worker = new SubmissionWorker(tasks,submissions,storage,(original,directory) -> {
+    var worker = worker((original,directory) -> {
       throw new EngineFailure(false,"文档损坏");
     });
     worker.process(claim);
@@ -220,7 +235,7 @@ class SubmissionIntegrationTest {
     assertEquals(1,submissions.countByStatus(SubmissionStatus.FAILED));
     assertFalse(storage.data.isEmpty());
     storage.failDeletion=false;
-    new SubmissionWorker(tasks,submissions,storage,(original,directory)->null).compensateCleanup();
+    worker((original,directory)->null).compensateCleanup();
     assertTrue(storage.data.isEmpty());
   }
 
@@ -273,7 +288,7 @@ class SubmissionIntegrationTest {
     row.reserveUploadUntil(now.plus(SubmissionService.UPLOAD_RESERVATION));
     submissions.saveAndFlush(row);
     assertTrue(tasks.claim(now).isEmpty());
-    var worker=new SubmissionWorker(tasks,submissions,storage,(original,directory)->null);
+    var worker=worker((original,directory)->null);
     Instant afterExpiry=now.plus(SubmissionService.UPLOAD_RESERVATION).plusSeconds(1);
     for(int attempt=0;attempt<3;attempt++) worker.process(tasks.claim(afterExpiry.plusSeconds(attempt*60)).orElseThrow());
     assertEquals(SubmissionStatus.FAILED,submissions.findById(row.getId()).orElseThrow().getStatus());
@@ -286,7 +301,7 @@ class SubmissionIntegrationTest {
     var second=tasks.claim(now.plusSeconds(901)).orElseThrow();
     storage.data.put(second.attemptPrefix()+"marked.docx",new byte[]{9});
     tasks.succeed(second,0,now.plusSeconds(902));
-    new SubmissionWorker(tasks,submissions,storage,(original,directory)->new AuditEngine.Result(0,original,original,new byte[]{1})).process(first);
+    worker((original,directory)->new AuditEngine.Result(0,original,original,new byte[]{1})).process(first);
     assertArrayEquals(new byte[]{9},storage.data.get(second.attemptPrefix()+"marked.docx"));
     assertFalse(storage.data.containsKey(first.attemptPrefix()+"marked.docx"));
   }
@@ -380,8 +395,10 @@ class SubmissionIntegrationTest {
     var claim=tasks.claim(Instant.now()).orElseThrow();
     storage.data.put(claim.attemptPrefix()+"marked.docx",new byte[]{2});
     storage.data.put(claim.attemptPrefix()+"report.docx",new byte[]{3,4});
-    assertTrue(tasks.succeed(claim,7,Instant.now()));
+    storage.data.put(claim.attemptPrefix()+"report.pdf",new byte[]{5,6});
+    assertTrue(tasks.succeed(claim,7,true,Instant.now()));
     assertTrue(service.detail(actor(student),id).canDownloadReport());
+    assertTrue(service.detail(actor(student),id).canDownloadPdfReport());
     for (User user:List.of(student,teacher)) {
       var plan=service.prepareDownload(actor(user),id,"report");
       assertEquals("论文.report.docx",plan.filename());
@@ -398,6 +415,17 @@ class SubmissionIntegrationTest {
       assertEquals("FORBIDDEN",assertThrows(ApiException.class,
           ()->service.prepareDownloadUrl(actor(user),id,"report")).code());
     }
+    var pdf=service.prepareDownload(actor(teacher),id,"report-pdf");
+    assertEquals("论文.report.pdf",pdf.filename());
+    assertEquals("https://cos.test/"+claim.attemptPrefix()+"report.pdf",
+        service.prepareDownloadUrl(actor(teacher),id,"report-pdf").url());
+    try(var object=service.openDownload(pdf)) {
+      assertArrayEquals(new byte[]{5,6},object.stream().readAllBytes());
+    }
+    var pdfControllerResponse=new SubmissionController(service).download(actor(student),id,"report-pdf");
+    assertEquals(SubmissionService.PDF,pdfControllerResponse.getHeaders().getContentType().toString());
+    assertEquals("论文.report.pdf",pdfControllerResponse.getHeaders().getContentDisposition().getFilename());
+    assertThrows(ApiException.class,()->service.prepareDownload(actor(other),id,"report-pdf"));
     assertEquals("INVALID_FILE_KIND",assertThrows(ApiException.class,
         ()->service.prepareDownload(actor(student),id,"anything")).code());
   }
@@ -413,10 +441,15 @@ class SubmissionIntegrationTest {
 
   private void assertReportUnavailable(long id) {
     assertFalse(service.detail(actor(student),id).canDownloadReport());
+    assertFalse(service.detail(actor(student),id).canDownloadPdfReport());
     assertEquals("FILE_NOT_AVAILABLE",assertThrows(ApiException.class,
         ()->service.prepareDownload(actor(student),id,"report")).code());
     assertEquals("FILE_NOT_AVAILABLE",assertThrows(ApiException.class,
         ()->service.prepareDownloadUrl(actor(student),id,"report")).code());
+    assertEquals("FILE_NOT_AVAILABLE",assertThrows(ApiException.class,
+        ()->service.prepareDownload(actor(student),id,"report-pdf")).code());
+    assertEquals("FILE_NOT_AVAILABLE",assertThrows(ApiException.class,
+        ()->service.prepareDownloadUrl(actor(student),id,"report-pdf")).code());
   }
 
   @Test void historicalSuccessKeepsOriginalAndMarkedButHasNoReport() {
@@ -432,19 +465,31 @@ class SubmissionIntegrationTest {
     assertEquals("历史论文.marked.docx",service.prepareDownload(actor(student),id,"marked").filename());
   }
 
-  @Test void reportOrJsonUploadFailureCannotPublishPartialResult() {
-    for(String artifact:List.of("report.docx","report.json")) {
+  @Test void anyReportUploadFailureCannotPublishPartialResult() {
+    for(String artifact:List.of("report.docx","report.json","report.pdf")) {
       long id=Long.parseLong(service.upload(actor(student),file("论文.docx",new byte[]{1})).id());
       var claim=tasks.claim(Instant.now()).orElseThrow();
       storage.failKey=claim.attemptPrefix()+artifact;
-      new SubmissionWorker(tasks,submissions,storage,
-          (original,directory)->new AuditEngine.Result(0,original,original,"{}".getBytes())).process(claim);
+      worker((original,directory)->new AuditEngine.Result(0,original,original,"{}".getBytes())).process(claim);
       assertEquals(SubmissionStatus.PENDING,service.detail(actor(student),id).status());
       assertReportUnavailable(id);
       assertTrue(storage.data.containsKey(claim.directory()+"/original.docx"));
       assertTrue(storage.data.keySet().stream().noneMatch(key->key.startsWith(claim.attemptPrefix())));
       storage.failKey=null;
     }
+  }
+
+  @Test void pdfGenerationFailureCannotPublishOrRetainPartialAttempt() {
+    long id=Long.parseLong(service.upload(actor(student),file("论文.docx",new byte[]{1})).id());
+    var claim=tasks.claim(Instant.now()).orElseThrow();
+    PdfSummaryReportGenerator failingGenerator=(json,metadata,target)->{throw new IOException("font unavailable");};
+    new SubmissionWorker(tasks,submissions,storage,
+        (original,directory)->new AuditEngine.Result(0,original,original,"{}".getBytes()),users,failingGenerator).process(claim);
+
+    assertEquals(SubmissionStatus.PENDING,service.detail(actor(student),id).status());
+    assertReportUnavailable(id);
+    assertTrue(storage.data.containsKey(claim.directory()+"/original.docx"));
+    assertTrue(storage.data.keySet().stream().noneMatch(key->key.startsWith(claim.attemptPrefix())));
   }
 
   @Test void reportStreamingRechecksPermissionsAndUsesCurrentAttempt() throws Exception {
@@ -470,6 +515,12 @@ class SubmissionIntegrationTest {
 
   private static CurrentUser actor(User user) {
     return new CurrentUser(user.getId(), user.getUsername(), user.getRole(), user.getName(), user.isMustChangePassword());
+  }
+  private SubmissionWorker worker(AuditEngine engine) {
+    return worker(tasks, engine);
+  }
+  private SubmissionWorker worker(SubmissionTasks workerTasks, AuditEngine engine) {
+    return new SubmissionWorker(workerTasks, submissions, storage, engine, users, pdfGenerator);
   }
   private static MockMultipartFile file(String name, byte[] bytes) { return new MockMultipartFile("file", name, "application/octet-stream", bytes); }
   static class MemoryBoundary implements ObjectStorage {

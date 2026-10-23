@@ -19,7 +19,7 @@
 - 账号 SHA256/Base64 预哈希后 BCrypt，6–128 Unicode 码点；前端不能以128个UTF16单元截断密码。
 - 上传50MiB上限、multipart52MiB、Excel5MiB/2000数据行；网关、平台、引擎保持一致。
 - 合法文件先持久化10分钟上传预留，再写COS；预留期不能领取/下载。上传失败也有记录用于清理。非法文件无记录。
-- 默认引擎总超时10分钟，单COS传输5分钟，worker租约40分钟。租约须大于引擎总超时加21分钟；响应正文也受总超时约束。
+- 默认引擎总超时10分钟，单COS传输5分钟，worker租约40分钟。租约须大于引擎总超时加26分钟（原稿下载及四个审核产物上传）；响应正文也受总超时约束。
 - SUCCESS文件永久保留；提交成功但响应丢失时必须重读数据库，不得按本地异常直接删除文件。
 - 教师统计仅SUCCESS；最近时间/问题数同一行；未知为null。模块统计无可靠章节源时null。
 - 下载准备阶段只生成授权计划，异步执行开始前再次读取当前账号、密码指纹、导师关系和提交状态，再打开COS流。不能让排队请求沿用已撤销的权限。
@@ -94,12 +94,13 @@
 
 - `AuditEngine.Result(int problemCount, Path marked, Path reportDocx, byte[] reportJson)`。
 - Flyway V2 新增 `submission.report_available boolean NOT NULL DEFAULT false`。
-- `SubmissionView.canDownloadReport` 为 `SUCCESS && reportAvailable`。
-- `GET /api/submissions/{id}/files/report` 与 `GET /api/submissions/{id}/files/report/url`。
+- Flyway V3 新增 `submission.pdf_available boolean NOT NULL DEFAULT false`；历史记录默认不可下载 PDF。
+- `SubmissionView.canDownloadReport` 为 `SUCCESS && reportAvailable`；`canDownloadPdfReport` 为 `SUCCESS && pdfAvailable`。
+- `GET /api/submissions/{id}/files/report` 和 `/report/url` 下载 DOCX；`GET /api/submissions/{id}/files/report-pdf` 和 `/report-pdf/url` 下载 `application/pdf`。两种报告均只映射到当前 attempt 的对应产物。
 
 ### 数据与时限
 
-adapter 验证同一 `requestId` 的批注和报告地址，报告必须是具有合法主文档类型、内部关系及非空正文的 DOCX；不得接受 HTML、空 Word 或外部地址。审核与两个产物下载共享引擎总超时。Worker 在当前 attempt 下依次保存 `marked.docx`、`report.docx`、`report.json` 后，使用既有租约/attempt 条件原子写 SUCCESS 与报告可用标记；失败/重新领取时标记 false。COS 下载原稿加三个产物上传共四次传输，worker 租约大于引擎超时加21分钟，默认40分钟。
+adapter 验证同一 `requestId` 的批注和 Word 报告地址；Word 报告必须是具有合法主文档类型、内部关系及非空正文的 DOCX，不得接受 HTML、空 Word 或外部地址。审核与两个引擎产物下载共享引擎总超时。Worker 在当前 attempt 下依次保存 `marked.docx`、`report.docx`、`report.json`、`report.pdf` 后，使用既有租约/attempt 条件原子写 SUCCESS 与两种报告可用标记；失败/重新领取时标记均为 false。COS 下载原稿加四个产物上传共五次传输，worker 租约大于引擎超时加26分钟（五次各5分钟的存储预算加1分钟提交预算），默认40分钟。
 
 ### 错误矩阵
 
@@ -109,16 +110,16 @@ adapter 验证同一 `requestId` 的批注和报告地址，报告必须是具�
 | 报告/JSON 保存失败 | 当前 attempt 不成功，保留原稿并按已有补偿策略处理 |
 | 历史 SUCCESS、报告标记 false | 原稿/批注仍可下载；报告返回 FILE_NOT_AVAILABLE |
 | 非本人/当前导师，或管理员读论文 | 两种下载入口均 FORBIDDEN |
-| kind 非 original/marked/report | INVALID_FILE_KIND，不映射到默认文件 |
+| kind 非 original/marked/report/report-pdf | INVALID_FILE_KIND，不映射到默认文件 |
 
 ### 正常、历史与异常
 
-正常：审核完成，报告字节与 `attempt-N/report.docx` 一致。历史：升级后没有报告的成功记录保持无报告，需重新审核产生新记录。异常：迟到 attempt 或丢失完成响应不得清除已成功的新产物。
+正常：审核完成，Word/PDF 报告字节分别与 `attempt-N/report.docx`、`attempt-N/report.pdf` 一致。历史：升级后没有报告的成功记录保持无报告，PDF 可用标记默认 false，需重新审核产生新产物。异常：迟到 attempt 或丢失完成响应不得清除已成功的新产物。
 
 ### 回归证据要求
 
-真实 PostgreSQL 验证 V1→V2 保留数据、默认 false、报告状态与 SUCCESS 同步、失败清理和过期 attempt；真实 HTTP 边界验证两个下载与总时限；UI 验证两角色/两模式的报告入口、文件名、失败反馈与历史记录。COS 替身仅为测试边界，不能冒充线上存储验收。
+真实 PostgreSQL 验证 V1→V3 保留数据、两个报告可用标记默认 false、报告状态与 SUCCESS 同步、失败清理和过期 attempt；真实 HTTP 边界验证 Word/PDF 两种报告的流式与预签名下载、MIME、文件名和总时限；UI 验证两角色/两模式的 Word/PDF 报告入口、失败反馈与历史记录。COS 替身仅为测试边界，不能冒充线上存储验收。
 
 ### 反例
 
-错误：仅新增报告按钮，沿用“非 original 一律下载 marked”的映射，或把全部历史成功记录改为有报告。正确：代理与预签名共用同一权限检查，明确映射 `report` 到当前 attempt 的 `report.docx`，仅在产物已保存后开放下载。
+错误：仅新增报告按钮，沿用“非 original 一律下载 marked”的映射，或把全部历史成功记录改为有报告。正确：代理与预签名共用同一权限检查，明确映射 `report`/`report-pdf` 到当前 attempt 的 `report.docx`/`report.pdf`，分别仅在对应产物已保存后开放下载。

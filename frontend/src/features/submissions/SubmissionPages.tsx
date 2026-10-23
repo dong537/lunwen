@@ -334,7 +334,7 @@ export function SubmissionDetailPage() {
       kind,
       name,
     }: {
-      kind: 'original' | 'marked' | 'report'
+      kind: 'original' | 'marked' | 'report' | 'report-pdf'
       name: string
     }) => {
       if (mode.data === 'direct') {
@@ -466,6 +466,21 @@ export function SubmissionDetailPage() {
               >
                 <Download size={16} aria-hidden="true" />
                 下载检查报告
+              </button>
+            )}
+            {data.status === 'SUCCESS' && data.canDownloadPdfReport && (
+              <button
+                className="button secondary"
+                disabled={fileDownload.isPending}
+                onClick={() =>
+                  fileDownload.mutate({
+                    kind: 'report-pdf',
+                    name: data.originalFilename.replace(/\.docx$/i, '.report.pdf'),
+                  })
+                }
+              >
+                <Download size={16} aria-hidden="true" />
+                下载 PDF 审核结果单
               </button>
             )}
           </div>

@@ -55,17 +55,24 @@ class ReportAvailabilityMigrationTest {
       configuration.target("latest").load().migrate();
 
       assertEquals(historicalSubmission, scalar(connection,
-          "SELECT (to_jsonb(s) - 'report_available')::text FROM submission s WHERE id = 201"));
+          "SELECT (to_jsonb(s) - 'report_available' - 'pdf_available')::text FROM submission s WHERE id = 201"));
       assertEquals(historicalUser, scalar(connection,
           "SELECT to_jsonb(u)::text FROM sys_user u WHERE id = 101"));
       try (var statement = connection.prepareStatement("""
-          SELECT data_type, is_nullable, column_default
+          SELECT column_name, data_type, is_nullable, column_default
           FROM information_schema.columns
-          WHERE table_schema = ? AND table_name = 'submission' AND column_name = 'report_available'
+          WHERE table_schema = ? AND table_name = 'submission' AND column_name IN ('report_available', 'pdf_available')
+          ORDER BY column_name
           """)) {
         statement.setString(1, schema);
         try (var column = statement.executeQuery()) {
+          assertTrue(column.next(), "pdf_available column must exist after migration");
+          assertEquals("pdf_available", column.getString("column_name"));
+          assertEquals("boolean", column.getString("data_type"));
+          assertEquals("NO", column.getString("is_nullable"));
+          assertEquals("false", column.getString("column_default"));
           assertTrue(column.next(), "report_available column must exist after migration");
+          assertEquals("report_available", column.getString("column_name"));
           assertEquals("boolean", column.getString("data_type"));
           assertEquals("NO", column.getString("is_nullable"));
           assertEquals("false", column.getString("column_default"));
@@ -74,6 +81,8 @@ class ReportAvailabilityMigrationTest {
       }
       assertEquals("false", scalar(connection,
           "SELECT report_available::text FROM submission WHERE id = 201"));
+      assertEquals("false", scalar(connection,
+          "SELECT pdf_available::text FROM submission WHERE id = 201"));
 
       try (var statement = connection.createStatement()) {
         statement.executeUpdate("""
@@ -85,6 +94,8 @@ class ReportAvailabilityMigrationTest {
       }
       assertEquals("false", scalar(connection,
           "SELECT report_available::text FROM submission WHERE id = 202"));
+      assertEquals("false", scalar(connection,
+          "SELECT pdf_available::text FROM submission WHERE id = 202"));
     }
   }
 

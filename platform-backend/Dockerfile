@@ -6,7 +6,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+RUN apt-get update && apt-get install -y --no-install-recommends curl fonts-wqy-zenhei \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system platform && useradd --system --gid platform --home /app platform \
     && chown platform:platform /app
