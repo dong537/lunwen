@@ -97,7 +97,7 @@ class EmptyNumberingCommentReadbackTest {
   }
 
   @Test
-  void repeatedAnnotationAddsDistinctZeroWidthRangesToTheSameEmptyParagraph() throws Exception {
+  void repeatedAnnotationRefreshesTheSystemRangeOnTheSameEmptyParagraph() throws Exception {
     Path input = fixture("<w:p><w:pPr>" + NUM_PR + "</w:pPr></w:p>");
     var parsed = new Docx4jDocumentParser().parse(new DocxReader().read(input));
     var findings = numberingFindings(parsed);
@@ -109,9 +109,10 @@ class EmptyNumberingCommentReadbackTest {
     var report = new CommentWriter().writeCopy(first, second, findings);
     assertEquals(AnnotationStatus.WRITTEN, report.items().getFirst().status(), report.toString());
     var paragraph = resolve(document(second), findings.getFirst().source().elementPath());
-    assertPointInParagraph(paragraph, "0");
     assertPointInParagraph(paragraph, "1");
-    assertEquals(2, CommentWriter.readThreads(second).size());
+    assertEquals(1, CommentWriter.readThreads(second).size());
+    assertEquals(1, paragraph.getElementsByTagNameNS(W, "commentRangeStart").getLength());
+    assertEquals(1, paragraph.getElementsByTagNameNS(W, "commentReference").getLength());
     assertEquals(0, paragraph.getElementsByTagNameNS(W, "t").getLength());
   }
 

@@ -91,8 +91,7 @@ public final class CommentWriter {
           parts.containsKey("word/_rels/document.xml.rels") ? parse(parts.get("word/_rels/document.xml.rels")) : null,
           parts.containsKey("word/styles.xml") ? parse(parts.get("word/styles.xml")) : null);
       int nextId = nextCommentId(parts.get("word/comments.xml"));
-      // 保留输入文档已有的批注并追加本次结果。重跑服务时输入通常是原始论文，
-      // 因而不会把旧结果带入；若用户明确把带批注文档作为输入，也不能静默删除其批注。
+      // Resolve original paths before refreshing inspection comments: deleting markers changes child indexes.
       Document comments = existingCommentsDocument(parts.get("word/comments.xml"), strict);
       Set<String> usedParaIds = new HashSet<>();
       collectParaIds(parts, usedParaIds);
@@ -101,8 +100,6 @@ public final class CommentWriter {
       Document commentsIds = existingCommentIdsPart(parts.get("word/commentsIds.xml"));
       Set<String> usedDurableIds = collectDurableIds(commentsIds);
       boolean needsModernParts = false;
-      ensurePerson(people, COMMENT_AUTHOR);
-      stripExistingHighlights(document);
       Element commentsRoot = comments.getDocumentElement();
       List<CheckResult> written = new ArrayList<>();
       List<AnnotationItem> writtenItems = new ArrayList<>();
@@ -127,7 +124,6 @@ public final class CommentWriter {
         Document partDocument = documents.computeIfAbsent(partName, ignored -> {
           try {
             Document parsed = parse(parts.get(partName));
-            stripExistingHighlights(parsed);
             return parsed;
           }
           catch (IOException error) { throw new IllegalStateException(error); }
@@ -176,6 +172,27 @@ public final class CommentWriter {
         } catch (AnchorException error) {
           anchorErrors.put(entry.getKey(), error.getMessage());
         }
+      }
+      var refreshed = SystemCommentRefresher.refresh(comments, commentsExtended,
+          commentsIds, people, COMMENT_AUTHOR, replies);
+      Set<String> removedCommentIds = refreshed.removedCommentIds();
+      boolean refreshedComments = !removedCommentIds.isEmpty();
+      if (refreshedComments) {
+        if (parts.containsKey("word/commentsExtensible.xml") && !refreshed.removedDurableIds().isEmpty()) {
+          Document extensible = parse(parts.get("word/commentsExtensible.xml"));
+          if (SystemCommentRefresher.removeExtensibleEntries(extensible, refreshed.removedDurableIds()))
+            parts.put("word/commentsExtensible.xml", serialize(extensible));
+        }
+        for (var part : parts.entrySet()) {
+          if (!isCommentStoryPart(part.getKey())) continue;
+          Document story = documents.get(part.getKey());
+          boolean alreadyLoaded = story != null;
+          if (!alreadyLoaded) story = parse(part.getValue());
+          if (SystemCommentRefresher.removeAnchors(story, removedCommentIds) || alreadyLoaded)
+            documents.put(part.getKey(), story);
+        }
+        needsModernParts = parts.containsKey("word/commentsExtended.xml")
+            || parts.containsKey("word/commentsIds.xml") || parts.containsKey("word/people.xml");
       }
       // Text highlighting depends on the original run identities. Complete all text groups
       // before a migrated point splits a leading page-break run in the same paragraph.
@@ -230,6 +247,7 @@ public final class CommentWriter {
           commentsRoot.appendChild(comment(comments, nextId, paraId, group, paragraph, pointPlacements));
           appendCommentExtended(commentsExtended, paraId);
           appendCommentId(commentsIds, paraId, nextDurableId(paraId, nextId, usedDurableIds));
+          ensurePerson(people, COMMENT_AUTHOR);
           needsModernParts = true;
           for (CheckResult item : group) {
             written.add(item);
@@ -262,7 +280,7 @@ public final class CommentWriter {
               error.getMessage() == null ? "THREAD_WRITE_FAILED" : error.getMessage(), null));
         }
       }
-      if (written.isEmpty() && !wroteThread) return new AnnotationReport(rejected, false);
+      if (written.isEmpty() && !wroteThread && !refreshedComments) return new AnnotationReport(rejected, false);
       for (Map.Entry<String, Document> entry : documents.entrySet()) parts.put(entry.getKey(), serialize(entry.getValue()));
       parts.put("word/comments.xml", serialize(comments));
       parts.put("word/_rels/document.xml.rels", addRelationship(parts.get("word/_rels/document.xml.rels"), strict));
@@ -457,14 +475,9 @@ public final class CommentWriter {
     return parent instanceof Element ? (Element) parent : null;
   }
 
-  private static void stripExistingHighlights(Document document) {
-    String namespace = document.getDocumentElement().getNamespaceURI();
-    var highlights = document.getElementsByTagNameNS(namespace, "highlight");
-    while (highlights.getLength() > 0) {
-      Node highlight = highlights.item(0);
-      Node parent = highlight.getParentNode();
-      if (parent != null) parent.removeChild(highlight);
-    }
+  private static boolean isCommentStoryPart(String partName) {
+    return partName.equals("word/document.xml") || partName.equals("word/footnotes.xml")
+        || partName.equals("word/endnotes.xml") || partName.matches("word/(?:header|footer)[^/]*\\.xml");
   }
 
   private static String relationshipPartName(String partName) {
@@ -1064,7 +1077,7 @@ public final class CommentWriter {
       run.insertBefore(properties, insertionPoint);
     }
     var existingHighlights = properties.getElementsByTagNameNS(wordNamespace, "highlight");
-    while (existingHighlights.getLength() > 0) properties.removeChild(existingHighlights.item(0));
+    if (existingHighlights.getLength() > 0) return; // Existing highlights have no reliable ownership marker.
     Element mark = document.createElementNS(wordNamespace, "w:highlight");
     mark.setAttributeNS(wordNamespace, "w:val", color);
     properties.appendChild(mark);

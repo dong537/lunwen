@@ -1106,7 +1106,7 @@ class RuleEngineTest {
   }
 
   @Test
-  void ignoresOneRowXmlFragmentBeforeContinuationCaption() {
+  void requiresXmlEvidenceBeforeTreatingAOneRowTableAsAFragment() {
     var originalCaption = paragraph("\u88684-3 \u793e\u533a\u5e16\u5b50\u8868", List.of(0, 2));
     var continuationCaption = paragraph("\u7eed\u88684-3", List.of(0, 8));
     var headers = List.of("\u5b57\u6bb5\u540d", "\u5b57\u6bb5\u7c7b\u578b", "\u4e3b\u952e", "\u63cf\u8ff0");
@@ -1123,11 +1123,12 @@ class RuleEngineTest {
         List.of(chapterHeading(), originalCaption, continuationCaption), List.of(), List.of(),
         List.of(original, fragment, continuation), List.of(), List.of());
 
-    assertTrue(new RuleEngine().check(document, RuleSet.schoolV1()).stream()
-        .noneMatch(result -> result.source().elementPath().equals(fragment.source().elementPath())
-            && (result.reasonCode().equals("TABLE_CAPTION_MISSING")
-                || result.reasonCode().equals("TABLE_BORDER_INVALID"))),
-        "the XML fragment must not be checked as an independent table");
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+    for (String reason : List.of("TABLE_CAPTION_MISSING", "TABLE_BORDER_INVALID")) {
+      assertTrue(results.stream().anyMatch(result -> fragment.source().equals(result.source())
+          && reason.equals(result.reasonCode())),
+          "a hand-built model without sibling evidence must not exempt an independent table");
+    }
   }
 
   @Test

@@ -117,14 +117,14 @@ class TableRuleModuleTest {
   }
 
   @Test
-  void comparesSplitContinuationHeaderWithItsAdjacentOriginalTable() {
+  void comparesContinuationHeaderWithItsAdjacentOriginalTable() {
     var findings = continuationFindings(List.of("项目", "结果"));
 
     assertFalse(findings.stream().anyMatch(item -> item.ruleId().equals("TAB-08")), findings.toString());
   }
 
   @Test
-  void reportsSplitContinuationHeaderThatDiffersFromItsAdjacentOriginalTable() {
+  void reportsContinuationHeaderThatDiffersFromItsAdjacentOriginalTable() {
     var finding = continuationFindings(List.of("项目", "结果不同")).stream()
         .filter(item -> item.ruleId().equals("TAB-08")).findFirst().orElseThrow();
 
@@ -134,7 +134,7 @@ class TableRuleModuleTest {
   }
 
   @Test
-  void excludesCoverCodeEquationLayoutAndSplitContinuationFragmentTables() {
+  void excludesCoverCodeAndEquationTablesButRequiresEvidenceForFragments() {
     var cover = paragraph("学生姓名：张三", List.of(0, 0), "left");
     var chapter = paragraph("第1章 绪论", List.of(0, 1), "left");
     var coverTable = table(source(0), null, null, 2, 2, List.of());
@@ -160,15 +160,15 @@ class TableRuleModuleTest {
 
     var findings = new TableRuleModule().check(document, RuleSet.schoolV1());
 
-    for (TableModel excluded : List.of(coverTable, codeTable, equationTable, fragment)) {
+    for (TableModel excluded : List.of(coverTable, codeTable, equationTable)) {
       assertFalse(findings.stream().anyMatch(item -> item.ruleId().startsWith("TAB-")
           && item.source() != null && item.source().equals(excluded.source())), excluded.source().toString());
     }
     assertTrue(findings.stream().anyMatch(item -> item.ruleId().equals("TAB-08")
         && item.source().equals(continuationCaption.source())));
-    assertTrue(findings.stream().anyMatch(item -> item.reasonCode().equals("TABLE_CONTINUATION_HEADER_MISMATCH")),
-        findings.toString());
-    assertFalse(findings.stream().anyMatch(item -> item.reasonCode().equals("TABLE_CONTINUATION_ORIGINAL_MISSING")),
+    assertTrue(findings.stream().anyMatch(item -> item.reasonCode().equals("TABLE_CAPTION_MISSING")
+        && fragment.source().equals(item.source())), findings.toString());
+    assertTrue(findings.stream().anyMatch(item -> item.reasonCode().equals("TABLE_CONTINUATION_ORIGINAL_MISSING")),
         findings.toString());
   }
 
@@ -228,13 +228,12 @@ class TableRuleModuleTest {
     var continuationCaption = paragraph("续表1-1", List.of(0, 4), "right");
     var original = table(source(2), originalCaption.source(), "表1-1 测试结果", 3, 2,
         List.of("项目", "结果"));
-    var splitRow = table(source(3), null, null, 1, 2, List.of("拆分出的数据行", "不是表头"));
     var continuation = table(source(5), continuationCaption.source(), "续表1-1", 2, 2,
         continuationHeaders);
     var citation = paragraph("具体结果见表1-1。", List.of(0, 6), "left");
     var document = new ParsedDocument("source",
         List.of(chapter, originalCaption, continuationCaption, citation), List.of(), List.of(),
-        List.of(original, splitRow, continuation), List.of(), List.of());
+        List.of(original, continuation), List.of(), List.of());
 
     return new TableRuleModule().check(document, RuleSet.schoolV1());
   }

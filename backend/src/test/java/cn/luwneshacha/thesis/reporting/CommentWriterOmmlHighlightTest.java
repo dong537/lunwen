@@ -16,6 +16,8 @@ import java.util.zip.ZipFile;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.docx4j.XmlUtils;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
+import org.docx4j.openpackaging.parts.PartName;
+import org.docx4j.openpackaging.parts.WordprocessingML.CommentsPart;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -109,6 +111,10 @@ class CommentWriterOmmlHighlightTest {
         Judgement.FAIL, "360 / auto", "240 / auto", "LINE_SPACING_MISMATCH",
         new SourceAddress("word/document.xml", List.of(0, 0), 0, 0));
     assertTrue(new CommentWriter().writeCopy(original, source, List.of(existing)).outputWritten());
+    var annotated = WordprocessingMLPackage.load(source.toFile());
+    var existingComments = (CommentsPart) annotated.getParts().getParts().get(new PartName("/word/comments.xml"));
+    existingComments.getContents().getComment().getFirst().setAuthor("人工老师");
+    annotated.save(source.toFile());
     return source;
   }
 
