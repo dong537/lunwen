@@ -53,9 +53,11 @@ mvn -B -f backend/pom.xml verify
 mvn -B -f platform-backend/pom.xml verify
 cd frontend
 npm ci
-npm test
+npm run typecheck
 npm run build
 ```
+
+前端 E2E 使用 Playwright（`npm test`），用例放在 `frontend/e2e/`；首次运行前需执行 `npx playwright install chromium`。
 
 引擎默认 18098，平台默认 18099，Vite 将 `/api` 转发至平台。平台本地环境变量与启动方式见部署文档。旧公式转换需 LibreOffice；引擎 Docker 镜像已包含它。
 
