@@ -4,6 +4,7 @@ import cn.luwneshacha.thesis.document.ParsedDocument;
 import cn.luwneshacha.thesis.document.ParagraphModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.document.TableModel;
+import cn.luwneshacha.thesis.document.TableFragmentEvidence;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -27,17 +28,26 @@ final class TableRuleChecker {
 
   List<CheckResult> check(ParsedDocument document, TableModel table, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
-    if (table.columns() > 0 && isQuantitativeTable(table)) {
-      List<String> quantitativeHeaders = table.headerTexts().stream()
+    TableModel headerOwner = table.fragmentEvidence() == null ? table : document.tables().stream()
+        .filter(candidate -> candidate.source().equals(table.fragmentEvidence().originalSource()))
+        .findFirst().orElse(table);
+    List<String> headers = headerOwner.headerTexts();
+    List<List<String>> rows = table.fragmentEvidence() != null
+        && table.fragmentEvidence().kind() == TableFragmentEvidence.Kind.DATA_ROW
+        ? List.of(table.headerTexts()) : table.dataRowTexts();
+    boolean repeatedHeader = table.fragmentEvidence() != null
+        && table.fragmentEvidence().kind() == TableFragmentEvidence.Kind.REPEATED_HEADER;
+    if (!repeatedHeader && table.columns() > 0 && isQuantitativeTable(headerOwner)) {
+      List<String> quantitativeHeaders = headers.stream()
           .filter(TableRuleChecker::isQuantitativeHeader).toList();
-      String sharedUnit = sharedUnit(table);
+      String sharedUnit = sharedUnit(headerOwner);
       List<String> unverifiableUnits = quantitativeHeaders.stream()
           .filter(header -> dimensionForHeader(header) == null
               && UNIT_LABEL.matcher(header).find()).toList();
       List<String> missingUnits = quantitativeHeaders.stream()
           .filter(header -> !unverifiableUnits.contains(header)
               && !hasUnitLabel(header) && !sharedUnitMatchesHeader(sharedUnit, header)
-              && !hasUnitInCells(table, header)).toList();
+              && !hasUnitInCells(headers, rows, header)).toList();
       if (!missingUnits.isEmpty())
         results.add(fail("TAB-04", "每个参数表头标明量和单位，或明确给出统一单位",
             String.join("、", missingUnits), "TABLE_UNITS_MISSING", table.source()));
@@ -83,24 +93,13 @@ final class TableRuleChecker {
     TableModel adjacent = tables.get(continuationIndex - 1);
     TableModel original = adjacent;
     TableModel repeatedHeader = null;
-    if (adjacent.rows() == 1 && continuationIndex > 1) {
-      TableModel preceding = tables.get(continuationIndex - 2);
-      Matcher adjacentNumber = TABLE_CAPTION.matcher(adjacent.captionText() == null
-          ? "" : adjacent.captionText());
-      Matcher precedingNumber = TABLE_CAPTION.matcher(preceding.captionText() == null
-          ? "" : preceding.captionText());
-      boolean adjacentHasCaption = adjacentNumber.find();
-      boolean precedingHasCaption = precedingNumber.find();
-      boolean adjacentIsCaptionedRepeat = adjacentHasCaption && precedingHasCaption
-          && number.equals(adjacentNumber.group(1)) && number.equals(precedingNumber.group(1));
-      boolean adjacentIsSplitRow = adjacent.captionText() == null && precedingHasCaption
-          && number.equals(precedingNumber.group(1));
-      if (adjacentIsCaptionedRepeat) {
+    if (adjacent.fragmentEvidence() != null
+        && adjacent.fragmentEvidence().continuationSource().equals(continuation.source())) {
+      original = tables.stream().filter(candidate ->
+          candidate.source().equals(adjacent.fragmentEvidence().originalSource()))
+          .findFirst().orElse(adjacent);
+      if (adjacent.fragmentEvidence().kind() == TableFragmentEvidence.Kind.REPEATED_HEADER)
         repeatedHeader = adjacent;
-        original = preceding;
-      } else if (adjacentIsSplitRow) {
-        original = preceding;
-      }
     }
     Matcher originalNumber = TABLE_CAPTION.matcher(original.captionText() == null ? "" : original.captionText());
     if (original.captionText() == null || original.captionText().stripLeading().startsWith("續表")
@@ -250,13 +249,13 @@ final class TableRuleChecker {
     return header.matches(".*(数量|数值|测量|误差|温度|压力|速度|长度|宽度|高度|时间|频率|电压|电流|功率|合格率|成功率|百分比|重量|质量|面积|体积).*" );
   }
 
-  private static boolean hasUnitInCells(TableModel table, String header) {
-    if (table.dataRowTexts().isEmpty() || UNIT_LABEL.matcher(header).find()) return false;
-    int column = table.headerTexts().indexOf(header);
-    if (column < 0 || table.headerTexts().lastIndexOf(header) != column) return false;
+  private static boolean hasUnitInCells(List<String> headers, List<List<String>> rows, String header) {
+    if (rows.isEmpty() || UNIT_LABEL.matcher(header).find()) return false;
+    int column = headers.indexOf(header);
+    if (column < 0 || headers.lastIndexOf(header) != column) return false;
     String dimension = dimensionForHeader(header);
     boolean foundMeasurement = false;
-    for (List<String> row : table.dataRowTexts()) {
+    for (List<String> row : rows) {
       if (column >= row.size()) return false;
       String value = row.get(column).strip();
       if (value.isEmpty() || value.matches("[—–-]+")) continue;

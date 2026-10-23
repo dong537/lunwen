@@ -566,7 +566,7 @@ class CommentWriterTest {
   }
 
   @Test
-  void removesHighlightsAlreadyPresentInInputDocument() throws Exception {
+  void preservesHighlightsWhoseOwnershipCannotBeEstablished() throws Exception {
     Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:rPr><w:highlight w:val=\"magenta\"/></w:rPr><w:t>旧高亮</w:t></w:r></w:p></w:body></w:document>");
     Path target = tempDir.resolve("old-highlight-removed.docx");
     var finding = new CheckResult("BODY-INDENT", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
@@ -577,7 +577,8 @@ class CommentWriterTest {
 
     try (ZipFile zip = new ZipFile(target.toFile())) {
       String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), StandardCharsets.UTF_8);
-      assertFalse(document.contains("w:highlight"));
+      assertTrue(document.contains("w:highlight"));
+      assertTrue(document.contains("w:val=\"magenta\""));
     }
   }
 
@@ -1255,7 +1256,7 @@ class CommentWriterTest {
   }
 
   @Test
-  void replacesAnExistingRunHighlightInsteadOfWritingDuplicateProperties() throws Exception {
+  void preservesAnExistingRunHighlightInsteadOfReplacingItWithAnInspectionColor() throws Exception {
     Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p>"
         + "<w:r><w:rPr><w:highlight w:val=\"cyan\"/><w:b/></w:rPr><w:t>正文内容</w:t></w:r>"
         + "</w:p></w:body></w:document>");
@@ -1265,8 +1266,11 @@ class CommentWriterTest {
 
     try (ZipFile zip = new ZipFile(target.toFile())) {
       String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(), StandardCharsets.UTF_8);
-      assertEquals(1, Pattern.compile("<w:highlight\\b").matcher(document).results().count());
-      assertTrue(document.contains("w:val=\"magenta\""));
+      var properties = Pattern.compile("<w:rPr(?:\\s[^>]*)?>.*?</w:rPr>", Pattern.DOTALL).matcher(document);
+      while (properties.find())
+        assertTrue(Pattern.compile("<w:highlight\\b").matcher(properties.group()).results().count() <= 1);
+      assertTrue(document.contains("w:val=\"cyan\""));
+      assertFalse(document.contains("w:val=\"magenta\""));
     }
   }
 
@@ -1669,7 +1673,7 @@ class CommentWriterTest {
   }
 
   @Test
-  void createsAnIndependentClosedRangeForARepeatedCommentOnTheSameParagraph() throws Exception {
+  void replacesThePreviousSystemCommentWithOneClosedRangeOnTheSameParagraph() throws Exception {
     Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>正文内容</w:t></w:r></w:p></w:body></w:document>");
     Path first = tempDir.resolve("same-paragraph-first.docx");
     Path second = tempDir.resolve("same-paragraph-second.docx");
@@ -1686,14 +1690,14 @@ class CommentWriterTest {
       List<String> ends = new ArrayList<>();
       while (startIds.find()) starts.add(startIds.group(1));
       while (endIds.find()) ends.add(endIds.group(1));
-      assertEquals(Set.of("0", "1"), Set.copyOf(starts));
-      assertEquals(Set.of("0", "1"), Set.copyOf(ends));
+      assertEquals(Set.of("1"), Set.copyOf(starts));
+      assertEquals(Set.of("1"), Set.copyOf(ends));
       for (String id : starts) {
         int start = document.indexOf("<w:commentRangeStart w:id=\"" + id + "\"/>");
         int end = document.indexOf("<w:commentRangeEnd w:id=\"" + id + "\"/>");
         assertTrue(start >= 0 && end > start, "comment range " + id + " must be closed");
       }
-      assertEquals(2, document.split("commentReference", -1).length - 1);
+      assertEquals(1, document.split("commentReference", -1).length - 1);
     }
   }
 

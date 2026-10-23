@@ -28,7 +28,32 @@ public record TableModel(
     boolean xmlNumericValuesValid,
     boolean codeLayout,
     List<List<String>> dataRowTexts,
-    List<Integer> repeatingHeaderRowIndexes) {
+    List<Integer> repeatingHeaderRowIndexes,
+    TableFragmentEvidence fragmentEvidence) {
+  public TableModel(SourceAddress source, SourceAddress captionSource, String captionText,
+      int rows, int columns, boolean topBorder, boolean middleBorder, boolean bottomBorder,
+      boolean verticalBorders, boolean captionBefore, boolean layoutNeedsReview,
+      boolean mergedCells, List<Integer> columnWidthsTwips, List<Integer> rowHeightsTwips,
+      List<String> headerTexts, String noteText, SourceAddress noteSource,
+      boolean repeatedPlaceholderText, boolean hasTableStyle, String sharedUnitText,
+      boolean sharedUnitRightAligned, boolean tableStyleBorderEvidenceResolved,
+      boolean xmlNumericValuesValid, boolean codeLayout, List<List<String>> dataRowTexts,
+      List<Integer> repeatingHeaderRowIndexes) {
+    this(source, captionSource, captionText, rows, columns, topBorder, middleBorder, bottomBorder,
+        verticalBorders, captionBefore, layoutNeedsReview, mergedCells, columnWidthsTwips,
+        rowHeightsTwips, headerTexts, noteText, noteSource, repeatedPlaceholderText, hasTableStyle,
+        sharedUnitText, sharedUnitRightAligned, tableStyleBorderEvidenceResolved,
+        xmlNumericValuesValid, codeLayout, dataRowTexts, repeatingHeaderRowIndexes, null);
+  }
+
+  public TableModel withFragmentEvidence(TableFragmentEvidence evidence) {
+    return new TableModel(source, captionSource, captionText, rows, columns, topBorder, middleBorder,
+        bottomBorder, verticalBorders, captionBefore, layoutNeedsReview, mergedCells,
+        columnWidthsTwips, rowHeightsTwips, headerTexts, noteText, noteSource,
+        repeatedPlaceholderText, hasTableStyle, sharedUnitText, sharedUnitRightAligned,
+        tableStyleBorderEvidenceResolved, xmlNumericValuesValid, codeLayout, dataRowTexts,
+        repeatingHeaderRowIndexes, evidence);
+  }
   public TableModel(SourceAddress source, SourceAddress captionSource, String captionText,
       int rows, int columns, boolean topBorder, boolean middleBorder, boolean bottomBorder,
       boolean verticalBorders, boolean captionBefore, boolean layoutNeedsReview,

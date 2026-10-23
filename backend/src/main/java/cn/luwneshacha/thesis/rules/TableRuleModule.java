@@ -6,6 +6,7 @@ import cn.luwneshacha.thesis.document.ParsedDocument;
 import cn.luwneshacha.thesis.document.RunModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.document.TableModel;
+import cn.luwneshacha.thesis.document.TableFragmentEvidence;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,10 +37,13 @@ final class TableRuleModule implements RuleModule {
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
     for (TableModel table : document.tables()) {
-      if (isSplitContinuationHeaderFragment(document, table)
-          || isBeforeMainBodyTable(document, table)
+      if (isBeforeMainBodyTable(document, table)
           || isCodeListingTable(table)
           || isEquationLayoutTable(table, document.equations())) continue;
+      if (table.fragmentEvidence() != null) {
+        results.addAll(tableChecker.check(document, table, rules));
+        continue;
+      }
       checkTable(results, document, table, rules);
     }
     checkTableNumberSequences(results, document);
@@ -72,26 +76,41 @@ final class TableRuleModule implements RuleModule {
     }
 
     results.addAll(tableChecker.check(document, table, rules));
-    checkBorders(results, table, captionText);
+    TableModel tail = document.tables().stream().filter(candidate -> candidate.fragmentEvidence() != null
+        && candidate.fragmentEvidence().kind() == TableFragmentEvidence.Kind.DATA_ROW
+        && candidate.fragmentEvidence().originalSource().equals(table.source()))
+        .findFirst().orElse(table);
+    checkBorders(results, table, tail, captionText);
     checkBodyCitation(results, document, table, captionText, normalizedCaption);
     captionParagraph(document, table.captionSource())
         .ifPresent(paragraph -> checkCaptionParagraph(results, paragraph, captionText, rules));
   }
 
-  private void checkBorders(List<CheckResult> results, TableModel table, String captionText) {
+  private void checkBorders(List<CheckResult> results, TableModel table, TableModel tail, String captionText) {
     if (table.hasTableStyle() && !table.tableStyleBorderEvidenceResolved()) {
       results.add(result("TAB-02", "verifiable three-line borders", "table style border evidence is unresolved",
           "TABLE_BORDER_EVIDENCE_UNRESOLVED", Judgement.REVIEW, table.source()));
-    } else if (!table.topBorder() || !table.middleBorder() || !table.bottomBorder()) {
+    } else if (!table.topBorder() || !table.middleBorder() || !tail.bottomBorder()) {
       var missingBorders = new ArrayList<String>();
       if (!table.topBorder()) missingBorders.add("顶线");
       if (!table.middleBorder()) missingBorders.add("表头下横线");
-      if (!table.bottomBorder()) missingBorders.add("底线");
-      String missing = String.join("、", missingBorders);
+      if (tail == table && !table.bottomBorder()) missingBorders.add("底线");
       boolean continuation = captionText != null && captionText.stripLeading().startsWith("续表");
-      results.add(result("TAB-02", missing, "缺少符合规范的" + missing,
-          continuation ? "TABLE_CONTINUATION_BORDER_INVALID" : "TABLE_BORDER_INVALID",
-          Judgement.FAIL, table.source()));
+      if (!missingBorders.isEmpty()) {
+        String missing = String.join("、", missingBorders);
+        results.add(result("TAB-02", missing, "缺少符合规范的" + missing,
+            continuation ? "TABLE_CONTINUATION_BORDER_INVALID" : "TABLE_BORDER_INVALID",
+            Judgement.FAIL, table.source()));
+      }
+    }
+    if (tail != table) {
+      if (tail.hasTableStyle() && !tail.tableStyleBorderEvidenceResolved()) {
+        results.add(result("TAB-02", "verifiable three-line borders", "tail table style border evidence is unresolved",
+            "TABLE_BORDER_EVIDENCE_UNRESOLVED", Judgement.REVIEW, tail.source()));
+      } else if (!tail.bottomBorder()) {
+        results.add(result("TAB-02", "底线", "缺少符合规范的底线", "TABLE_BORDER_INVALID",
+            Judgement.FAIL, tail.source()));
+      }
     }
   }
 
@@ -134,7 +153,7 @@ final class TableRuleModule implements RuleModule {
   private void checkTableNumberSequences(List<CheckResult> results, ParsedDocument document) {
     Map<String, BigInteger> nextByChapter = new HashMap<>();
     for (TableModel table : document.tables()) {
-      if (isBeforeMainBodyTable(document, table)
+      if (table.fragmentEvidence() != null || isBeforeMainBodyTable(document, table)
           || isCodeListingTable(table)
           || isEquationLayoutTable(table, document.equations())
           || regions.appendixLetterAt(document,
@@ -158,23 +177,6 @@ final class TableRuleModule implements RuleModule {
           "TABLE_NUMBER_SEQUENCE_MISMATCH", Judgement.FAIL, source));
     }
     nextByChapter.put(chapterText, expected.max(sequence).add(BigInteger.ONE));
-  }
-
-  private boolean isSplitContinuationHeaderFragment(ParsedDocument document, TableModel fragment) {
-    if (fragment.rows() != 1 || fragment.captionText() != null) return false;
-    List<TableModel> tables = document.tables();
-    int index = tables.indexOf(fragment);
-    if (index <= 0 || index + 1 >= tables.size()) return false;
-    for (int before = index - 1; before >= 0; before--) {
-      TableModel candidate = tables.get(before);
-      Matcher original = TABLE_NUMBER.matcher(candidate.captionText() == null ? "" : candidate.captionText());
-      if (original.find() && candidate.rows() > 1) {
-        Matcher continuation = CONTINUATION_CAPTION_FORMAT.matcher(
-            tables.get(index + 1).captionText() == null ? "" : tables.get(index + 1).captionText());
-        return continuation.matches() && original.group(1).equals(continuation.group(1));
-      }
-    }
-    return false;
   }
 
   private boolean isBeforeMainBodyTable(ParsedDocument document, TableModel table) {

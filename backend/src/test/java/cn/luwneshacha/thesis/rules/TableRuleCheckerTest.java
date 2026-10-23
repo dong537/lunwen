@@ -363,7 +363,9 @@ class TableRuleCheckerTest {
     SourceAddress continuationSource = new SourceAddress("word/document.xml", List.of(0, 5), 0, 0);
     TableModel original = tableWithRows(originalSource, "表3-14 数据", 6, List.of("项目", "内容"));
     TableModel repeatedHeader = tableWithRows(repeatedHeaderSource, "表3-14 数据", 1,
-        List.of("项目", "内容"));
+        List.of("项目", "内容")).withFragmentEvidence(
+            new cn.luwneshacha.thesis.document.TableFragmentEvidence(originalSource, continuationSource,
+                cn.luwneshacha.thesis.document.TableFragmentEvidence.Kind.REPEATED_HEADER));
     TableModel continuation = tableWithRows(continuationSource, "续表3-14", 7,
         List.of("后置条件", "数据可被查询与展示"));
     var document = new ParsedDocument("source", List.of(), List.of(), List.of(),

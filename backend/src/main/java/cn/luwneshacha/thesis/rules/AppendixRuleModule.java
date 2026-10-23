@@ -101,6 +101,7 @@ final class AppendixRuleModule implements RuleModule {
   private void checkAppendixObjects(List<CheckResult> findings, ParsedDocument document) {
     Map<String, BigInteger> nextByTypeAndAppendix = new HashMap<>();
     for (TableModel table : document.tables()) {
+      if (table.fragmentEvidence() != null) continue;
       String appendix = regions.appendixLetterAt(document,
           table.captionSource() == null ? table.source() : table.captionSource());
       if (appendix == null) continue;

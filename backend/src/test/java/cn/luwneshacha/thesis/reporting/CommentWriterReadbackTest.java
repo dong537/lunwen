@@ -82,7 +82,7 @@ class CommentWriterReadbackTest {
   }
 
   @Test
-  void appendsToExistingCommentsWithoutDuplicatingRelationship() throws Exception {
+  void refreshesExistingSystemCommentsWithoutDuplicatingRelationship() throws Exception {
     Path source = validDocx();
     var raw = new DocxReader().read(source);
     var anchor = new Docx4jDocumentParser().parse(raw).paragraphs().get(0).source();
@@ -99,13 +99,13 @@ class CommentWriterReadbackTest {
     var relations = pkg.getMainDocumentPart().getRelationshipsPart().getRelationships().getRelationship();
 
     assertEquals(AnnotationStatus.WRITTEN, report.items().get(0).status());
-    assertEquals(2, part.getContents().getComment().size());
+    assertEquals(1, part.getContents().getComment().size());
     assertEquals(1, relations.stream().filter(r -> r.getType().endsWith("/comments")).count());
     try (var zip = new java.util.zip.ZipFile(second.toFile())) {
       String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(),
           java.nio.charset.StandardCharsets.UTF_8);
-      assertEquals(2, document.split("commentRangeStart", -1).length - 1);
-      assertEquals(2, document.split("commentReference", -1).length - 1);
+      assertEquals(1, document.split("commentRangeStart", -1).length - 1);
+      assertEquals(1, document.split("commentReference", -1).length - 1);
     }
   }
 

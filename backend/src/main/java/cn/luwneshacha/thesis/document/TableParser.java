@@ -46,18 +46,22 @@ public final class TableParser {
   public List<TableModel> parse(byte[] xml, byte[] stylesXml, WordprocessingMLPackage pkg) {
     try {
       var result = new ArrayList<TableModel>();
+      var tableElements = new ArrayList<Element>();
       Element styles = stylesXml == null ? null : XmlPartSupport.parse(stylesXml).getDocumentElement();
       Element root = XmlPartSupport.parse(xml).getDocumentElement();
       List<ConditionalStyleBorders> conditionalBorders = pkg == null
           ? List.of() : resolveConditionalStyleBorders(pkg, countTables(root));
-      collect(root, List.of(), result, styles, conditionalBorders, pkg != null, new int[] {0});
+      collect(root, List.of(), result, tableElements, styles, conditionalBorders, pkg != null, new int[] {0});
+      linkSplitFragments(result, tableElements);
       return List.copyOf(result);
     } catch (Exception e) { throw new IllegalArgumentException("unable to parse tables", e); }
   }
 
-  private void collect(Element element, List<Integer> path, List<TableModel> result, Element styles,
+  private void collect(Element element, List<Integer> path, List<TableModel> result,
+      List<Element> tableElements, Element styles,
       List<ConditionalStyleBorders> conditionalBorders, boolean packageEvidenceAvailable, int[] tableIndex) {
     if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "tbl".equals(element.getLocalName())) {
+      tableElements.add(element);
       int currentTableIndex = tableIndex[0]++;
       ConditionalStyleBorders conditional = currentTableIndex < conditionalBorders.size()
           ? conditionalBorders.get(currentTableIndex) : ConditionalStyleBorders.empty();
@@ -126,7 +130,7 @@ public final class TableParser {
     int index = 0;
     for (Element child : XmlPartSupport.children(element)) {
       var childPath = new ArrayList<>(path); childPath.add(index++);
-      collect(child, List.copyOf(childPath), result, styles, conditionalBorders,
+      collect(child, List.copyOf(childPath), result, tableElements, styles, conditionalBorders,
           packageEvidenceAvailable, tableIndex);
     }
   }
@@ -654,6 +658,91 @@ public final class TableParser {
           tableBorder, conditional))) return false;
     }
     return true;
+  }
+
+  private static void linkSplitFragments(List<TableModel> tables, List<Element> elements) {
+    for (int index = 1; index + 1 < tables.size(); index++) {
+      TableModel fragment = tables.get(index);
+      TableModel original = tables.get(index - 1);
+      TableModel continuation = tables.get(index + 1);
+      boolean repeatedHeader = !original.headerTexts().isEmpty()
+          && original.headerTexts().equals(fragment.headerTexts());
+      if (fragment.rows() != 1 || fragment.mergedCells()
+          || !original.captionBefore() || original.rows() < 2
+          || original.headerTexts().isEmpty()
+          || fragment.captionText() != null
+              && (!repeatedHeader || !sameTableNumber(original.captionText(), fragment.captionText()))
+          || !repeatedHeader && !original.headerTexts().equals(continuation.headerTexts())
+          || !sameGeometry(original, fragment) || !sameGeometry(original, continuation)
+          || !sameContinuationNumber(original.captionText(), continuation.captionText())) continue;
+      Element originalXml = elements.get(index - 1);
+      Element fragmentXml = elements.get(index);
+      Element continuationXml = elements.get(index + 1);
+      if (countTables(fragmentXml) != 1 || tableRows(fragmentXml).stream().anyMatch(row ->
+          direct(direct(row, "trPr"), "gridBefore") != null
+              || direct(direct(row, "trPr"), "gridAfter") != null)
+          || !adjacentForSplit(originalXml, fragmentXml, fragment.captionSource())
+          || !adjacentForSplit(fragmentXml, continuationXml, continuation.captionSource())) continue;
+      if (!repeatedHeader && (original.bottomBorder() || fragment.topBorder() || fragment.middleBorder())) continue;
+      tables.set(index, fragment.withFragmentEvidence(new TableFragmentEvidence(original.source(),
+          continuation.source(), repeatedHeader ? TableFragmentEvidence.Kind.REPEATED_HEADER
+              : TableFragmentEvidence.Kind.DATA_ROW)));
+    }
+  }
+
+  private static boolean sameGeometry(TableModel left, TableModel right) {
+    return left.xmlNumericValuesValid() && right.xmlNumericValuesValid()
+        && left.columns() > 0 && left.columns() == right.columns()
+        && left.columnWidthsTwips().size() == left.columns()
+        && left.columnWidthsTwips().stream().allMatch(width -> width > 0)
+        && left.columnWidthsTwips().equals(right.columnWidthsTwips());
+  }
+
+  private static boolean sameContinuationNumber(String original, String continuation) {
+    if (original == null || continuation == null) return false;
+    var number = Pattern.compile("^表(\\d+-\\d+|[A-Z]\\d+)(?=\\s|$)").matcher(original.strip());
+    return number.find() && continuation.strip().equals("续表" + number.group(1));
+  }
+
+  private static boolean sameTableNumber(String original, String repeatedCaption) {
+    var number = Pattern.compile("^表(\\d+-\\d+|[A-Z]\\d+)(?=\\s|$)");
+    var originalNumber = number.matcher(original == null ? "" : original.strip());
+    var repeatedNumber = number.matcher(repeatedCaption == null ? "" : repeatedCaption.strip());
+    return originalNumber.find() && repeatedNumber.find()
+        && originalNumber.group(1).equals(repeatedNumber.group(1));
+  }
+
+  private static boolean adjacentForSplit(Element before, Element after, SourceAddress caption) {
+    if (before.getParentNode() != after.getParentNode()) return false;
+    boolean foundCaption = caption == null;
+    for (Node node = before.getNextSibling(); node != null; node = node.getNextSibling()) {
+      if (node == after) return foundCaption;
+      if (!(node instanceof Element element)) continue;
+      if (caption != null && pathOf(element).equals(caption.elementPath())) {
+        if (foundCaption || hasSplitBarrier(element)) return false;
+        foundCaption = true;
+        continue;
+      }
+      if (!isSplitGap(element)) return false;
+    }
+    return false;
+  }
+
+  private static boolean isSplitGap(Element element) {
+    if (!XmlPartSupport.W.equals(element.getNamespaceURI())) return false;
+    String local = element.getLocalName();
+    if ("bookmarkStart".equals(local) || "bookmarkEnd".equals(local)
+        || "proofErr".equals(local)) return true;
+    return "p".equals(local) && XmlPartSupport.isBlankText(XmlPartSupport.text(element))
+        && !hasSplitBarrier(element);
+  }
+
+  private static boolean hasSplitBarrier(Element element) {
+    String local = element.getLocalName();
+    if (!XmlPartSupport.W.equals(element.getNamespaceURI())) return true;
+    if (List.of("drawing", "pict", "object", "sectPr", "fldChar", "instrText", "fldSimple",
+        "numPr", "sdt", "customXml", "ins", "del", "moveFrom", "moveTo").contains(local)) return true;
+    return XmlPartSupport.children(element).stream().anyMatch(TableParser::hasSplitBarrier);
   }
 
   private static boolean borderCoversBoundary(Element table, Element upperRow, Element lowerRow,
