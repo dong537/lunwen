@@ -185,6 +185,16 @@ class InspectionApiTest {
   }
 
   @Test
+  void allowsTheDeployedHttpsOriginForBrowserUploads() throws Exception {
+    mvc.perform(options("/api/inspections")
+        .header("Origin", "https://124.223.86.157")
+        .header("Access-Control-Request-Method", "POST"))
+        .andExpect(status().isOk())
+        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+            .string("Access-Control-Allow-Origin", "https://124.223.86.157"));
+  }
+
+  @Test
   void leavesAnnotationItemsEmptyWhenAnnotationWasNotRequested() throws Exception {
     var response = mvc.perform(multipart("/api/inspections")
         .file(new MockMultipartFile("file", "thesis.docx", MediaType.APPLICATION_OCTET_STREAM_VALUE, validDocx()))
@@ -195,7 +205,22 @@ class InspectionApiTest {
         .andExpect(jsonPath("$.annotation.items").isEmpty())
         .andReturn().getResponse().getContentAsString();
     String requestId = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response).path("requestId").asText();
-    assertFalse(Files.exists(STORAGE_ROOT.resolve(requestId)), "unannotated inspections must not leave storage directories");
+    assertTrue(Files.isRegularFile(STORAGE_ROOT.resolve(requestId).resolve("report.docx")), "every inspection should retain a Word report");
+    var reportDownload = mvc.perform(get("/api/inspections/{id}/report", requestId))
+        .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+    Path reportPath = Files.createTempFile("inspection-report-not-requested-", ".docx");
+    try {
+      Files.write(reportPath, reportDownload);
+      try (ZipFile zip = new ZipFile(reportPath.toFile())) {
+        String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(),
+            java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(document.contains("论文格式检查汇总"));
+        assertTrue(document.contains("问题数量"));
+        assertFalse(document.contains("批注"));
+      }
+    } finally {
+      Files.deleteIfExists(reportPath);
+    }
   }
 
   @Test
@@ -255,7 +280,7 @@ class InspectionApiTest {
       allowTransfer.countDown();
     }
     inspection.get(30, TimeUnit.SECONDS);
-    assertFalse(Files.exists(requestDirectory), "completed unannotated requests should still be removed");
+    assertTrue(Files.isRegularFile(requestDirectory.resolve("report.docx")), "completed inspections retain the Word report");
   }
 
   @Test
@@ -268,7 +293,7 @@ class InspectionApiTest {
   }
 
   @Test
-  void convertsUncertainItemsToFailuresAndWritesWordComments() throws Exception {
+  void preservesUncertainLayoutReviewWithoutWritingAnErrorComment() throws Exception {
     var response = mvc.perform(multipart("/api/inspections")
         .file(new MockMultipartFile("file", "review.docx", MediaType.APPLICATION_OCTET_STREAM_VALUE,
             docxWithReviewOnlyImage()))
@@ -287,9 +312,14 @@ class InspectionApiTest {
           && "WRITTEN".equals(item.path("status").asText())) figureLayoutWritten = true;
     }
     assertTrue(bodyFontWritten);
-    assertTrue(figureLayoutWritten);
+    assertFalse(figureLayoutWritten);
     var results = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response).path("report").path("results");
-    for (var result : results) assertTrue(!"REVIEW".equals(result.path("judgement").asText()));
+    boolean layoutReviewPreserved = false;
+    for (var result : results) {
+      if ("FIG-02".equals(result.path("ruleId").asText())
+          && "REVIEW".equals(result.path("judgement").asText())) layoutReviewPreserved = true;
+    }
+    assertTrue(layoutReviewPreserved);
   }
 
   private byte[] validDocx() throws Exception {

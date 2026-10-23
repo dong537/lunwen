@@ -3,11 +3,14 @@ package cn.luwneshacha.thesis.api;
 import cn.luwneshacha.thesis.inspection.InspectionException;
 import cn.luwneshacha.thesis.inspection.InspectionKernel;
 import cn.luwneshacha.thesis.inspection.InspectionReport;
+import cn.luwneshacha.thesis.conversion.FormulaConversionService;
 import cn.luwneshacha.thesis.reporting.AnnotationReport;
+import cn.luwneshacha.thesis.reporting.AnnotationFindings;
 import cn.luwneshacha.thesis.reporting.CommentWriter;
-import cn.luwneshacha.thesis.rules.RuleSet;
+import cn.luwneshacha.thesis.report.WordReportWriter;
 import cn.luwneshacha.thesis.rules.CheckResult;
 import cn.luwneshacha.thesis.rules.Judgement;
+import cn.luwneshacha.thesis.rules.RuleSet;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.FileAlreadyExistsException;
@@ -23,7 +26,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -36,7 +38,10 @@ public final class InspectionService {
   private static final Logger LOG = LoggerFactory.getLogger(InspectionService.class);
   private final InspectionKernel kernel = new InspectionKernel();
   private final CommentWriter commentWriter = new CommentWriter();
+  private final FormulaConversionService formulaConversionService = new FormulaConversionService();
   private final Map<String, StoredAnnotation> annotations = new ConcurrentHashMap<>();
+  private final Map<String, StoredReport> reports = new ConcurrentHashMap<>();
+  private final WordReportWriter reportWriter = new WordReportWriter();
   private final Set<String> activeRequests = ConcurrentHashMap.newKeySet();
   private final Object storageLifecycleLock = new Object();
   private final Path storageRoot;
@@ -45,7 +50,7 @@ public final class InspectionService {
 
   public InspectionService(
       @Value("${thesis.storage-root}") String storageRoot,
-      @Value("${thesis.max-upload-bytes:16777216}") long maxUploadBytes,
+      @Value("${thesis.max-upload-bytes:52428800}") long maxUploadBytes,
       @Value("${thesis.annotation-retention:PT1H}") Duration annotationRetention) {
     if (maxUploadBytes < 1) throw new IllegalArgumentException("max upload bytes must be positive");
     if (annotationRetention.isNegative() || annotationRetention.isZero())
@@ -71,21 +76,34 @@ public final class InspectionService {
     try {
       try { file.transferTo(source); }
       catch (IOException error) { throw new InspectionException("STORAGE_FAILED", "cannot store uploaded DOCX", error); }
-      InspectionReport report = definitive(kernel.inspect(source, RuleSet.schoolV1()));
+      // Validate package expansion and external relationships before invoking an office process.
+      new cn.luwneshacha.thesis.document.DocxReader().read(source);
+      Path inspectionSource;
+      try {
+        inspectionSource = formulaConversionService.convertIfNeeded(source, requestDir);
+      } catch (IllegalStateException error) {
+        throw new InspectionException("FORMULA_CONVERSION_FAILED", error.getMessage(), error);
+      }
+      InspectionReport report = preserveUncertainImagePlacement(kernel.inspect(inspectionSource, RuleSet.schoolV1()));
       boolean available = false;
       AnnotationReport annotationReport = new AnnotationReport(List.of(), false);
       if (annotate) {
         Path target = requestDir.resolve("annotated.docx");
-        annotationReport = commentWriter.writeCopy(source, target, report.sourceSha256(), report.results().stream()
-            .filter(InspectionService::needsAnnotation)
-            .collect(Collectors.toMap(InspectionService::annotationKey, java.util.function.UnaryOperator.identity(), (first, ignored) -> first, java.util.LinkedHashMap::new))
-            .values().stream().toList());
+        // 保留同一段落中不同实际值/原因的 FAIL；只去掉同一运行重复产生的完全相同结果。
+        // CommentWriter 会按段落合并批注正文，避免为同一段落生成多条批注。
+        annotationReport = commentWriter.writeCopy(inspectionSource, target, report.sourceSha256(),
+            AnnotationFindings.select(report.results()).representatives());
         available = annotationReport.outputWritten();
         if (available) annotations.put(requestId, new StoredAnnotation(requestId, report.sourceSha256(), target));
       }
+      Path reportTarget = requestDir.resolve("report.docx");
+      try { reportWriter.write(report, reportTarget, annotate ? annotationReport : null); }
+      catch (IOException error) { throw new InspectionException("REPORT_GENERATION_FAILED", "cannot generate Word report", error); }
+      reports.put(requestId, new StoredReport(requestId, report.sourceSha256(), reportTarget));
       return new InspectionResponse(requestId, report.sourceSha256(), report.ruleSetId(), report,
           new InspectionResponse.AnnotationInfo(available, available ? "/api/inspections/" + requestId + "/annotated" : null,
-              annotationReport.items()));
+              annotationReport.items()),
+          new InspectionResponse.ReportInfo(true, "/api/inspections/" + requestId + "/report"));
     } catch (InspectionException error) {
       throw error;
     } catch (RuntimeException error) {
@@ -95,7 +113,7 @@ public final class InspectionService {
       catch (IOException error) { LOG.warn("Unable to remove temporary source for requestId={}", requestId, error); }
       synchronized (storageLifecycleLock) {
         activeRequests.remove(requestId);
-        if (!annotations.containsKey(requestId)) deleteRequestDirectory(requestDir, requestId);
+        if (!annotations.containsKey(requestId) && !reports.containsKey(requestId)) deleteRequestDirectory(requestDir, requestId);
       }
     }
   }
@@ -104,6 +122,13 @@ public final class InspectionService {
     cleanupExpiredArtifacts();
     StoredAnnotation stored = annotations.get(requestId);
     if (stored == null || !Files.isRegularFile(stored.path())) throw new InspectionException("ANNOTATION_NOT_FOUND", "annotation copy does not exist");
+    return stored;
+  }
+
+  public StoredReport report(String requestId) {
+    cleanupExpiredArtifacts();
+    StoredReport stored = reports.get(requestId);
+    if (stored == null || !Files.isRegularFile(stored.path())) throw new InspectionException("REPORT_NOT_FOUND", "Word report does not exist");
     return stored;
   }
 
@@ -120,7 +145,7 @@ public final class InspectionService {
             BasicFileAttributes attributes = Files.readAttributes(requestDir, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
             if (!attributes.isDirectory() || !attributes.lastModifiedTime().toInstant().isBefore(expiredBefore)) continue;
             deleteRequestDirectory(requestDir, requestId);
-            if (!Files.exists(requestDir, LinkOption.NOFOLLOW_LINKS)) annotations.remove(requestId);
+            if (!Files.exists(requestDir, LinkOption.NOFOLLOW_LINKS)) { annotations.remove(requestId); reports.remove(requestId); }
           } catch (IOException error) {
             LOG.warn("Unable to inspect expired request directory {}", requestDir.getFileName(), error);
           }
@@ -150,23 +175,18 @@ public final class InspectionService {
     return parsed.toString();
   }
 
-  private static boolean needsAnnotation(CheckResult result) {
-    return result.judgement() != Judgement.PASS;
-  }
-
-  /** 对外只给出通过或格式错误；无法证明符合规范的项目按错误处理。 */
-  private static InspectionReport definitive(InspectionReport report) {
-    var results = report.results().stream().map(result -> result.judgement() == Judgement.REVIEW
-        ? new CheckResult(result.ruleId(), result.applicability(), result.executionStatus(), Judgement.FAIL,
-            result.expected(), result.actual(), result.reasonCode(), result.source())
-        : result).toList();
+  private static InspectionReport preserveUncertainImagePlacement(InspectionReport report) {
+    var results = new java.util.ArrayList<>(report.results());
+    for (var image : report.images()) {
+      if (image.captionText() != null || !image.placementNeedsReview()) continue;
+      results.add(new CheckResult("FIG-02", cn.luwneshacha.thesis.rules.Applicability.APPLICABLE,
+          cn.luwneshacha.thesis.rules.ExecutionStatus.EXECUTED, Judgement.REVIEW,
+          "inline image and centered caption", null, "FIGURE_LAYOUT_REVIEW", image.source()));
+    }
+    var coverage = new cn.luwneshacha.thesis.inspection.RuleCoverageAnalyzer().analyzeWithCatalog(results);
     return new InspectionReport(report.sourceSha256(), report.ruleSetId(), results, report.diagnostics(),
-        report.tables(), report.equations(), report.references(), report.images(), report.pageNumbers(), report.chapterBreaks());
-  }
-
-  private static String annotationKey(CheckResult result) {
-    // 这里只去掉同位置的同类问题；不同规则交给 CommentWriter 合并正文。
-    return result.ruleId() + "|" + result.source().partName() + "|" + result.source().elementPath();
+        report.tables(), report.equations(), report.references(), report.images(), report.pageNumbers(), report.chapterBreaks(),
+        coverage, report.uncheckedRegions());
   }
 
   private Path createRequestDir(String requestId) {

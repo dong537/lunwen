@@ -1,56 +1,54 @@
-# 毕业论文格式筛查研究
+﻿# 毕业论文格式审核平台
 
-当前实现：单机 DOCX 筛查 API、浏览器上传页面、确定性格式规则、JSON 报告和可选 Word 批注副本。暂不包含登录注册、数据库或后台任务队列。
+学生上传 DOCX 并下载带中文批注的论文，教师查看名下学生的提交，管理员维护账号及批量导入名单。审核引擎沿用既有学校规范和 XML 格式解析；网页显示审核状态和问题总数，具体修改意见查看 Word 批注。
 
-后端使用 Java 21、Spring Boot 和 docx4j；前端使用 React、TypeScript 和 Vite。DOCX 读取有压缩包、单部件和累计解压大小限制。对外结果只显示“通过/格式错误”，错误会生成带批注副本；实际 Word 分页仍不由 XML 规则裁决。
+## 服务与数据
 
-## 本地运行
+| 目录/服务 | 职责 |
+| --- | --- |
+| `frontend/` | React、TypeScript、Vite；登录、强制改密、学生端、教师端、管理端 |
+| `platform-backend/` | Java 21、Spring Boot、Security、JPA；权限、账号导入、提交、任务队列、COS |
+| `backend/` | DOCX/XML 解析、章节规则、图表公式、Word 批注和内部检查报告 |
+| PostgreSQL 16 | `sys_user`、`submission` 两张业务表；Flyway 管理 schema |
+| 腾讯云 COS | 私有桶保存原始论文、标注论文和引擎结果 JSON |
 
-需要 Java 21+、Maven 和 Node.js。
+浏览器 → 同源平台 API → PostgreSQL/COS → 内部审核引擎。只有前端端口对外开放。管理员无法查看论文内容或下载；学生仅本人，教师仅当前名下学生。初始和重置密码为 `123456`，后端强制首次改密，无自助注册。
 
-```powershell
-rtk mvn -f backend/pom.xml spring-boot:run
+上传仅支持非空 `.docx`，最大 50 MiB。提交状态为排队中、审核中、成功、失败；服务故障最多尝试 3 次，损坏文档直接失败。成功文件永久保留，失败记录保留但文件删除。教师的提交次数、最近提交时间、最新问题数都取成功审核记录。
+
+规则不能保证所有论文百分之百准确；实际分页、字体替换和部分旧公式内部结构仍有证据边界。
+
+当前开发版本在 2026-10-19 的代码审计中确认了 9 项尚未修复的问题，涉及跨页签会话、缓存权限、COS 日志及超时、调度、引擎错误分类和批注产物校验。详见 [代码审计报告](docs/implementation/2026-10-19-代码审计报告.md)。本次源码提交不代表这些问题已修复或生产环境已验收。
+
+## Docker 启动
+
+准备 Docker Compose、私有 COS 桶及具有相应权限的密钥。复制 `.env.example` 为本地 `.env`，填入数据库密码、初始管理员密码和 COS 配置；不要提交 `.env`。
+
+```bash
+docker compose config --quiet
+docker compose up -d --build --wait
+docker compose ps
 ```
 
-在另一个终端运行前端：
+默认入口 `http://localhost:8080`。生产 HTTPS 环境设置 `SESSION_COOKIE_SECURE=true`。镜像在容器内编译，不需要预先复制本机 JAR。首次初始化账号来自环境配置，数据库已有管理员时不会重置其密码。
 
-```powershell
+2026-10-19 已在腾讯云完成 Docker 部署，入口为 https://124.223.86.157 。真实 COS 上传、审核、Word 下载及四个账号的浏览器登录已验收；具体版本、验证边界和回退方式见 [账号平台生产部署记录](docs/implementation/2026-10-19-账号平台生产部署.md)。通用开发环境配置见 [部署与开发说明](docs/部署与开发.md)。
+
+## 开发与验证
+
+需要 JDK 21+、Maven、Node.js 22.12+、Docker。平台测试使用真实 PostgreSQL Testcontainers；外部 COS/引擎边界可在测试中替代，不用于生产路径。
+
+```bash
+mvn -B -f backend/pom.xml verify
+mvn -B -f platform-backend/pom.xml verify
 cd frontend
-rtk npm run dev
+npm ci
+npm test
+npm run build
 ```
 
-默认后端地址为 `http://127.0.0.1:18098`，Vite 开发服务器会通过 `/api` 代理到该地址并在终端显示前端地址。上传接口为 `POST /api/inspections`；设置 `annotate=true` 可生成批注副本。部署到其他地址时可设置前端环境变量 `VITE_API_URL`。
+引擎默认 18098，平台默认 18099，Vite 将 `/api` 转发至平台。平台本地环境变量与启动方式见部署文档。旧公式转换需 LibreOffice；引擎 Docker 镜像已包含它。
 
-## 验证
+接口、状态和权限的权威契约见 [.trellis/spec/platform-contract.md](.trellis/spec/platform-contract.md)。任务计划、验证证据和未完成事项位于 `.trellis/tasks/10-18-thesis-platform/`。
 
-```powershell
-rtk mvn -f backend/pom.xml verify
-cd frontend
-rtk npm run build
-```
-
-当前后端完整验证已通过，真实论文样本复筛记录、规则状态和剩余验收缺口见[学校规则矩阵与核心验收清单](docs/research/学校规则矩阵与核心验收清单.md)。
-
-仍未完成真实分页渲染验证、页眉/页脚批注、参考文献自定义章节别名，以及基于多篇论文人工标注集的误报/漏报评估；因此当前不能宣称任意论文都能准确筛查或“没有问题”。
-
-- [核心系统架构设计稿](docs/superpowers/specs/2026-10-04-论文格式筛查核心系统设计.md)
-- [Word 批注副本试验](research-spikes/comments/README.md)
-- [第九轮 Word 批注写入与回读](docs/research/第九轮Word批注写入与回读试验.md)
-- [第十轮批注锚点覆盖评估](docs/research/第十轮批注锚点覆盖评估.md)
-- [第十一轮表格批注锚点](docs/research/第十一轮批注表格锚点试验.md)
-- [第十二轮文本框批注分支安全](docs/research/第十二轮文本框批注分支安全试验.md)
-- [第十三轮页眉页脚批注关系](docs/research/第十三轮页眉页脚批注关系试验.md)
-
-研究收敛入口：[学校规则矩阵与核心验收清单](docs/research/学校规则矩阵与核心验收清单.md)。它区分规范明确要求、建议、待确认项和当前实现缺口；不能把研究测试通过视为完整产品通过。
-
-- [学校格式筛查蓝图草案](docs/论文格式筛查项目蓝图与计划.md)
-- [第二轮开源研究](docs/research/第二轮开源与解析研究结论.md)
-- [docx4j 可复现实验](research-spikes/docx4j/README.md)
-- [第三轮实际运行结果](docs/research/第三轮docx4j能力试验结果.md)
-- [第四轮遍历与原文定位结果](docs/research/第四轮遍历与原文定位试验结果.md)
-- [第五轮真实模板来源关联](docs/research/第五轮真实模板来源关联试验结果.md)
-- [第六轮字体与字号解析](docs/research/第六轮字体与字号解析试验结果.md)
-- [第七轮旧公式解析](docs/research/第七轮旧公式解析研究结论.md)
-- [第八轮公式外部规则与模板核对](docs/research/第八轮公式外部规则与模板核对.md)
-
-已确认学校四边页边距严格为 2.6 cm。原始规范与论文保存在用户本地，代码库只保存研究、测试和不含论文全文的证据。研究中引用的第三方源码快照仅供溯源，复用时遵循各项目许可证。
+论文原件、批注结果、解包 XML、日志和私钥不提交到仓库。

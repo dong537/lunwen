@@ -96,9 +96,30 @@ class DocxReaderTest {
   void rejectsAggregateZipExpansionAcrossManySmallParts() throws Exception {
     Path source = writeExpandedDocx();
 
-    var error = assertThrows(InspectionException.class, () -> new DocxReader().read(source));
+    var error = assertThrows(InspectionException.class,
+        () -> new DocxReader(16 * 1024 * 1024, 50 * 1024 * 1024).read(source));
 
     assertEquals("RESOURCE_LIMIT", error.code());
+  }
+
+  @Test
+  void acceptsLegitimateDocumentAbovePreviousSixteenMiBLimit() throws Exception {
+    Path source = tempDir.resolve("large-figure.docx");
+    byte[] image = new byte[17 * 1024 * 1024];
+    new java.util.Random(42).nextBytes(image);
+    try (var zip = new ZipOutputStream(Files.newOutputStream(source))) {
+      zip.setLevel(java.util.zip.Deflater.NO_COMPRESSION);
+      zip.putNextEntry(new ZipEntry("[Content_Types].xml"));
+      zip.write("<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"/>"
+          .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      zip.closeEntry();
+      zip.putNextEntry(new ZipEntry("word/media/large-image.bin"));
+      zip.write(image);
+      zip.closeEntry();
+    }
+    assertTrue(Files.size(source) > 16 * 1024 * 1024);
+    RawDocx parsed = new DocxReader().read(source);
+    assertEquals(image.length, parsed.part("word/media/large-image.bin").bytes().length);
   }
 
   private Path writeExpandedDocx() throws Exception {

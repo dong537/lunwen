@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.math.BigInteger;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
@@ -11,8 +12,11 @@ public final class ImageParser {
   private static final String DRAW = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
   private static final String DRAW_MAIN = "http://schemas.openxmlformats.org/drawingml/2006/main";
   private static final String PICTURE = "http://schemas.openxmlformats.org/drawingml/2006/picture";
+  private static final String CHART = "http://schemas.openxmlformats.org/drawingml/2006/chart";
   private static final String VML = "urn:schemas-microsoft-com:vml";
-  private static final Pattern CAPTION = Pattern.compile("^\\s*图\\s*(?:\\d+(?:[-－]\\d+)?|[A-Z]\\d+)\\s*\\S.*");
+  private static final String OFFICE = "urn:schemas-microsoft-com:office:office";
+  private static final Pattern CAPTION = Pattern.compile(
+      "^[\\s\\p{Zs}\\u200B\\u200C\\u200D\\u2060\\uFEFF]*图(?=[0-9A-Z\\s\\p{Zs}])");
 
   public List<ImageModel> parse(byte[] xml) {
     return parse(xml, null);
@@ -34,24 +38,35 @@ public final class ImageParser {
         && "Fallback".equals(element.getLocalName())) return;
     boolean drawingPicture = XmlPartSupport.W.equals(element.getNamespaceURI())
         && "drawing".equals(element.getLocalName()) && first(element, PICTURE, "pic") != null;
+    boolean drawingChart = XmlPartSupport.W.equals(element.getNamespaceURI())
+        && "drawing".equals(element.getLocalName()) && first(element, CHART, "chart") != null;
     boolean vmlPicture = XmlPartSupport.W.equals(element.getNamespaceURI()) && "pict".equals(element.getLocalName())
         && element.getElementsByTagNameNS(VML, "imagedata").getLength() > 0;
-    if (drawingPicture || vmlPicture) {
+    // Visio may place its VML preview directly inside w:object. Wrapped
+    // previews are collected from their pict/drawing node to avoid duplicates.
+    boolean directVmlObject = XmlPartSupport.W.equals(element.getNamespaceURI())
+        && "object".equals(element.getLocalName())
+        && element.getElementsByTagNameNS(VML, "imagedata").getLength() > 0
+        && element.getElementsByTagNameNS(XmlPartSupport.W, "pict").getLength() == 0
+        && element.getElementsByTagNameNS(XmlPartSupport.W, "drawing").getLength() == 0;
+    if ((drawingPicture || drawingChart || vmlPicture || directVmlObject) && !isEquationPreview(element)) {
       Element paragraph = ancestor(element, XmlPartSupport.W, "p");
       if (paragraph != null) {
-        Element extent = drawingPicture ? first(element, DRAW, "extent") : null;
-        long width = extent == null ? 0 : number(extent.getAttribute("cx"));
-        long height = extent == null ? 0 : number(extent.getAttribute("cy"));
-        long transformWidth = transformSize(element, "cx");
-        long transformHeight = transformSize(element, "cy");
+        Element extent = drawingPicture || drawingChart ? first(element, DRAW, "extent") : null;
+        NumericSize widthValue = extent == null ? NumericSize.missing() : number(extent, "cx");
+        NumericSize heightValue = extent == null ? NumericSize.missing() : number(extent, "cy");
+        NumericSize transformWidthValue = transformSize(element, "cx");
+        NumericSize transformHeightValue = transformSize(element, "cy");
         Caption caption = followingCaption(paragraph, styles);
         result.add(new ImageModel(
             new SourceAddress("word/document.xml", pathOf(paragraph), 0, 0),
             caption == null ? null : new SourceAddress("word/document.xml", caption.path(), 0, caption.text().length()),
-            caption == null ? null : caption.text(), width, height,
-            drawingPicture && element.getElementsByTagNameNS(DRAW, "inline").getLength() > 0,
+            caption == null ? null : caption.text(), widthValue.value(), heightValue.value(),
+            element.getElementsByTagNameNS(DRAW, "inline").getLength() > 0,
             centered(paragraph, styles), caption == null ? null : centered(caption.paragraph(), styles),
-            transformWidth, transformHeight));
+            transformWidthValue.value(), transformHeightValue.value(),
+            widthValue.invalid() || heightValue.invalid(),
+            transformWidthValue.invalid() || transformHeightValue.invalid()));
       }
     }
     int index = 0;
@@ -67,17 +82,32 @@ public final class ImageParser {
     if (!(node instanceof Element parent)) return null;
     List<Element> siblings = XmlPartSupport.children(parent);
     int index = siblings.indexOf(paragraph);
-    if (index < 0 || index + 1 >= siblings.size()) return null;
-    Element next = siblings.get(index + 1);
-    if (!XmlPartSupport.W.equals(next.getNamespaceURI()) || !"p".equals(next.getLocalName())) return null;
-    String text = XmlPartSupport.text(next).trim();
-    return CAPTION.matcher(text).matches() ? new Caption(text, pathOf(next), next) : null;
+    if (index < 0) return null;
+    for (int i = index + 1; i < siblings.size(); i++) {
+      Element next = siblings.get(i);
+      if (isIgnorableBetween(next)) continue;
+      if (!XmlPartSupport.W.equals(next.getNamespaceURI()) || !"p".equals(next.getLocalName())) return null;
+      String text = XmlPartSupport.text(next);
+      return CAPTION.matcher(text).find() ? new Caption(text, pathOf(next), next) : null;
+    }
+    return null;
+  }
+
+  private static boolean isIgnorableBetween(Element element) {
+    if (!XmlPartSupport.W.equals(element.getNamespaceURI())) return true;
+    String local = element.getLocalName();
+    if ("bookmarkStart".equals(local) || "bookmarkEnd".equals(local)
+        || "proofErr".equals(local) || "permStart".equals(local) || "permEnd".equals(local)) return true;
+    return "p".equals(local) && XmlPartSupport.isBlankText(XmlPartSupport.text(element))
+        && element.getElementsByTagNameNS(XmlPartSupport.W, "drawing").getLength() == 0
+        && element.getElementsByTagNameNS(XmlPartSupport.W, "pict").getLength() == 0
+        && element.getElementsByTagNameNS(XmlPartSupport.W, "object").getLength() == 0;
   }
 
   private static Boolean centered(Element paragraph, Element styles) {
     Element pPr = direct(paragraph, XmlPartSupport.W, "pPr");
     Element jc = pPr == null ? null : direct(pPr, XmlPartSupport.W, "jc");
-    if (jc != null) return "center".equals(jc.getAttributeNS(XmlPartSupport.W, "val"));
+    if (jc != null) return "center".equals(XmlAlignment.parse(jc));
 
     Element pStyle = pPr == null ? null : direct(pPr, XmlPartSupport.W, "pStyle");
     String styleId = pStyle == null ? defaultParagraphStyle(styles)
@@ -90,7 +120,7 @@ public final class ImageParser {
         if (style == null) return null;
         Element stylePPr = direct(style, XmlPartSupport.W, "pPr");
         Element styleJc = stylePPr == null ? null : direct(stylePPr, XmlPartSupport.W, "jc");
-        if (styleJc != null) return "center".equals(styleJc.getAttributeNS(XmlPartSupport.W, "val"));
+        if (styleJc != null) return "center".equals(XmlAlignment.parse(styleJc));
         Element basedOn = direct(style, XmlPartSupport.W, "basedOn");
         styleId = basedOn == null ? null : basedOn.getAttributeNS(XmlPartSupport.W, "val");
       }
@@ -100,7 +130,7 @@ public final class ImageParser {
     Element defaults = styles == null ? null : direct(styles, XmlPartSupport.W, "docDefaults");
     Element defaultPPr = defaults == null ? null : direct(defaults, XmlPartSupport.W, "pPrDefault");
     Element defaultJc = defaultPPr == null ? null : direct(defaultPPr, XmlPartSupport.W, "jc");
-    return defaultJc != null && "center".equals(defaultJc.getAttributeNS(XmlPartSupport.W, "val"));
+    return defaultJc != null && "center".equals(XmlAlignment.parse(defaultJc));
   }
 
   private static String defaultParagraphStyle(Element styles) {
@@ -143,16 +173,64 @@ public final class ImageParser {
     return nodes.getLength() == 0 ? null : (Element) nodes.item(0);
   }
 
-  private static long number(String value) {
-    try { return Long.parseLong(value); } catch (NumberFormatException ignored) { return 0; }
+  private static boolean isEquationPreview(Element candidate) {
+    Element owner = ancestorOrSelf(candidate, XmlPartSupport.W, "object");
+    if (owner != null && containsEquationOleObject(owner)) return true;
+    Element drawing = ancestorOrSelf(candidate, XmlPartSupport.W, "drawing");
+    return drawing != null && containsEquationOleObject(drawing);
   }
 
-  private static long transformSize(Element drawing, String attribute) {
+  private static boolean containsEquationOleObject(Element container) {
+    var objects = container.getElementsByTagNameNS("*", "OLEObject");
+    for (int index = 0; index < objects.getLength(); index++) {
+      Element oleObject = (Element) objects.item(index);
+      String progId = oleObject.getAttribute("ProgID");
+      if (progId.isBlank()) progId = oleObject.getAttributeNS(OFFICE, "ProgID");
+      if (isEquationProgId(progId)) return true;
+    }
+    var drawingOleObjects = container.getElementsByTagNameNS("*", "oleObj");
+    for (int index = 0; index < drawingOleObjects.getLength(); index++) {
+      String progId = ((Element) drawingOleObjects.item(index)).getAttribute("progId");
+      if (isEquationProgId(progId)) return true;
+    }
+    return false;
+  }
+
+  private static boolean isEquationProgId(String progId) {
+    if (progId == null || progId.isBlank()) return false;
+    String normalized = progId.toLowerCase(java.util.Locale.ROOT);
+    return normalized.startsWith("equation") || normalized.contains("mathtype")
+        || normalized.contains("mathcad") || normalized.contains("wps.math");
+  }
+
+  private static Element ancestorOrSelf(Element element, String namespace, String localName) {
+    if (namespace.equals(element.getNamespaceURI()) && localName.equals(element.getLocalName())) return element;
+    return ancestor(element, namespace, localName);
+  }
+
+  private static NumericSize number(Element element, String attribute) {
+    if (element == null || !element.hasAttribute(attribute)) return NumericSize.missing();
+    String value = element.getAttribute(attribute);
+    try {
+      BigInteger parsed = new BigInteger(value.trim());
+      return parsed.signum() > 0 && parsed.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0
+          ? new NumericSize(parsed.longValue(), false)
+          : new NumericSize(0, true);
+    } catch (NumberFormatException ignored) {
+      return new NumericSize(0, true);
+    }
+  }
+
+  private static NumericSize transformSize(Element drawing, String attribute) {
     var transforms = drawing.getElementsByTagNameNS(DRAW_MAIN, "xfrm");
-    if (transforms.getLength() == 0) return 0;
+    if (transforms.getLength() == 0) return NumericSize.missing();
     var extents = ((Element) transforms.item(0)).getElementsByTagNameNS(DRAW_MAIN, "ext");
-    if (extents.getLength() == 0) return 0;
-    return number(((Element) extents.item(0)).getAttribute(attribute));
+    if (extents.getLength() == 0) return NumericSize.missing();
+    return number((Element) extents.item(0), attribute);
+  }
+
+  private record NumericSize(long value, boolean invalid) {
+    private static NumericSize missing() { return new NumericSize(0, false); }
   }
 
   private static List<Integer> pathOf(Element element) {

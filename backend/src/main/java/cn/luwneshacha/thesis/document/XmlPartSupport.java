@@ -12,9 +12,10 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
-final class XmlPartSupport {
+public final class XmlPartSupport {
   static final String W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
   static final String M = "http://schemas.openxmlformats.org/officeDocument/2006/math";
+  static final String O = "urn:schemas-microsoft-com:office:office";
   static final String STRICT_W = "http://purl.oclc.org/ooxml/wordprocessingml/main";
   static final String STRICT_M = "http://purl.oclc.org/ooxml/officeDocument/math";
   private static final String DRAW = "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -25,7 +26,7 @@ final class XmlPartSupport {
   private static final String STRICT_WORD_DRAW = "http://purl.oclc.org/ooxml/drawingml/wordprocessingDrawing";
   private XmlPartSupport() {}
 
-  static Document parse(byte[] bytes) throws Exception {
+  public static Document parse(byte[] bytes) throws Exception {
     var factory = DocumentBuilderFactory.newInstance();
     factory.setNamespaceAware(true);
     factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
@@ -57,5 +58,16 @@ final class XmlPartSupport {
     var nodes = element.getElementsByTagNameNS(W, "t");
     for (int i = 0; i < nodes.getLength(); i++) value.append(nodes.item(i).getTextContent());
     return value.toString();
+  }
+
+  static boolean isBlankText(String value) {
+    return value != null && value.codePoints().allMatch(codePoint ->
+        Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint)
+            || isInvisibleFormattingWhitespace(codePoint));
+  }
+
+  static boolean isInvisibleFormattingWhitespace(int codePoint) {
+    return codePoint == 0x200B || codePoint == 0x200C || codePoint == 0x200D
+        || codePoint == 0x2060 || codePoint == 0xFEFF;
   }
 }

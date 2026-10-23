@@ -9,8 +9,10 @@ public record InspectionResponse(
     String sourceSha256,
     String ruleSetId,
     InspectionReport report,
-    AnnotationInfo annotation) {
+    AnnotationInfo annotation,
+    ReportInfo reportFile) {
   public record AnnotationInfo(boolean available, String downloadPath, List<AnnotationItem> items) {
     public AnnotationInfo { items = List.copyOf(items); }
   }
+  public record ReportInfo(boolean available, String downloadPath) {}
 }

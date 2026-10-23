@@ -12,7 +12,9 @@ public record ParsedDocument(
     List<ReferenceEntryModel> references,
     List<ImageModel> images,
     List<PageNumberModel> pageNumbers,
-    List<HeadingBreakModel> chapterBreaks) {
+    List<HeadingBreakModel> chapterBreaks,
+    List<HeaderModel> headers,
+    List<AutomaticNumberingModel> automaticNumbering) {
   public ParsedDocument {
     paragraphs = List.copyOf(paragraphs);
     sections = List.copyOf(sections);
@@ -23,28 +25,49 @@ public record ParsedDocument(
     images = List.copyOf(images);
     pageNumbers = List.copyOf(pageNumbers);
     chapterBreaks = List.copyOf(chapterBreaks);
+    headers = List.copyOf(headers);
+    automaticNumbering = List.copyOf(automaticNumbering);
+  }
+
+  public ParsedDocument(String sourceSha256, List<ParagraphModel> paragraphs,
+      List<SectionModel> sections, List<String> diagnostics, List<TableModel> tables,
+      List<EquationModel> equations, List<ReferenceEntryModel> references,
+      List<ImageModel> images, List<PageNumberModel> pageNumbers,
+      List<HeadingBreakModel> chapterBreaks, List<HeaderModel> headers) {
+    this(sourceSha256, paragraphs, sections, diagnostics, tables, equations, references,
+        images, pageNumbers, chapterBreaks, headers, List.of());
   }
 
   public ParsedDocument(String sourceSha256, List<ParagraphModel> paragraphs,
       List<SectionModel> sections, List<String> diagnostics) {
-    this(sourceSha256, paragraphs, sections, diagnostics, List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+    this(sourceSha256, paragraphs, sections, diagnostics, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
   }
 
   public ParsedDocument(String sourceSha256, List<ParagraphModel> paragraphs, List<SectionModel> sections,
       List<String> diagnostics, List<TableModel> tables, List<EquationModel> equations,
       List<ReferenceEntryModel> references) {
-    this(sourceSha256, paragraphs, sections, diagnostics, tables, equations, references, List.of(), List.of(), List.of());
+    this(sourceSha256, paragraphs, sections, diagnostics, tables, equations, references, List.of(), List.of(), List.of(), List.of());
   }
 
   public ParsedDocument(String sourceSha256, List<ParagraphModel> paragraphs, List<SectionModel> sections,
       List<String> diagnostics, List<TableModel> tables, List<EquationModel> equations,
       List<ReferenceEntryModel> references, List<ImageModel> images) {
-    this(sourceSha256, paragraphs, sections, diagnostics, tables, equations, references, images, List.of(), List.of());
+    this(sourceSha256, paragraphs, sections, diagnostics, tables, equations, references, images, List.of(), List.of(), List.of());
   }
 
   public ParsedDocument(String sourceSha256, List<ParagraphModel> paragraphs, List<SectionModel> sections,
       List<String> diagnostics, List<TableModel> tables, List<EquationModel> equations,
       List<ReferenceEntryModel> references, List<ImageModel> images, List<PageNumberModel> pageNumbers) {
-    this(sourceSha256, paragraphs, sections, diagnostics, tables, equations, references, images, pageNumbers, List.of());
+    this(sourceSha256, paragraphs, sections, diagnostics, tables, equations, references, images, pageNumbers, List.of(), List.of());
+  }
+
+  /** Compatibility overload retaining the pre-header model constructor. */
+  public ParsedDocument(String sourceSha256, List<ParagraphModel> paragraphs,
+      List<SectionModel> sections, List<String> diagnostics, List<TableModel> tables,
+      List<EquationModel> equations, List<ReferenceEntryModel> references,
+      List<ImageModel> images, List<PageNumberModel> pageNumbers,
+      List<HeadingBreakModel> chapterBreaks) {
+    this(sourceSha256, paragraphs, sections, diagnostics, tables, equations, references,
+        images, pageNumbers, chapterBreaks, List.of());
   }
 }

@@ -21,7 +21,7 @@ public final class ApiExceptionHandler {
     if (error.getCause() != null) LOG.error("Inspection failed requestId={} code={}", requestId, error.code(), error);
     HttpStatus status = switch (error.code()) {
       case "RESOURCE_LIMIT" -> HttpStatus.PAYLOAD_TOO_LARGE;
-      case "ANNOTATION_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+      case "ANNOTATION_NOT_FOUND", "REPORT_NOT_FOUND" -> HttpStatus.NOT_FOUND;
       case "REQUEST_ID_CONFLICT" -> HttpStatus.CONFLICT;
       case "PARSER_FAILED" -> HttpStatus.UNPROCESSABLE_ENTITY;
       case "STORAGE_FAILED" -> HttpStatus.INTERNAL_SERVER_ERROR;
