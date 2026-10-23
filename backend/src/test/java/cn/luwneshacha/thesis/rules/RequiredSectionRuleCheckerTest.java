@@ -11,6 +11,8 @@ import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.document.TableModel;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class RequiredSectionRuleCheckerTest {
   @Test
@@ -48,30 +50,30 @@ class RequiredSectionRuleCheckerTest {
     assertTrue(new RequiredSectionRuleChecker().check(document).isEmpty());
   }
 
-  @Test
-  void rejectsConclusionChapterOtherThanChapterFive() {
+  @ParameterizedTest
+  @ValueSource(strings = {"第四章 结论", "第五章 结论", "第七章 结论", "第7章 结论与展望"})
+  void acceptsConclusionWithoutRequiringAFixedChapterNumber(String conclusionTitle) {
     var document = document(List.of(
         "山东石油化工学院", "本科生毕业设计（论文）", "题目：毕业论文", "学生姓名：张三", "学号：20260001",
         "院系：信息工程学院", "专业年级：计算机科学与技术", "指导教师：李四", "2026年6月",
         "摘要", "关键词：格式；检查", "ABSTRACT", "Keywords: format; check", "目录",
-        "第一章 绪论", "第四章 结论", "参考文献", "致谢", "附录", "附录A 名词术语及缩略词"));
+        "第一章 绪论", conclusionTitle, "参考文献", "致谢", "附录", "附录A 名词术语及缩略词"));
 
     var findings = new RequiredSectionRuleChecker().check(document);
 
-    assertTrue(findings.stream().anyMatch(result ->
-        "CONCLUSION_CHAPTER_MISMATCH".equals(result.reasonCode())
-            && result.judgement() == Judgement.FAIL), findings.toString());
+    assertTrue(findings.isEmpty(), findings.toString());
   }
 
   @Test
-  void reviewsUnnumberedConclusionBecauseItsChapterNumberCannotBeProved() {
+  void doesNotRequireAChapterNumberForAnEvidenceBackedConclusion() {
     var document = documentWithStyledConclusion("Heading1");
 
     var findings = new RequiredSectionRuleChecker().check(document);
 
-    assertTrue(findings.stream().anyMatch(result ->
-        "CONCLUSION_CHAPTER_UNCONFIRMED".equals(result.reasonCode())
-            && result.judgement() == Judgement.REVIEW), findings.toString());
+    assertFalse(findings.stream().anyMatch(result ->
+        result.reasonCode().startsWith("CONCLUSION_CHAPTER_")), findings.toString());
+    assertFalse(findings.stream().anyMatch(result -> result.expected().equals("结论")
+        && result.reasonCode().equals("REQUIRED_SECTION_MISSING")), findings.toString());
   }
 
   @Test
@@ -367,9 +369,10 @@ class RequiredSectionRuleCheckerTest {
         && result.reasonCode().equals("THESIS_DOCUMENT_CLASSIFICATION_REVIEW")), findings.toString());
   }
 
-  @Test
-  void acceptsConclusionFromAutomaticChapterFiveNumbering() {
-    var document = documentWithAutomaticChapters("5", true);
+  @ParameterizedTest
+  @ValueSource(strings = {"5", "6", "7"})
+  void acceptsConclusionFromAutomaticChapterNumbering(String chapterNumber) {
+    var document = documentWithAutomaticChapters(chapterNumber, true);
 
     var findings = new RequiredSectionRuleChecker().check(document);
 
@@ -377,16 +380,6 @@ class RequiredSectionRuleCheckerTest {
         && (result.expected().equals("正文") || result.expected().equals("结论"))), findings.toString());
     assertFalse(findings.stream().anyMatch(result -> result.reasonCode().startsWith("CONCLUSION_CHAPTER_")),
         findings.toString());
-  }
-
-  @Test
-  void rejectsConclusionFromAutomaticChapterSixNumbering() {
-    var document = documentWithAutomaticChapters("6", true);
-
-    var findings = new RequiredSectionRuleChecker().check(document);
-
-    assertTrue(findings.stream().anyMatch(result -> result.reasonCode().equals("CONCLUSION_CHAPTER_MISMATCH")
-        && result.judgement() == Judgement.FAIL), findings.toString());
   }
 
   @Test

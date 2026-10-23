@@ -1,0 +1,832 @@
+{
+  "sha": "db2030b16be7e429340b1b53eb615471441ed3d4",
+  "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/trees/db2030b16be7e429340b1b53eb615471441ed3d4",
+  "tree": [
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ae3fdc2989ae00d75ec106feadb78ed9f98ba41a",
+      "size": 118,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/ae3fdc2989ae00d75ec106feadb78ed9f98ba41a"
+    },
+    {
+      "path": ".rspec",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8c18f1abdd4147f400c02b45e57297449ae4bc43",
+      "size": 31,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/8c18f1abdd4147f400c02b45e57297449ae4bc43"
+    },
+    {
+      "path": ".ruby-version",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b1b25a5ffae43c2f07d222b53240d871e7c1789b",
+      "size": 6,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/b1b25a5ffae43c2f07d222b53240d871e7c1789b"
+    },
+    {
+      "path": ".travis.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "23a0abe8a4a179718f81851cf5ce0ac3d85bed47",
+      "size": 30,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/23a0abe8a4a179718f81851cf5ce0ac3d85bed47"
+    },
+    {
+      "path": "Gemfile",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "726370f2fe9e1a3523c268ebdb8231786e2a262a",
+      "size": 105,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/726370f2fe9e1a3523c268ebdb8231786e2a262a"
+    },
+    {
+      "path": "LICENSE.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "370c190b0fabee76074d10da29a06e248033e59e",
+      "size": 1069,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/370c190b0fabee76074d10da29a06e248033e59e"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a2812d267ab0fe4b2790f0f0d12206f1fec82741",
+      "size": 1308,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/a2812d267ab0fe4b2790f0f0d12206f1fec82741"
+    },
+    {
+      "path": "Rakefile",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9cdfeae9e85ade9e1fb7868df7bc12d414959a20",
+      "size": 118,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/9cdfeae9e85ade9e1fb7868df7bc12d414959a20"
+    },
+    {
+      "path": "lib",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c623811776f7b0ed1d70856ec1f30a6b09a830d1",
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/trees/c623811776f7b0ed1d70856ec1f30a6b09a830d1"
+    },
+    {
+      "path": "lib/mathtype_to_mathml.rb",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "358050fa2a119dd0d5e34c02d54d592dd13c5c14",
+      "size": 1172,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/358050fa2a119dd0d5e34c02d54d592dd13c5c14"
+    },
+    {
+      "path": "lib/mathtype_to_mathml",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f9eb2fa8f54886bc8edb93ab7eb144410d14d801",
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/trees/f9eb2fa8f54886bc8edb93ab7eb144410d14d801"
+    },
+    {
+      "path": "lib/mathtype_to_mathml/char_replacer.rb",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d5aa362811ae6fa2505dd1392a08170de9d41350",
+      "size": 10501,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/d5aa362811ae6fa2505dd1392a08170de9d41350"
+    },
+    {
+      "path": "lib/mathtype_to_mathml/mover.rb",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d25c27ddbda8dee2d591f7b663f0b3ec17e7b8e1",
+      "size": 4688,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/d25c27ddbda8dee2d591f7b663f0b3ec17e7b8e1"
+    },
+    {
+      "path": "lib/mathtype_to_mathml/version.rb",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fe6ba64bbb586a4d305c63618aca6c50ff868b92",
+      "size": 48,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/fe6ba64bbb586a4d305c63618aca6c50ff868b92"
+    },
+    {
+      "path": "lib/transform.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8fd47d1c47e14c20e037cb964c1cfbf1697f1832",
+      "size": 1661,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/8fd47d1c47e14c20e037cb964c1cfbf1697f1832"
+    },
+    {
+      "path": "lib/xsl",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "95e148e10b07d8c42bdd147d99db795c2ffbd9ef",
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/trees/95e148e10b07d8c42bdd147d99db795c2ffbd9ef"
+    },
+    {
+      "path": "lib/xsl/arrow.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e73e6bcea3b2722c0b21e2b80267d308de25dea1",
+      "size": 13693,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/e73e6bcea3b2722c0b21e2b80267d308de25dea1"
+    },
+    {
+      "path": "lib/xsl/box.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "707a9836bc54b4f04fdd996792de52dea70f0efe",
+      "size": 1537,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/707a9836bc54b4f04fdd996792de52dea70f0efe"
+    },
+    {
+      "path": "lib/xsl/char.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dffed2e641bf622d0e235182eed0de6329afd6b0",
+      "size": 72408,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/dffed2e641bf622d0e235182eed0de6329afd6b0"
+    },
+    {
+      "path": "lib/xsl/embellishment.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ebba89abcae2c0a832bbfa5acc1011f33057e4d8",
+      "size": 13751,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/ebba89abcae2c0a832bbfa5acc1011f33057e4d8"
+    },
+    {
+      "path": "lib/xsl/fence.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eecd427ede9be7a56a5335781c8c56f6880ab631",
+      "size": 8493,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/eecd427ede9be7a56a5335781c8c56f6880ab631"
+    },
+    {
+      "path": "lib/xsl/frac.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1641e87d7e64f325ea5e43e30bca95e650620802",
+      "size": 1702,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/1641e87d7e64f325ea5e43e30bca95e650620802"
+    },
+    {
+      "path": "lib/xsl/int.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "32fe4ed2fcfc145b1258b95387062b5417bc5b43",
+      "size": 24526,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/32fe4ed2fcfc145b1258b95387062b5417bc5b43"
+    },
+    {
+      "path": "lib/xsl/lim.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4bdb43de63b7c8167e14513075866c2b2b13e231",
+      "size": 1087,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/4bdb43de63b7c8167e14513075866c2b2b13e231"
+    },
+    {
+      "path": "lib/xsl/long_division.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "36020bda4eef9618e7e9e503ab33539e6226bdfe",
+      "size": 1011,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/36020bda4eef9618e7e9e503ab33539e6226bdfe"
+    },
+    {
+      "path": "lib/xsl/long_embellishment.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "642cfb31ce77163cd022156422ff0642b03b4aad",
+      "size": 5560,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/642cfb31ce77163cd022156422ff0642b03b4aad"
+    },
+    {
+      "path": "lib/xsl/matrix.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d270a9859ff076049246fa09e1969f9d49e49f40",
+      "size": 4432,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/d270a9859ff076049246fa09e1969f9d49e49f40"
+    },
+    {
+      "path": "lib/xsl/pile.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3bedfca40eb7501bfc83de4bd3d2958e34ff89c3",
+      "size": 1730,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/3bedfca40eb7501bfc83de4bd3d2958e34ff89c3"
+    },
+    {
+      "path": "lib/xsl/product_coproduct.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "01e5b3547cd43f2e2e9ee670c194a9baec745262",
+      "size": 4079,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/01e5b3547cd43f2e2e9ee670c194a9baec745262"
+    },
+    {
+      "path": "lib/xsl/subsup.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e3939235756bf6590192d5b308c45d54682be4ef",
+      "size": 2084,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/e3939235756bf6590192d5b308c45d54682be4ef"
+    },
+    {
+      "path": "lib/xsl/sum.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b83185e203f647b970ae2e75b50001daceb38896",
+      "size": 3106,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/b83185e203f647b970ae2e75b50001daceb38896"
+    },
+    {
+      "path": "lib/xsl/union_intersection.xsl",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2a6289451079478186beb18d011aab4b96bc1fae",
+      "size": 3930,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/2a6289451079478186beb18d011aab4b96bc1fae"
+    },
+    {
+      "path": "mathtype_to_mathml.gemspec",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58b6f4892ae5ddb7c9adcc34f3001b920fc3c84b",
+      "size": 1432,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/58b6f4892ae5ddb7c9adcc34f3001b920fc3c84b"
+    },
+    {
+      "path": "spec",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ee960b9e47f977b55e6dc04a6f7fd324954b5e1c",
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/trees/ee960b9e47f977b55e6dc04a6f7fd324954b5e1c"
+    },
+    {
+      "path": "spec/fixtures",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "dcb2a3f0dd871bf2b1a7ac94a3020ef8660fed4b",
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/trees/dcb2a3f0dd871bf2b1a7ac94a3020ef8660fed4b"
+    },
+    {
+      "path": "spec/fixtures/expected",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9e672aa5b40cae2d2fd41f666aea937274afcf75",
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/trees/9e672aa5b40cae2d2fd41f666aea937274afcf75"
+    },
+    {
+      "path": "spec/fixtures/expected/280.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "489d7363ba97f9a95c5c6cda85ee326d0d6646b2",
+      "size": 4280,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/489d7363ba97f9a95c5c6cda85ee326d0d6646b2"
+    },
+    {
+      "path": "spec/fixtures/expected/281.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fd51aa253cc3e4730e275fdc6ff8e2078a01b569",
+      "size": 3553,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/fd51aa253cc3e4730e275fdc6ff8e2078a01b569"
+    },
+    {
+      "path": "spec/fixtures/expected/299.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0f538061a14969501daeafa2d89cbf9c5bc749f5",
+      "size": 2991,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/0f538061a14969501daeafa2d89cbf9c5bc749f5"
+    },
+    {
+      "path": "spec/fixtures/expected/326.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6e433b556540be350d3e0449960ebf8c27abbc7b",
+      "size": 5951,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/6e433b556540be350d3e0449960ebf8c27abbc7b"
+    },
+    {
+      "path": "spec/fixtures/expected/424.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5ec696de12ac1b762c25198499133e411b2955ce",
+      "size": 15223,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/5ec696de12ac1b762c25198499133e411b2955ce"
+    },
+    {
+      "path": "spec/fixtures/expected/450.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "061f07201407a0a8a860f7244401d1da95fc0600",
+      "size": 6019,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/061f07201407a0a8a860f7244401d1da95fc0600"
+    },
+    {
+      "path": "spec/fixtures/expected/452.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a92a195fcbd239faddc20775d6a84be7f649de05",
+      "size": 5648,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/a92a195fcbd239faddc20775d6a84be7f649de05"
+    },
+    {
+      "path": "spec/fixtures/expected/478.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "71d63a29a4ae0c4bde754367107e0935197fff31",
+      "size": 10163,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/71d63a29a4ae0c4bde754367107e0935197fff31"
+    },
+    {
+      "path": "spec/fixtures/expected/629.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8aee95c6d2fd2bb4ec769e16100ab280c135e911",
+      "size": 3147,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/8aee95c6d2fd2bb4ec769e16100ab280c135e911"
+    },
+    {
+      "path": "spec/fixtures/expected/arrows.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9715ac3ef3933928f4336195f5954b4c8ee463a3",
+      "size": 9279,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/9715ac3ef3933928f4336195f5954b4c8ee463a3"
+    },
+    {
+      "path": "spec/fixtures/expected/boxes.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "45847637c957ea3f669ccffe30c076872d27dd50",
+      "size": 906,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/45847637c957ea3f669ccffe30c076872d27dd50"
+    },
+    {
+      "path": "spec/fixtures/expected/embellishments.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d89dbb749912315a0e0ea6ce722dfc7e246613b0",
+      "size": 3584,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/d89dbb749912315a0e0ea6ce722dfc7e246613b0"
+    },
+    {
+      "path": "spec/fixtures/expected/embellishments_roots_long_divisions.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1f6e66190af9fa8ea510558ebf83262a3d779976",
+      "size": 5273,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/1f6e66190af9fa8ea510558ebf83262a3d779976"
+    },
+    {
+      "path": "spec/fixtures/expected/equation1.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "06cbff21bd30c9dfc54ac0036a3182b024e9be51",
+      "size": 988,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/06cbff21bd30c9dfc54ac0036a3182b024e9be51"
+    },
+    {
+      "path": "spec/fixtures/expected/equation10.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "75cd55c4657b28c37dab73bb85d9a1c9d27f0944",
+      "size": 377,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/75cd55c4657b28c37dab73bb85d9a1c9d27f0944"
+    },
+    {
+      "path": "spec/fixtures/expected/equation11.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d04f38811f0c1d61f99750995bec3e0b21192311",
+      "size": 327,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/d04f38811f0c1d61f99750995bec3e0b21192311"
+    },
+    {
+      "path": "spec/fixtures/expected/equation12.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4904edcc496776423ca47febfe9ad20b460c880d",
+      "size": 629,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/4904edcc496776423ca47febfe9ad20b460c880d"
+    },
+    {
+      "path": "spec/fixtures/expected/equation13.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "98fa1d1bd88a81c7af6a93bd5f9f03e9a7c0697e",
+      "size": 1961,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/98fa1d1bd88a81c7af6a93bd5f9f03e9a7c0697e"
+    },
+    {
+      "path": "spec/fixtures/expected/equation14.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d10296ca2aa75625a6b5df329e516374fdbe978c",
+      "size": 2141,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/d10296ca2aa75625a6b5df329e516374fdbe978c"
+    },
+    {
+      "path": "spec/fixtures/expected/equation2.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "03c6061426282333a55598573f7b3a0efb4dbb48",
+      "size": 667,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/03c6061426282333a55598573f7b3a0efb4dbb48"
+    },
+    {
+      "path": "spec/fixtures/expected/equation3.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eac87760186189047a4dc291b631a06016f8f891",
+      "size": 8098,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/eac87760186189047a4dc291b631a06016f8f891"
+    },
+    {
+      "path": "spec/fixtures/expected/equation4.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0b59fc2d467ff9320c86be26fd4bddbe607d50e5",
+      "size": 208,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/0b59fc2d467ff9320c86be26fd4bddbe607d50e5"
+    },
+    {
+      "path": "spec/fixtures/expected/equation5.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1e9f457da20a458b9112eabdec0d0988d591f5eb",
+      "size": 482,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/1e9f457da20a458b9112eabdec0d0988d591f5eb"
+    },
+    {
+      "path": "spec/fixtures/expected/equation6.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9ff149428a43e4d6062a3d4177984b716fc14103",
+      "size": 240,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/9ff149428a43e4d6062a3d4177984b716fc14103"
+    },
+    {
+      "path": "spec/fixtures/expected/equation7.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3a0706c2b3912949e9786eeb15e6d567abe887b2",
+      "size": 371,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/3a0706c2b3912949e9786eeb15e6d567abe887b2"
+    },
+    {
+      "path": "spec/fixtures/expected/equation8.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6b4f281f0953cb27cfdcae41733627dce2d54ffc",
+      "size": 341,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/6b4f281f0953cb27cfdcae41733627dce2d54ffc"
+    },
+    {
+      "path": "spec/fixtures/expected/equation9.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c7847070c45e8e735df5340c11e9dcb9aa4178cd",
+      "size": 299,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/c7847070c45e8e735df5340c11e9dcb9aa4178cd"
+    },
+    {
+      "path": "spec/fixtures/expected/fences.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0c6d4792d45a4ce2b4b29b7c81fba547e777fe85",
+      "size": 4334,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/0c6d4792d45a4ce2b4b29b7c81fba547e777fe85"
+    },
+    {
+      "path": "spec/fixtures/expected/integrals.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dbae63ed7511f9f86e56e9ac35202242b0ccb54b",
+      "size": 6652,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/dbae63ed7511f9f86e56e9ac35202242b0ccb54b"
+    },
+    {
+      "path": "spec/fixtures/expected/matrices.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d5b623af08dda55b004896898795363b4c4ff243",
+      "size": 5127,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/d5b623af08dda55b004896898795363b4c4ff243"
+    },
+    {
+      "path": "spec/fixtures/expected/sums.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "58de8b73536d0f7807ae61c3286df04351e12af9",
+      "size": 1346,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/58de8b73536d0f7807ae61c3286df04351e12af9"
+    },
+    {
+      "path": "spec/fixtures/expected/unions_and_intersections.xml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9d9bbd1eedbe55271b121232cd05f9e5c3cef23e",
+      "size": 4233,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/9d9bbd1eedbe55271b121232cd05f9e5c3cef23e"
+    },
+    {
+      "path": "spec/fixtures/input",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "2a2c1337735e7e1bdbfe092a6f3329428f0c8d3b",
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/trees/2a2c1337735e7e1bdbfe092a6f3329428f0c8d3b"
+    },
+    {
+      "path": "spec/fixtures/input/280.bin",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a20bbb28fabda3b1471233c65cca84057a5dfd52",
+      "size": 4096,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/a20bbb28fabda3b1471233c65cca84057a5dfd52"
+    },
+    {
+      "path": "spec/fixtures/input/281.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "d91a2b52fed8d29a7c9596002b522a83876906c8",
+      "size": 3584,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/d91a2b52fed8d29a7c9596002b522a83876906c8"
+    },
+    {
+      "path": "spec/fixtures/input/299.bin",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c571e8a0365d6fcd732654e6df835d748083ecd4",
+      "size": 4096,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/c571e8a0365d6fcd732654e6df835d748083ecd4"
+    },
+    {
+      "path": "spec/fixtures/input/326.bin",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "166874c2f7d9a34322fda9fd69d915f88da48618",
+      "size": 4096,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/166874c2f7d9a34322fda9fd69d915f88da48618"
+    },
+    {
+      "path": "spec/fixtures/input/424.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "90f05f0abc08df57eb6830012104c4bd23cd5b15",
+      "size": 6656,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/90f05f0abc08df57eb6830012104c4bd23cd5b15"
+    },
+    {
+      "path": "spec/fixtures/input/450.bin",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "662320a191ef5dbc161b263e362ef5448ea826bc",
+      "size": 4608,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/662320a191ef5dbc161b263e362ef5448ea826bc"
+    },
+    {
+      "path": "spec/fixtures/input/452.bin",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f3c37638a9bf4ed5c1ec4d7784d4340100eb3209",
+      "size": 4608,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/f3c37638a9bf4ed5c1ec4d7784d4340100eb3209"
+    },
+    {
+      "path": "spec/fixtures/input/478.bin",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4dde485edc6898d261a4946c320b0c6c2cb1d4f9",
+      "size": 5632,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/4dde485edc6898d261a4946c320b0c6c2cb1d4f9"
+    },
+    {
+      "path": "spec/fixtures/input/629.bin",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "54a807ab7bef476fa33543ec25918d856feaec0c",
+      "size": 4096,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/54a807ab7bef476fa33543ec25918d856feaec0c"
+    },
+    {
+      "path": "spec/fixtures/input/arrows.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "1fc940dea320d3f1398297f4522f3fc47419da67",
+      "size": 3584,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/1fc940dea320d3f1398297f4522f3fc47419da67"
+    },
+    {
+      "path": "spec/fixtures/input/boxes.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "ec1eb8b0e2adf39e6525bd09feb8332cd2cb59e7",
+      "size": 2560,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/ec1eb8b0e2adf39e6525bd09feb8332cd2cb59e7"
+    },
+    {
+      "path": "spec/fixtures/input/embellishments.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "403b242d3345c254acae9c2c16805fa5b5f756eb",
+      "size": 3072,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/403b242d3345c254acae9c2c16805fa5b5f756eb"
+    },
+    {
+      "path": "spec/fixtures/input/embellishments_roots_long_divisions.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "2cda6db5b45826e87ddd8a2a177390089ad68710",
+      "size": 3584,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/2cda6db5b45826e87ddd8a2a177390089ad68710"
+    },
+    {
+      "path": "spec/fixtures/input/equation1.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "0ecd9d2825ab1ce0c61c2b4f07d4cac0c81a3fd7",
+      "size": 3584,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/0ecd9d2825ab1ce0c61c2b4f07d4cac0c81a3fd7"
+    },
+    {
+      "path": "spec/fixtures/input/equation10.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "572eb46a54d267996673d8e92572e30f458e805f",
+      "size": 2560,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/572eb46a54d267996673d8e92572e30f458e805f"
+    },
+    {
+      "path": "spec/fixtures/input/equation11.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "10a29176d45cd2fbc4454710f92f06842fd86f92",
+      "size": 2560,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/10a29176d45cd2fbc4454710f92f06842fd86f92"
+    },
+    {
+      "path": "spec/fixtures/input/equation12.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "29a1ce894c19c47531047c7d563450275ebb7355",
+      "size": 2560,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/29a1ce894c19c47531047c7d563450275ebb7355"
+    },
+    {
+      "path": "spec/fixtures/input/equation13.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "b7b83ecb33e19f99252d65bf0306ef8872224615",
+      "size": 3072,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/b7b83ecb33e19f99252d65bf0306ef8872224615"
+    },
+    {
+      "path": "spec/fixtures/input/equation14.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "40f94bbce58155930335ea64fb189b1ff1445d57",
+      "size": 3072,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/40f94bbce58155930335ea64fb189b1ff1445d57"
+    },
+    {
+      "path": "spec/fixtures/input/equation2.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "8b2434e919885d7e3eb4ba446fddc7bd0408c700",
+      "size": 3584,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/8b2434e919885d7e3eb4ba446fddc7bd0408c700"
+    },
+    {
+      "path": "spec/fixtures/input/equation3.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "2fd4bf5f9ffde2d27b868acfd79af59b9055c63a",
+      "size": 3584,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/2fd4bf5f9ffde2d27b868acfd79af59b9055c63a"
+    },
+    {
+      "path": "spec/fixtures/input/equation4.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "46ec7caaca5f5a997742e529e6ba75f5a2673e88",
+      "size": 2560,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/46ec7caaca5f5a997742e529e6ba75f5a2673e88"
+    },
+    {
+      "path": "spec/fixtures/input/equation5.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "69d382242e2c70790d5d6489dd6081cb3286b94d",
+      "size": 2560,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/69d382242e2c70790d5d6489dd6081cb3286b94d"
+    },
+    {
+      "path": "spec/fixtures/input/equation6.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "d4fcc1bd02436d379c3e6003dbf03fa7914e3e64",
+      "size": 2560,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/d4fcc1bd02436d379c3e6003dbf03fa7914e3e64"
+    },
+    {
+      "path": "spec/fixtures/input/equation7.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "bbe4bbef9756dedf8a70248e1013dc17f4b041ae",
+      "size": 2560,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/bbe4bbef9756dedf8a70248e1013dc17f4b041ae"
+    },
+    {
+      "path": "spec/fixtures/input/equation8.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "ab014dd241363ea6a8005cceb7b605b0afb6cab1",
+      "size": 2560,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/ab014dd241363ea6a8005cceb7b605b0afb6cab1"
+    },
+    {
+      "path": "spec/fixtures/input/equation9.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "57749ace2c69f0a7eba5006d7af3bbbeb16b4c35",
+      "size": 2560,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/57749ace2c69f0a7eba5006d7af3bbbeb16b4c35"
+    },
+    {
+      "path": "spec/fixtures/input/fences.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "faf7f44450abe7a9454ca4941c31f86aa6d3d47c",
+      "size": 3584,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/faf7f44450abe7a9454ca4941c31f86aa6d3d47c"
+    },
+    {
+      "path": "spec/fixtures/input/integrals.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "b822f263b30ea2dccbfe1f683f0c8be55b4cda25",
+      "size": 3584,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/b822f263b30ea2dccbfe1f683f0c8be55b4cda25"
+    },
+    {
+      "path": "spec/fixtures/input/matrices.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "80cc0acaae6494bbdc4a06f74b964aef1b77a3d8",
+      "size": 3072,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/80cc0acaae6494bbdc4a06f74b964aef1b77a3d8"
+    },
+    {
+      "path": "spec/fixtures/input/sums.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "5fd863ee45d8284487c9d32a66686e7b79d9d858",
+      "size": 3072,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/5fd863ee45d8284487c9d32a66686e7b79d9d858"
+    },
+    {
+      "path": "spec/fixtures/input/unions_and_intersections.bin",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "dfc5a4ef9ee7e0fdd643529de11bb3e243d6af77",
+      "size": 3584,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/dfc5a4ef9ee7e0fdd643529de11bb3e243d6af77"
+    },
+    {
+      "path": "spec/html_output.rb",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eab32072fd2b0dfa81b3efa4a20439db2aec29c5",
+      "size": 806,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/eab32072fd2b0dfa81b3efa4a20439db2aec29c5"
+    },
+    {
+      "path": "spec/mathtype_to_mathml_spec.rb",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b3d13517cdb1d2bcc302ff83e9d2770e25c6334b",
+      "size": 522,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/b3d13517cdb1d2bcc302ff83e9d2770e25c6334b"
+    },
+    {
+      "path": "spec/spec_helper.rb",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a66915c87ad1d0d15cc5b6bfb245e1e43c8ab795",
+      "size": 138,
+      "url": "https://api.github.com/repos/jure/mathtype_to_mathml/git/blobs/a66915c87ad1d0d15cc5b6bfb245e1e43c8ab795"
+    }
+  ],
+  "truncated": false
+}

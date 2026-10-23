@@ -32,6 +32,7 @@ final class BodyFormatRuleChecker implements RuleModule {
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
     Set<SourceAddress> captionLocations = captionLocations(document);
+    var embeddedHeadings = new EmbeddedHeadingDetector(document);
     boolean inMainBody = false;
     boolean inContents = false;
     boolean bodyStartFound = false;
@@ -60,9 +61,17 @@ final class BodyFormatRuleChecker implements RuleModule {
       bodyParagraphChecked = true;
       results.add(formatChecker.checkLineSpacing("BODY-LINE", paragraph));
       results.add(formatChecker.checkIndent(paragraph, rules, "BODY-INDENT"));
-      for (RunModel run : bodyTextRuns(paragraph)) {
+      var embedded = embeddedHeadings.find(paragraph).orElse(null);
+      for (RunModel run : bodyTextRuns(paragraph, embedded)) {
         results.add(formatChecker.checkFont(run, rules, "BODY-FONT"));
         results.add(formatChecker.checkSize(run, rules, "BODY-SIZE"));
+      }
+      if (embedded != null) {
+        results.add(new CheckResult("HEAD-EMBEDDED", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+            Judgement.FAIL, embedded.level() == 2 ? "二级标题独立成段" : "三级标题独立成段",
+            embedded.title(), "HEADING_JOINED_TO_BODY", embedded.source()));
+        results.addAll(headingRuleChecker.checkEmbeddedHeading(
+            headingRuns(paragraph, embedded), embedded.source(), embedded.level()));
       }
     }
     if (hasFrontMatterSignal(document) && !bodyStartFound) {
@@ -84,12 +93,16 @@ final class BodyFormatRuleChecker implements RuleModule {
         Judgement.REVIEW, "正文区域可由章节证据确定", actual, "BODY_REGION_UNDETERMINED", anchor);
   }
 
-  private static List<RunModel> bodyTextRuns(ParagraphModel paragraph) {
+  private static List<RunModel> bodyTextRuns(ParagraphModel paragraph, EmbeddedHeadingDetector.Match heading) {
     String text = paragraph.runs().stream().map(run -> run.text() == null ? "" : run.text())
         .reduce("", String::concat);
     Matcher matcher = CITATION_MARKER.matcher(text);
     var citationRanges = new ArrayList<int[]>();
     while (matcher.find()) citationRanges.add(new int[] {matcher.start(), matcher.end()});
+    if (heading != null) {
+      citationRanges.add(new int[] {heading.start(), text.length()});
+      citationRanges.sort(java.util.Comparator.comparingInt(range -> range[0]));
+    }
     if (citationRanges.isEmpty()) return paragraph.runs();
 
     var bodyRuns = new ArrayList<RunModel>();
@@ -109,6 +122,19 @@ final class BodyFormatRuleChecker implements RuleModule {
       runStart = runEnd;
     }
     return List.copyOf(bodyRuns);
+  }
+
+  private static List<RunModel> headingRuns(ParagraphModel paragraph, EmbeddedHeadingDetector.Match heading) {
+    var runs = new ArrayList<RunModel>();
+    int offset = 0;
+    for (RunModel run : paragraph.runs()) {
+      int length = run.text() == null ? 0 : run.text().length();
+      int start = Math.max(heading.start(), offset);
+      int end = Math.min(heading.end(), offset + length);
+      if (start < end) runs.add(slice(run, start - offset, end - offset));
+      offset += length;
+    }
+    return List.copyOf(runs);
   }
 
   private static RunModel slice(RunModel run, int start, int end) {

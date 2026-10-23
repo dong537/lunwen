@@ -110,7 +110,6 @@ final class RequiredSectionRuleChecker implements RuleModule {
       results.add(fail("SECTION-REQUIRED", "附录总标题", "未找到", "APPENDIX_TITLE_MISSING", anchor));
     }
     requireSection(results, "结论", hasConclusion, anchor);
-    checkConclusionChapterNumber(results, document, sectionTexts, anchor);
     checkCoverFields(results, coverTexts, anchor, hasSchool, hasCoverType, coverImage);
     return List.copyOf(results);
   }
@@ -197,70 +196,6 @@ final class RequiredSectionRuleChecker implements RuleModule {
     return false;
   }
 
-  /** The school's conclusion is chapter five; a different explicit chapter number is an error. */
-  private static void checkConclusionChapterNumber(List<CheckResult> results, ParsedDocument document,
-      List<String> texts, SourceAddress fallback) {
-    DocumentRegionClassifier regions = new DocumentRegionClassifier();
-    boolean bodyStarted = false;
-    for (int index = 0; index < texts.size(); index++) {
-      ParagraphModel paragraph = document.paragraphs().get(index);
-      if (regions.isInsideTable(paragraph, document.tables())) continue;
-      String value = compact(texts.get(index));
-      if (!bodyStarted && isBodyChapterStart(regions, paragraph, document)) bodyStarted = true;
-      if (!bodyStarted) continue;
-      var matcher = CONCLUSION_CHAPTER.matcher(value);
-      if (matcher.matches()) {
-        int chapter = chapterNumber(matcher.group(1));
-        if (chapter != 5) {
-          results.add(new CheckResult("SECTION-REQUIRED", Applicability.APPLICABLE,
-              ExecutionStatus.EXECUTED, Judgement.FAIL, "第五章 结论", value,
-              "CONCLUSION_CHAPTER_MISMATCH", paragraph.source()));
-        }
-        continue;
-      }
-      if (value.equals("参考文献") || value.equalsIgnoreCase("REFERENCES")) break;
-      if (value.equals("结论") || value.equals("结论与展望")) {
-        if (!isHeadingWithEvidence(regions, paragraph)) continue;
-        if (regions.isAutomaticNumberedChapter(paragraph)) {
-          int chapter = chapterNumber(paragraph.numberingLabel());
-          if (chapter == 5) continue;
-          if (chapter > 0) {
-            results.add(new CheckResult("SECTION-REQUIRED", Applicability.APPLICABLE,
-                ExecutionStatus.EXECUTED, Judgement.FAIL, "第五章 结论", value,
-                "CONCLUSION_CHAPTER_MISMATCH", paragraph.source()));
-            continue;
-          }
-        }
-        results.add(new CheckResult("SECTION-REQUIRED", Applicability.APPLICABLE,
-            ExecutionStatus.EXECUTED, Judgement.REVIEW, "第五章 结论", value,
-            "CONCLUSION_CHAPTER_UNCONFIRMED", paragraph.source()));
-      }
-    }
-  }
-
-  private static int chapterNumber(String value) {
-    if (value == null || value.isBlank()) return 0;
-    try {
-      return Integer.parseInt(value);
-    } catch (NumberFormatException ignored) {
-      // Chinese chapter numbers are common in manually authored headings.
-    }
-    if (value.length() == 1) {
-      return switch (value.charAt(0)) {
-        case '一' -> 1; case '二' -> 2; case '三' -> 3; case '四' -> 4;
-        case '五' -> 5; case '六' -> 6; case '七' -> 7; case '八' -> 8;
-        case '九' -> 9; case '十' -> 10; default -> 0;
-      };
-    }
-    if (value.equals("十一")) return 11;
-    if (value.equals("十二")) return 12;
-    if (value.equals("十三")) return 13;
-    if (value.equals("十四")) return 14;
-    if (value.equals("十五")) return 15;
-    if (value.equals("十六")) return 16;
-    return 0;
-  }
-
   private static int firstBodyChapterIndex(ParsedDocument document, DocumentRegionClassifier regions) {
     for (int index = 0; index < document.paragraphs().size(); index++) {
       if (isBodyChapterStart(regions, document.paragraphs().get(index), document)) return index;
@@ -278,11 +213,6 @@ final class RequiredSectionRuleChecker implements RuleModule {
       return false;
     }
     return true;
-  }
-
-  private static boolean isHeadingWithEvidence(DocumentRegionClassifier regions, ParagraphModel paragraph) {
-    return regions.isAutomaticNumberedChapter(paragraph)
-        || new HeadingRuleChecker(new ParagraphFormatChecker()).headingLevel(paragraph) == 1;
   }
 
   private static boolean hasAppendixSection(ParsedDocument document, List<String> texts) {

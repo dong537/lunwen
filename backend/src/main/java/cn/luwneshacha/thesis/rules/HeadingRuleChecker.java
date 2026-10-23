@@ -51,7 +51,9 @@ final class HeadingRuleChecker {
             results.add(paragraphFormatChecker.checkIndent(paragraph, rules, "HEAD-03-INDENT"));
           }
         }
-        if (hasHeadingNumber(paragraph, level, text)) {
+        // Only literal numbers have text separators to check. The separate policy module
+        // rejects generated numbers; bullet formatting must not hide a literal heading.
+        if (hasHeadingNumber(level, text)) {
           results.add(checkHeadingNumberSpacing(paragraph, level, text));
         }
       }
@@ -95,6 +97,19 @@ final class HeadingRuleChecker {
         && (paragraph.numberingLabel().matches("\\d+(?:\\.\\d+)*")
             || paragraph.numberingLabel().matches("第\\d+章"))) return paragraph.outlineLevel() + 1;
     return headingStyleLevel(paragraph);
+  }
+
+  /** A joined title has no independent paragraph properties yet; only check its own characters. */
+  List<CheckResult> checkEmbeddedHeading(List<RunModel> runs, SourceAddress source, int level) {
+    var results = new ArrayList<CheckResult>();
+    for (RunModel run : runs) {
+      if (run.text().isBlank()) continue;
+      results.add(checkHeadingFont(run, level));
+      results.add(checkHeadingSize(run, level));
+    }
+    var title = new ParagraphModel(runs, null, null, null, null, null, source, null, null, null);
+    results.add(checkHeadingNumberSpacing(title, level, paragraphText(title)));
+    return List.copyOf(results);
   }
 
   private int headingStyleLevel(ParagraphModel paragraph) {
@@ -204,8 +219,7 @@ final class HeadingRuleChecker {
         matches ? "" : "SIZE_MISMATCH", matches ? Judgement.PASS : Judgement.FAIL, run.source());
   }
 
-  private boolean hasHeadingNumber(ParagraphModel paragraph, int level, String text) {
-    if (paragraph.automaticNumberingActive()) return true;
+  private boolean hasHeadingNumber(int level, String text) {
     if (level == 1) return text.replaceAll("[\\u200B\\u200C\\u200D\\u2060\\uFEFF]", "").matches("^第.+?章.*$");
     return text.matches("^\\d+(?:\\s*\\.\\s*\\d+){" + (level - 1) + "}.*$");
   }
@@ -242,12 +256,7 @@ final class HeadingRuleChecker {
     String separatorDescription = null;
     int badSeparatorStart = -1;
     int badSeparatorEnd = -1;
-    boolean badSeparatorUsesRawOffset = false;
     int missingSeparatorPoint = 0;
-    if (paragraph.automaticNumberingActive() && paragraph.numberingLabel() == null) {
-      invalidSeparator = true;
-      separatorDescription = "自动编号设置无法确认";
-    }
     if (numberMatcher.matches()) {
       String suffix = numberMatcher.group(2);
       int suffixStart = numberMatcher.start(2);
@@ -271,72 +280,13 @@ final class HeadingRuleChecker {
       }
       separatorDescription = describeHeadingSeparator(suffix);
     }
-    if (paragraph.automaticNumberingActive() && spaces < 0) {
-      var visibleWhitespaceOffsets = new ArrayList<Integer>();
-      int visibleLeadingSpaces = 0;
-      boolean invalidVisibleSeparator = false;
-      int invalidVisibleSeparatorOffset = -1;
-      boolean leadingTextEnded = false;
-      int runOffset = 0;
-      for (RunModel run : paragraph.runs()) {
-        for (int offset = 0; offset < run.text().length();) {
-          int codePoint = run.text().codePointAt(offset);
-          if (leadingTextEnded || !isHeadingSeparator(codePoint)) {
-            leadingTextEnded = true;
-            break;
-          }
-          visibleWhitespaceOffsets.add(runOffset + offset);
-          if (codePoint == 0x20) visibleLeadingSpaces++;
-          else {
-            invalidVisibleSeparator = true;
-            if (invalidVisibleSeparatorOffset < 0) invalidVisibleSeparatorOffset = runOffset + offset;
-          }
-          offset += Character.charCount(codePoint);
-        }
-        runOffset += run.text().length();
-        if (leadingTextEnded) break;
-      }
-      Integer suffixSpaces = paragraph.numberingSeparatorSpaces();
-      if (suffixSpaces == null) {
-        invalidSeparator = true;
-        separatorDescription = "编号后不是普通空格";
-        if (invalidVisibleSeparatorOffset >= 0) {
-          badSeparatorStart = invalidVisibleSeparatorOffset;
-          badSeparatorEnd = badSeparatorStart + 1;
-          badSeparatorUsesRawOffset = true;
-        }
-      } else {
-        int formatTrailingSpaces = paragraph.numberingFormatTrailingSpaces() == null
-            ? 0 : paragraph.numberingFormatTrailingSpaces();
-        spaces = suffixSpaces + visibleLeadingSpaces
-            + formatTrailingSpaces;
-        invalidSeparator = invalidVisibleSeparator;
-        if (invalidVisibleSeparatorOffset >= 0) {
-          badSeparatorStart = invalidVisibleSeparatorOffset;
-          badSeparatorEnd = badSeparatorStart + 1;
-          badSeparatorUsesRawOffset = true;
-        } else if (spaces > expected) {
-          int extraVisibleSpaceIndex = expected - suffixSpaces - formatTrailingSpaces;
-          if (extraVisibleSpaceIndex >= 0 && extraVisibleSpaceIndex < visibleWhitespaceOffsets.size()) {
-            badSeparatorStart = visibleWhitespaceOffsets.get(extraVisibleSpaceIndex);
-            badSeparatorEnd = badSeparatorStart + 1;
-            badSeparatorUsesRawOffset = true;
-          }
-        }
-        separatorDescription = spaces == 0 ? "没有空格" : spaces + " 个普通空格";
-      }
-    }
-    if (!invalidSeparator && spaces < 0 && paragraph.numberingSeparatorSpaces() != null)
-      spaces = paragraph.numberingSeparatorSpaces();
     if (separatorDescription == null)
       separatorDescription = spaces < 0 ? "编号设置的空白无法确认" : spaces + " 个空格";
     if (invalidSeparator || spaces != expected)
       return result(level == 1 ? "HEAD-01-SPACING" : "HEAD-0" + level + "-SPACING",
           "编号后空 " + expected + " 格", separatorDescription, "HEADING_NUMBER_SPACING_MISMATCH",
           Judgement.FAIL, badSeparatorStart >= 0
-              ? badSeparatorUsesRawOffset
-                  ? sourceRangeRaw(paragraph, badSeparatorStart, badSeparatorEnd)
-                  : sourceRange(paragraph, badSeparatorStart, badSeparatorEnd)
+              ? sourceRange(paragraph, badSeparatorStart, badSeparatorEnd)
               : pointRange(paragraph, missingSeparatorPoint));
     return result(level == 1 ? "HEAD-01-SPACING" : "HEAD-0" + level + "-SPACING",
         "编号后空 " + expected + " 格", String.valueOf(spaces), "", Judgement.PASS, paragraph.source());
@@ -399,12 +349,6 @@ final class HeadingRuleChecker {
 
   private SourceAddress pointRange(ParagraphModel paragraph, int offset) {
     return sourceRange(paragraph, offset, offset);
-  }
-
-  private SourceAddress sourceRangeRaw(ParagraphModel paragraph, int start, int end) {
-    SourceAddress source = paragraph.source();
-    return new SourceAddress(source.partName(), source.elementPath(),
-        source.start() + start, source.start() + end);
   }
 
   private int leadingTrimLength(ParagraphModel paragraph) {

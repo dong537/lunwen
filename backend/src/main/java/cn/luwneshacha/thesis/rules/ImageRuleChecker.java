@@ -111,6 +111,7 @@ final class ImageRuleChecker implements RuleModule {
 
   private void addCaptionResults(List<CheckResult> results, ParagraphModel paragraph, RuleSet rules) {
     for (RunModel run : paragraph.runs()) {
+      if (ParagraphFormatChecker.isLayoutControlOnly(run)) continue;
       results.add(paragraphFormatChecker.checkFont(run, rules, "CAPTION-FONT"));
       if (run.fontSizeHalfPoints() == null)
         results.add(result("CAPTION-SIZE", "21", "unknown", "SIZE_UNKNOWN", Judgement.REVIEW, run.source()));

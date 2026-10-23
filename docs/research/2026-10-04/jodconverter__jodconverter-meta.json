@@ -1,0 +1,16 @@
+{
+  "full_name": "jodconverter/jodconverter",
+  "description": "JODConverter automates document conversions using LibreOffice or Apache OpenOffice.",
+  "default_branch": "develop",
+  "archived": false,
+  "pushed_at": "2026-10-03T16:42:15Z",
+  "license": {
+    "key": "other",
+    "name": "Other",
+    "spdx_id": "NOASSERTION",
+    "url": null,
+    "node_id": "MDc6TGljZW5zZTA="
+  },
+  "stargazers_count": 1595,
+  "open_issues_count": 34
+}

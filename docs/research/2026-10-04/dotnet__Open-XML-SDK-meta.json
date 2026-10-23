@@ -1,0 +1,16 @@
+{
+  "full_name": "dotnet/Open-XML-SDK",
+  "description": "Open XML SDK by Microsoft",
+  "default_branch": "main",
+  "archived": false,
+  "pushed_at": "2026-09-16T19:58:26Z",
+  "license": {
+    "key": "mit",
+    "name": "MIT License",
+    "spdx_id": "MIT",
+    "url": "https://api.github.com/licenses/mit",
+    "node_id": "MDc6TGljZW5zZTEz"
+  },
+  "stargazers_count": 4612,
+  "open_issues_count": 131
+}

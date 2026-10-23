@@ -1,0 +1,16 @@
+{
+  "full_name": "kagkarlsson/db-scheduler",
+  "description": "Persistent cluster-friendly scheduler for Java",
+  "default_branch": "master",
+  "archived": false,
+  "pushed_at": "2026-09-21T12:57:32Z",
+  "license": {
+    "key": "apache-2.0",
+    "name": "Apache License 2.0",
+    "spdx_id": "Apache-2.0",
+    "url": "https://api.github.com/licenses/apache-2.0",
+    "node_id": "MDc6TGljZW5zZTI="
+  },
+  "stargazers_count": 1654,
+  "open_issues_count": 72
+}

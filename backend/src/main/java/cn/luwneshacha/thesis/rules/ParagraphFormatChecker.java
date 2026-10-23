@@ -11,6 +11,10 @@ import java.util.Objects;
  * the supplied OOXML evidence with the requested formatting contract.</p>
  */
 public final class ParagraphFormatChecker {
+  /** Keep layout controls in source offsets without treating them as caption glyphs. */
+  static boolean isLayoutControlOnly(RunModel run) {
+    return run.text().chars().allMatch(value -> value == '\t' || value == '\r' || value == '\n');
+  }
 
   public CheckResult checkFont(RunModel run, RuleSet rules, String ruleId) {
     Objects.requireNonNull(run, "run");

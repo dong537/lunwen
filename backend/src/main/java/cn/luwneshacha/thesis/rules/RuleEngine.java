@@ -7,6 +7,7 @@ public final class RuleEngine {
   private final ParagraphFormatChecker paragraphFormatChecker = new ParagraphFormatChecker();
   private final HeadingRuleChecker headingRuleChecker = new HeadingRuleChecker(paragraphFormatChecker);
   private final RuleModulePipeline modules = new RuleModulePipeline(List.of(
+      new AutomaticNumberingRuleModule(),
       new SectionLayoutRuleChecker(),
       new HeaderRuleModule(),
       new RequiredSectionRuleChecker(),

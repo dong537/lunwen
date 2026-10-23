@@ -202,7 +202,12 @@ public final class CommentWriter {
           boolean missingHeaderOnEmptySection = group.stream()
               .anyMatch(item -> "HEADER-01-MISSING".equals(item.ruleId()));
           boolean pointPlacement = pointPlacements.containsKey(result);
-          if ((text == null || text.isBlank()) && !hasDrawing && !hasField && !missingHeaderOnEmptySection && !pointPlacement)
+          // List numbering belongs to the original paragraph even when it has no text runs.
+          boolean numberingPoint = sourceElements.get(result) == paragraph && group.stream().allMatch(item ->
+              "NUMBERING-01".equals(item.ruleId()) && item.source().start() == 0 && item.source().end() == 0
+                  && sourceElements.get(item) == sourceElements.get(result));
+          if ((text == null || text.isBlank()) && !hasDrawing && !hasField && !missingHeaderOnEmptySection
+              && !pointPlacement && !numberingPoint)
             throw new AnchorException("EMPTY_ANCHOR");
           // 只有规则结果能定位到具体运行（w:r）时才着色。段落级规则（首行缩进、行距、空行等）
           // 的错误范围本来就是段落属性，给整段文字着色会制造大面积无关高亮。
@@ -1395,10 +1400,9 @@ public final class CommentWriter {
     if ("REF-07".equals(result.ruleId())
         && "REFERENCE_NUMBER_SPACING_MISMATCH".equals(result.reasonCode()))
       return referenceNumberSpacingSuggestion(result);
-    if ("REF-07".equals(result.ruleId())
-        && "REFERENCE_NUMBER_SPACING_UNCONFIRMED".equals(result.reasonCode()))
-      return "自动编号后的分隔符无法从文档结构确认，请在 Word 中检查是否只保留一个普通半角空格。";
     return switch (result.ruleId()) {
+      case "NUMBERING-01" -> cn.luwneshacha.thesis.report.RuleDescriptions.reason(result) + "。"
+          + cn.luwneshacha.thesis.report.RuleDescriptions.suggestion(result);
       case "EN-03-BOLD" -> cn.luwneshacha.thesis.report.RuleDescriptions.suggestion(result);
       case "CITE-01-LEGACY" -> "CITATION_FORMAT_UNKNOWN".equals(result.reasonCode())
           ? "未读取到这处引用的完整字体或字号属性，按格式错误处理；改为小四号 Times New Roman 上标。"
@@ -1621,14 +1625,6 @@ public final class CommentWriter {
     if (repeatedSpaces.find())
       return "参考文献编号后有 " + repeatedSpaces.group(1)
           + " 个普通半角空格，请删除多余空格，只保留一个普通半角空格，再接文献内容。";
-
-    Matcher automaticSeparator = Pattern.compile("suffix=(\\d+), formatTrailing=(\\d+)").matcher(actual);
-    if (automaticSeparator.matches()) {
-      if ("0".equals(automaticSeparator.group(1)))
-        return "自动编号的“编号之后”应设为“空格”；不要使用制表符或不留间隔。";
-      if (!"0".equals(automaticSeparator.group(2)))
-        return "自动编号格式末尾还带有空格；请删除编号格式里的尾随空格，只保留“编号之后”设置的一个空格。";
-    }
 
     return "参考文献编号后的空白数量或形式不符合要求，请删除原空白，只保留一个普通半角空格，再接文献内容。";
   }

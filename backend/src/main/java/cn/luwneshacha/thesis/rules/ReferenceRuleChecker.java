@@ -43,21 +43,8 @@ final class ReferenceRuleChecker implements RuleModule {
   /** A bibliography label must be followed by exactly one ordinary U+0020 space. */
   private static void checkNumberSpacing(List<CheckResult> results, ReferenceEntryModel reference) {
     if (reference.number() == null || reference.number().isBlank() || reference.text() == null) return;
-    if (reference.automaticNumbering()) {
-      Integer suffixSpaces = reference.numberingSeparatorSpaces();
-      Integer formatTrailingSpaces = reference.numberingFormatTrailingSpaces();
-      if (suffixSpaces == null || formatTrailingSpaces == null) {
-        results.add(new CheckResult("REF-07", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
-            Judgement.REVIEW, "one ordinary half-width space after reference number",
-            "automatic numbering separator cannot be confirmed from XML",
-            "REFERENCE_NUMBER_SPACING_UNCONFIRMED", zeroWidthSource(reference.source())));
-      } else if (suffixSpaces != 1 || formatTrailingSpaces != 0) {
-        results.add(fail("REF-07", "one ordinary half-width space after reference number",
-            "suffix=" + suffixSpaces + ", formatTrailing=" + formatTrailingSpaces,
-            "REFERENCE_NUMBER_SPACING_MISMATCH", zeroWidthSource(reference.source())));
-      }
-      return;
-    }
+    // Only a literal [n] in the original text has a separator to inspect. Generated
+    // labels remain available for sequence checks and the document-wide numbering policy.
     Matcher matcher = TEXTUAL_REFERENCE_NUMBER.matcher(reference.text());
     if (!matcher.matches() || !reference.number().equals(matcher.group(1))) return;
     String separatorAndContent = matcher.group(2);
@@ -85,10 +72,6 @@ final class ReferenceRuleChecker implements RuleModule {
     }
     return sourceRange(reference.source(), reference.source().start() + rangeStart,
         reference.source().start() + rangeEnd);
-  }
-
-  private static SourceAddress zeroWidthSource(SourceAddress source) {
-    return sourceRange(source, source.start(), source.start());
   }
 
   private static SourceAddress sourceRange(SourceAddress source, int start, int end) {

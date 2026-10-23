@@ -1,0 +1,10 @@
+{
+  "full_name": "apache/poi",
+  "description": "Mirror of Apache POI gitbox. The Java API for Microsoft Documents.",
+  "default_branch": "trunk",
+  "archived": false,
+  "pushed_at": "2026-10-02T14:30:19Z",
+  "license": null,
+  "stargazers_count": 2276,
+  "open_issues_count": 43
+}

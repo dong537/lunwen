@@ -1,0 +1,245 @@
+SOURCE: https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/trees/main?recursive=1
+SHA: cfe531f8d70ffec85477f5c8015d49d0e88719f9
+{
+  "sha": "cfe531f8d70ffec85477f5c8015d49d0e88719f9",
+  "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/trees/cfe531f8d70ffec85477f5c8015d49d0e88719f9",
+  "tree": [
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9640d21149a9dfe4eafb674a8e673e3a9f64dab4",
+      "size": 1035,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/9640d21149a9dfe4eafb674a8e673e3a9f64dab4"
+    },
+    {
+      "path": "LICENSE",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "247c869e8d7b8cf918798d4d5d3d5bda11916fb8",
+      "size": 1075,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/247c869e8d7b8cf918798d4d5d3d5bda11916fb8"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b8a957b0d06795f1e62b6d3ea9fb8085234d49c5",
+      "size": 8741,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/b8a957b0d06795f1e62b6d3ea9fb8085234d49c5"
+    },
+    {
+      "path": "app.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6a701abe8a0978404671024e938b747970b4574d",
+      "size": 11427,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/6a701abe8a0978404671024e938b747970b4574d"
+    },
+    {
+      "path": "assets",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "69bcd2378a0ae4ca1350d5fd435f415a46b94042",
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/trees/69bcd2378a0ae4ca1350d5fd435f415a46b94042"
+    },
+    {
+      "path": "assets/app.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0ca55cfa8b2336849c0882b722a6aff4afa6aec1",
+      "size": 43537,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/0ca55cfa8b2336849c0882b722a6aff4afa6aec1"
+    },
+    {
+      "path": "assets/批注word示例.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8a64f23aee2897738168412f8e220f673db93e0e",
+      "size": 78935,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/8a64f23aee2897738168412f8e220f673db93e0e"
+    },
+    {
+      "path": "assets/演示图1.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c9f8d69780984645e222a6b280c078f8a8734b1b",
+      "size": 81699,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/c9f8d69780984645e222a6b280c078f8a8734b1b"
+    },
+    {
+      "path": "assets/演示图2.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "974e13c8b92b36517794f4553863eaaff3142060",
+      "size": 108225,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/974e13c8b92b36517794f4553863eaaff3142060"
+    },
+    {
+      "path": "assets/演示图3.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6a8728cdf4d79b290d33684d5da333f2ef092baf",
+      "size": 97961,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/6a8728cdf4d79b290d33684d5da333f2ef092baf"
+    },
+    {
+      "path": "config_example.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "26e397f4b089d72483a712b639248e0ea45efdbd",
+      "size": 221,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/26e397f4b089d72483a712b639248e0ea45efdbd"
+    },
+    {
+      "path": "docx_reader_win32.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9655f194fb3536a4931c35d65bf03227b560cee0",
+      "size": 44480,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/9655f194fb3536a4931c35d65bf03227b560cee0"
+    },
+    {
+      "path": "format_comparator_win32.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "796d8c584e88d92264a3500b56c346e92f640c62",
+      "size": 54253,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/796d8c584e88d92264a3500b56c346e92f640c62"
+    },
+    {
+      "path": "llm_mapper.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "35952225a98e096babea8bd00910f3ca7be80beb",
+      "size": 38944,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/35952225a98e096babea8bd00910f3ca7be80beb"
+    },
+    {
+      "path": "pages",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "36a5ddbbe41d853cd061a3d9d31f54ba5f4146dc",
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/trees/36a5ddbbe41d853cd061a3d9d31f54ba5f4146dc"
+    },
+    {
+      "path": "pages/create_template.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0db09fb7b47e88f3d0a4c2d2c21f7c4f2a43f759",
+      "size": 5053,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/0db09fb7b47e88f3d0a4c2d2c21f7c4f2a43f759"
+    },
+    {
+      "path": "report_generator.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8019af7969fbada1b01530f0af1a31da2ab6e476",
+      "size": 15857,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/8019af7969fbada1b01530f0af1a31da2ab6e476"
+    },
+    {
+      "path": "requirements.in",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6dea00702d765b5a0d5b16268795ba7a865fb565",
+      "size": 68,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/6dea00702d765b5a0d5b16268795ba7a865fb565"
+    },
+    {
+      "path": "requirements.txt",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f994df3990f00a9abd0223c73f20101ec5258ced",
+      "size": 2775,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/f994df3990f00a9abd0223c73f20101ec5258ced"
+    },
+    {
+      "path": "template_manager_win32.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "760688ae21e0149bfcb550b30fc9dd2bd5400b23",
+      "size": 15984,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/760688ae21e0149bfcb550b30fc9dd2bd5400b23"
+    },
+    {
+      "path": "templates",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "53125bd68ddc4ccdd60bddddd7e906ba345d9cc1",
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/trees/53125bd68ddc4ccdd60bddddd7e906ba345d9cc1"
+    },
+    {
+      "path": "templates/default.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "184ccf0d4bbe4548cf42c0b33559c4c83bf97239",
+      "size": 8897,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/184ccf0d4bbe4548cf42c0b33559c4c83bf97239"
+    },
+    {
+      "path": "test_llm_output_simulated_2.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2f69dfacfefd1915f0ff6e349042334fe931e90b",
+      "size": 732,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/2f69dfacfefd1915f0ff6e349042334fe931e90b"
+    },
+    {
+      "path": "test_reader.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "85cb8584fad5459fac6b6e6cadcd1adb98c73189",
+      "size": 5705,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/85cb8584fad5459fac6b6e6cadcd1adb98c73189"
+    },
+    {
+      "path": "ui_components.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "75e9b10eab0ae9e2669a5996371900bf714fae7d",
+      "size": 13773,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/75e9b10eab0ae9e2669a5996371900bf714fae7d"
+    },
+    {
+      "path": "ui_helpers.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3152eb9160c26beced9740657baad9bc1121a511",
+      "size": 11649,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/3152eb9160c26beced9740657baad9bc1121a511"
+    },
+    {
+      "path": "unit_converter.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "74e284dd9a4d99f8b2c922d71af3cbe911a09c5d",
+      "size": 13563,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/74e284dd9a4d99f8b2c922d71af3cbe911a09c5d"
+    },
+    {
+      "path": "user_files",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "544ebc9c49c26e49f1a555a76df228e806cc5e3e",
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/trees/544ebc9c49c26e49f1a555a76df228e806cc5e3e"
+    },
+    {
+      "path": "user_files/tolerance_config.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "31d6ed8eaf6dfe7ac1ab52141f0b5dcd2686a557",
+      "size": 150,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/31d6ed8eaf6dfe7ac1ab52141f0b5dcd2686a557"
+    },
+    {
+      "path": "utils.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cb1ac05dcec6b0e6e6b6319146fe853798095931",
+      "size": 11106,
+      "url": "https://api.github.com/repos/Iberxilong-blackbox/format-comparator/git/blobs/cb1ac05dcec6b0e6e6b6319146fe853798095931"
+    }
+  ],
+  "truncated": false
+}

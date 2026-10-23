@@ -1152,18 +1152,20 @@ class CommentWriterTest {
   }
 
   @Test
-  void explainsThatAutomaticReferenceNumberingMustUseASpaceSeparator() throws Exception {
+  void explainsThatAutomaticReferenceNumberingMustBeReplacedWithManualText() throws Exception {
     Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>作者. 题名[J]. 期刊, 2024.</w:t></w:r></w:p></w:body></w:document>");
     Path target = tempDir.resolve("reference-auto-number-spacing.docx");
-    var finding = new CheckResult("REF-07", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
-        Judgement.FAIL, "编号后一个普通半角空格", "suffix=0, formatTrailing=0",
-        "REFERENCE_NUMBER_SPACING_MISMATCH", new SourceAddress("word/document.xml", List.of(0, 0), 0, 4));
+    var finding = new CheckResult("NUMBERING-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "使用手动输入的编号", "自动列表编号",
+        "AUTOMATIC_NUMBERING_FORBIDDEN", new SourceAddress("word/document.xml", List.of(0, 0), 0, 4));
 
     new CommentWriter().writeCopy(source, target, List.of(finding));
 
     try (ZipFile zip = new ZipFile(target.toFile())) {
       String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
-      assertTrue(comments.contains("自动编号的“编号之后”应设为“空格”；不要使用制表符或不留间隔。"), comments);
+      assertTrue(comments.contains("取消该段的编号或多级列表"), comments);
+      assertTrue(comments.contains("手动输入原序号"), comments);
+      assertFalse(comments.contains("编号之后"), comments);
     }
   }
 
@@ -1184,20 +1186,21 @@ class CommentWriterTest {
   }
 
   @Test
-  void writesAConcreteSuggestionWhenAutomaticReferenceSpacingCannotBeConfirmed() throws Exception {
+  void requestsManualReviewWhenTheNumberingTypeCannotBeConfirmed() throws Exception {
     Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>作者. 题名[M]. 出版社，2024.</w:t></w:r></w:p></w:body></w:document>");
     Path target = tempDir.resolve("reference-number-spacing-review.docx");
-    var finding = new CheckResult("REF-07", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
-        Judgement.REVIEW, "一个普通半角空格", "无法从 XML 确认",
-        "REFERENCE_NUMBER_SPACING_UNCONFIRMED",
+    var finding = new CheckResult("NUMBERING-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.REVIEW, "使用手动输入的编号", "编号设置不完整，无法确认编号类型",
+        "AUTOMATIC_NUMBERING_UNCONFIRMED",
         new SourceAddress("word/document.xml", List.of(0, 0), 0, 12));
 
     new CommentWriter().writeCopy(source, target, List.of(finding));
 
     try (ZipFile zip = new ZipFile(target.toFile())) {
       String comments = new String(zip.getInputStream(zip.getEntry("word/comments.xml")).readAllBytes(), StandardCharsets.UTF_8);
-      assertTrue(comments.contains("自动编号后的分隔符无法从文档结构确认"));
-      assertTrue(comments.contains("检查是否只保留一个普通半角空格"));
+      assertTrue(comments.contains("请在 Word/WPS 中检查此处编号"), comments);
+      assertTrue(comments.contains("如为自动编号"), comments);
+      assertFalse(comments.contains("编号之后"), comments);
     }
   }
 

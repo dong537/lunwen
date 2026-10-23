@@ -214,7 +214,9 @@ class InspectionApiTest {
       try (ZipFile zip = new ZipFile(reportPath.toFile())) {
         String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(),
             java.nio.charset.StandardCharsets.UTF_8);
-        assertTrue(document.contains("本次未请求写入 Word 批注"));
+        assertTrue(document.contains("论文格式检查汇总"));
+        assertTrue(document.contains("问题数量"));
+        assertFalse(document.contains("批注"));
       }
     } finally {
       Files.deleteIfExists(reportPath);

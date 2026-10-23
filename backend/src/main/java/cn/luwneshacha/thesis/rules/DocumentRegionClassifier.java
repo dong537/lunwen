@@ -19,6 +19,9 @@ final class DocumentRegionClassifier {
   private static final Pattern CONTENTS_CHAPTER = Pattern.compile("^第[一二三四五六七八九十百千万零〇]+章");
   private static final Pattern CONTENTS_NUMERIC = Pattern.compile("^(\\d+(?:\\.\\d+){1,2})(.*)$", Pattern.DOTALL);
   private static final Pattern CONTENTS_ENTRY = Pattern.compile(TOC_ENTRY.pattern(), Pattern.DOTALL);
+  private static final Pattern ENTRY_WITH_PAGE = Pattern.compile(
+      "^(.*?)(?:\\.{2,}|……+|\\t|[\\p{Zs}]{2,})\\s*\\d+$", Pattern.DOTALL);
+  private static final Pattern SIMPLE_ENTRY_WITH_PAGE = Pattern.compile("^(.*?)\\s+\\d+$", Pattern.DOTALL);
   private static final Pattern APPENDIX_HEADING = Pattern.compile(
       "^(?:附录|Appendix)[\\s\\p{Zs}]*([A-Z])(?:$|[\\s\\p{Zs}]|[:：]|\\p{IsHan}).*",
       Pattern.CASE_INSENSITIVE);
@@ -106,7 +109,15 @@ final class DocumentRegionClassifier {
         || value.equalsIgnoreCase("ACKNOWLEDGEMENTS");
   }
 
-  private static String compactContentsText(String text) {
+  static String contentsTitle(String raw) {
+    String value = raw.strip();
+    Matcher matcher = ENTRY_WITH_PAGE.matcher(value);
+    if (matcher.matches()) return matcher.group(1).strip();
+    matcher = SIMPLE_ENTRY_WITH_PAGE.matcher(value);
+    return matcher.matches() ? matcher.group(1).strip() : value;
+  }
+
+  static String compactContentsText(String text) {
     return text.codePoints().filter(codePoint -> !Character.isWhitespace(codePoint)
         && !Character.isSpaceChar(codePoint) && codePoint != 0x200B && codePoint != 0x200C
         && codePoint != 0x200D && codePoint != 0x2060 && codePoint != 0xFEFF)

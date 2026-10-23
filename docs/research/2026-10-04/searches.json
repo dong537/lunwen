@@ -1,0 +1,149 @@
+[
+  {
+    "query": "MTEF parser",
+    "results": [
+      {
+        "full_name": "danielrendall/Metaphor",
+        "description": "Parser for MathType's MTEF binary format.",
+        "stargazers_count": 14,
+        "pushed_at": "2021-06-07T17:41:26Z",
+        "license": null
+      },
+      {
+        "full_name": "zhengdongjunjun/MTEF-py-FIX",
+        "description": "Python MTEF parser converting MathType equations to LaTeX",
+        "stargazers_count": 0,
+        "pushed_at": "2026-07-18T02:52:26Z",
+        "license": {
+          "key": "apache-2.0",
+          "name": "Apache License 2.0",
+          "spdx_id": "Apache-2.0",
+          "url": "https://api.github.com/licenses/apache-2.0",
+          "node_id": "MDc6TGljZW5zZTI="
+        }
+      }
+    ]
+  },
+  {
+    "query": "docx thesis format checker",
+    "results": [
+      {
+        "full_name": "TENaaa/chinese-thesis-format-checker",
+        "description": "Chinese thesis docx format checker with Markdown reports",
+        "stargazers_count": 0,
+        "pushed_at": "2026-04-28T06:18:12Z",
+        "license": {
+          "key": "mit",
+          "name": "MIT License",
+          "spdx_id": "MIT",
+          "url": "https://api.github.com/licenses/mit",
+          "node_id": "MDc6TGljZW5zZTEz"
+        }
+      },
+      {
+        "full_name": "emptyinkpot/thesis-format-checker",
+        "description": "DOCX thesis format compliance checker with rule presets and auto-fix",
+        "stargazers_count": 1,
+        "pushed_at": "2026-07-05T03:13:57Z",
+        "license": {
+          "key": "mit",
+          "name": "MIT License",
+          "spdx_id": "MIT",
+          "url": "https://api.github.com/licenses/mit",
+          "node_id": "MDc6TGljZW5zZTEz"
+        }
+      },
+      {
+        "full_name": "fanji-jared/thesis-format-checker",
+        "description": "论文格式检测工具 - 支持AI配置生成的.docx论文格式自动检测",
+        "stargazers_count": 0,
+        "pushed_at": "2026-04-06T07:10:40Z",
+        "license": {
+          "key": "apache-2.0",
+          "name": "Apache License 2.0",
+          "spdx_id": "Apache-2.0",
+          "url": "https://api.github.com/licenses/apache-2.0",
+          "node_id": "MDc6TGljZW5zZTI="
+        }
+      },
+      {
+        "full_name": "liujiazhi-arch/lnu-thesis-format-tool",
+        "description": "Local-first .docx thesis format checker and fixer for Liaoning University undergraduate theses",
+        "stargazers_count": 0,
+        "pushed_at": "2026-07-15T07:50:47Z",
+        "license": {
+          "key": "mit",
+          "name": "MIT License",
+          "spdx_id": "MIT",
+          "url": "https://api.github.com/licenses/mit",
+          "node_id": "MDc6TGljZW5zZTEz"
+        }
+      },
+      {
+        "full_name": "quanfu2026/thesis_checker",
+        "description": "AI-Powered Thesis Quality Assurance System for Automated DOCX Analysis, Citation Checking, Formatting Validation and Interactive Reports.",
+        "stargazers_count": 0,
+        "pushed_at": "2026-07-18T12:50:00Z",
+        "license": null
+      }
+    ]
+  },
+  {
+    "query": "论文 格式 检测",
+    "results": [
+      {
+        "full_name": "siyuanzhou/PaperFormatDetect",
+        "description": "论文格式自动检测系统——PaperFormatDetection",
+        "stargazers_count": 75,
+        "pushed_at": "2021-03-27T02:07:08Z",
+        "license": {
+          "key": "bsd-3-clause",
+          "name": "BSD 3-Clause \"New\" or \"Revised\" License",
+          "spdx_id": "BSD-3-Clause",
+          "url": "https://api.github.com/licenses/bsd-3-clause",
+          "node_id": "MDc6TGljZW5zZTU="
+        }
+      },
+      {
+        "full_name": "ShenHongFei/PD",
+        "description": "论文格式检测 本地应用+网站（thesis/paper format auto detection)",
+        "stargazers_count": 12,
+        "pushed_at": "2017-11-07T03:02:17Z",
+        "license": null
+      },
+      {
+        "full_name": "TanKimzeg/PP4mat",
+        "description": "word论文格式检测工具.A format checker for paper of Microsoft docx file.",
+        "stargazers_count": 4,
+        "pushed_at": "2026-04-21T13:11:04Z",
+        "license": {
+          "key": "gpl-3.0",
+          "name": "GNU General Public License v3.0",
+          "spdx_id": "GPL-3.0",
+          "url": "https://api.github.com/licenses/gpl-3.0",
+          "node_id": "MDc6TGljZW5zZTk="
+        }
+      },
+      {
+        "full_name": "Yuzu-0721/Graduation",
+        "description": "论文格式检测",
+        "stargazers_count": 0,
+        "pushed_at": "2026-03-26T13:42:58Z",
+        "license": {
+          "key": "bsd-3-clause",
+          "name": "BSD 3-Clause \"New\" or \"Revised\" License",
+          "spdx_id": "BSD-3-Clause",
+          "url": "https://api.github.com/licenses/bsd-3-clause",
+          "node_id": "MDc6TGljZW5zZTU="
+        }
+      },
+      {
+        "full_name": "demi545/formatConversion",
+        "description": "毕业论文格式检测",
+        "stargazers_count": 1,
+        "pushed_at": "2017-06-19T08:13:20Z",
+        "license": null
+      }
+    ]
+  }
+]

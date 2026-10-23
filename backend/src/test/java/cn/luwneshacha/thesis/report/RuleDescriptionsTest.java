@@ -49,22 +49,28 @@ class RuleDescriptionsTest {
   }
 
   @Test
-  void wordReportKeepsPartialTableBorderFailuresSpecific() throws Exception {
+  void wordReportSummarizesTableBordersWhileDetailedAdviceRemainsAvailable() throws Exception {
     Path target = temp.resolve("table-border-report.docx");
     var finding = result("TAB-02", "TABLE_CONTINUATION_BORDER_INVALID", "表头下横线",
         "缺少符合规范的表头下横线", Judgement.FAIL);
     var report = new cn.luwneshacha.thesis.inspection.InspectionReport("hash", "school-v1",
         List.of(finding), List.of());
 
+    assertEquals("缺少符合规范的表头下横线", RuleDescriptions.reason(finding));
+    assertEquals("表头下横线", RuleDescriptions.expectedValue(finding));
+    assertEquals("请在 Word 中为表头行的下边框补上横线。", RuleDescriptions.suggestion(finding));
+
     new WordReportWriter().write(report, target);
 
     try (ZipFile zip = new ZipFile(target.toFile())) {
       String document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(),
           java.nio.charset.StandardCharsets.UTF_8);
-      assertTrue(document.contains("缺少符合规范的表头下横线"));
-      assertTrue(document.contains("请在 Word 中为表头行的下边框补上横线。"));
-      assertFalse(document.contains("顶线"));
-      assertFalse(document.contains("底线"));
+      assertTrue(document.contains("表格采用三线表，必要时可加辅助线"));
+      assertTrue(document.contains("明确问题总数：1 项"));
+      assertFalse(document.contains("缺少符合规范的表头下横线"));
+      assertFalse(document.contains("请在 Word 中为表头行的下边框补上横线。"));
+      assertFalse(document.contains("TAB-02"));
+      assertFalse(document.contains("TABLE_CONTINUATION_BORDER_INVALID"));
       assertFalse(document.contains("XML"));
     }
   }
@@ -201,7 +207,7 @@ class RuleDescriptionsTest {
     CheckResult conclusion = result("SECTION-REQUIRED", "REQUIRED_SECTION_MISSING",
         "结论", "未找到", Judgement.FAIL);
 
-    assertEquals("未找到“结论”章节，请补齐第五章“结论”并与目录保持一致后重新检测。",
+    assertEquals("未找到“结论”章节，请补齐“结论”并与目录保持一致后重新检测。",
         RuleDescriptions.suggestion(conclusion));
   }
 
@@ -490,10 +496,15 @@ class RuleDescriptionsTest {
   }
 
   @Test
-  void generatedWordReportUsesChineseRuleNameAndSuggestion() throws Exception {
+  void generatedWordReportUsesChineseRequirementsWithoutDetailedSuggestions() throws Exception {
     Path target = temp.resolve("report.docx");
+    var finding = result("COVER-03-FONT", "FONT_MISMATCH");
     var report = new cn.luwneshacha.thesis.inspection.InspectionReport("hash", "school-v1",
-        List.of(result("COVER-03-FONT", "FONT_MISMATCH")), List.of());
+        List.of(finding), List.of());
+
+    assertEquals("封面个人信息格式", RuleDescriptions.name(finding));
+    assertEquals("姓名、学号、院系、专业年级和指导教师统一改为仿宋、三号并加粗。",
+        RuleDescriptions.suggestion(finding));
 
     new WordReportWriter().write(report, target);
 
@@ -502,18 +513,27 @@ class RuleDescriptionsTest {
       document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(),
           java.nio.charset.StandardCharsets.UTF_8);
     }
-    assertTrue(document.contains("封面个人信息格式"));
-    assertTrue(document.contains("姓名、学号、院系、专业年级和指导教师"));
+    assertTrue(document.contains("封面姓名、学号、院系、专业年级和指导教师采用仿宋"));
+    assertTrue(document.contains("明确问题总数：1 项"));
+    assertFalse(document.contains(RuleDescriptions.suggestion(finding)));
+    assertFalse(document.contains("修改建议"));
     assertFalse(document.contains("COVER-03-FONT"));
+    assertFalse(document.contains("FONT_MISMATCH"));
   }
 
   @Test
   void wordReportDoesNotCountUndeterminedChecksAsPassedOrExposeXmlCodes() throws Exception {
     Path target = temp.resolve("page-number-report.docx");
+    var format = result("PAGE-04", "PAGE_NUMBER_FORMAT_MISMATCH", "decimal", "upperRoman", Judgement.FAIL);
+    var sequence = result("PAGE-04", "PAGE_NUMBER_SEQUENCE_RESTARTED", "continuous numbering",
+        "restarted at 1", Judgement.FAIL);
+    var review = result("EQ-07", "EQUATION_VARIABLES_REVIEW", "variables explained", null, Judgement.REVIEW);
     var report = new cn.luwneshacha.thesis.inspection.InspectionReport("hash", "school-v1", List.of(
-        result("PAGE-04", "PAGE_NUMBER_FORMAT_MISMATCH", "decimal", "upperRoman", Judgement.FAIL),
-        result("PAGE-04", "PAGE_NUMBER_SEQUENCE_RESTARTED", "continuous numbering", "restarted at 1", Judgement.FAIL),
-        result("EQ-07", "EQUATION_VARIABLES_REVIEW", "variables explained", null, Judgement.REVIEW)), List.of());
+        format, sequence, review), List.of());
+
+    assertEquals("阿拉伯数字页码", RuleDescriptions.expectedValue(format));
+    assertEquals("大写罗马数字", RuleDescriptions.actualValue(format));
+    assertEquals("正文到附录连续编排", RuleDescriptions.expectedValue(sequence));
 
     new WordReportWriter().write(report, target);
 
@@ -522,27 +542,36 @@ class RuleDescriptionsTest {
       document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(),
           java.nio.charset.StandardCharsets.UTF_8);
     }
-    assertTrue(document.contains("确定检查项：2 项；通过：0 项；错误：2 项"));
-    assertTrue(document.contains("阿拉伯数字页码"));
-    assertTrue(document.contains("大写罗马数字"));
+    assertTrue(document.contains("明确问题总数：2 项"));
+    assertTrue(document.contains("待人工确认总数：1 项（不计入问题数量）"));
+    assertTrue(document.contains("正文至附录使用连续阿拉伯数字页码，封面、摘要和目录不编页码"));
+    assertFalse(document.contains("大写罗马数字"));
+    assertFalse(document.contains(RuleDescriptions.reason(review)));
+    assertFalse(document.contains(RuleDescriptions.suggestion(format)));
     assertFalse(document.contains("decimal"));
     assertFalse(document.contains("upperRoman"));
     assertFalse(document.contains("continuous numbering"));
     assertFalse(document.contains("restarted at 1"));
-    assertFalse(document.contains("1 项；错误：2 项"));
-    assertFalse(document.contains("人工复核"));
+    assertFalse(document.contains("PAGE-04"));
+    assertFalse(document.contains("PAGE_NUMBER_FORMAT_MISMATCH"));
+    assertFalse(document.contains("EQUATION_VARIABLES_REVIEW"));
   }
 
   @Test
   void wordReportTranslatesInternalRuleDescriptionsToChinese() throws Exception {
     Path target = temp.resolve("translated-values-report.docx");
-    var report = new cn.luwneshacha.thesis.inspection.InspectionReport("hash", "school-v1", List.of(
+    var findings = List.of(
         result("TAB-03", "TABLE_CAPTION_BELOW", "caption above table", null, Judgement.FAIL),
         result("FIG-01", "FIGURE_NOT_CITED_IN_BODY", "body reference to figure", "1-1", Judgement.FAIL),
         result("TAB-01", "TABLE_NOT_CITED_IN_BODY", "body reference to table 2-3", null, Judgement.FAIL),
         result("EQ-04", "EQUATION_NOT_REFERENCED", "body reference to equation 3-1", null, Judgement.FAIL),
         result("REF-03", "CITED_REFERENCE_MISSING", "matching reference entry", "4", Judgement.FAIL),
-        result("UNMAPPED-RULE", "UNMAPPED_REASON", "body reference to table 4-5", null, Judgement.FAIL)), List.of());
+        result("UNMAPPED-RULE", "UNMAPPED_REASON", "body reference to table 4-5", null, Judgement.FAIL));
+    var report = new cn.luwneshacha.thesis.inspection.InspectionReport("hash", "school-v1", findings, List.of());
+
+    assertEquals(List.of("表题应位于表格上方", "正文引用图号", "正文引用表号 2-3", "正文引用公式（3-1）",
+        "正文引用对应的文末条目", "正文引用表号 4-5"),
+        findings.stream().map(RuleDescriptions::expectedValue).toList());
 
     new WordReportWriter().write(report, target);
 
@@ -551,12 +580,21 @@ class RuleDescriptionsTest {
       document = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(),
           java.nio.charset.StandardCharsets.UTF_8);
     }
-    assertTrue(document.contains("表题应位于表格上方"));
-    assertTrue(document.contains("正文引用图号"));
-    assertTrue(document.contains("正文引用表号 2-3"));
-    assertTrue(document.contains("正文引用公式（3-1）"));
-    assertTrue(document.contains("正文引用对应的文末条目"));
-    assertTrue(document.contains("正文引用表号 4-5"));
+    assertTrue(document.contains("表号和表题在表格上方居中"));
+    assertTrue(document.contains("每幅插图在正文中有对应引用"));
+    assertTrue(document.contains("每张表格在正文中有对应引用"));
+    assertTrue(document.contains("每个公式在正文中有对应引用"));
+    assertTrue(document.contains("参考文献均在正文中引用，并按首次引用顺序排列"));
+    assertTrue(document.contains("其他格式要求"));
+    assertTrue(document.contains("明确问题总数：6 项"));
+    assertFalse(document.contains("正文引用表号 2-3"));
+    assertFalse(document.contains("正文引用公式（3-1）"));
+    assertFalse(document.contains("正文引用表号 4-5"));
+    for (var finding : findings) {
+      assertFalse(document.contains(finding.ruleId()));
+      assertFalse(document.contains(finding.reasonCode()));
+      assertFalse(document.contains(RuleDescriptions.suggestion(finding)));
+    }
     assertFalse(document.contains("caption above table"));
     assertFalse(document.contains("body reference to figure"));
     assertFalse(document.contains("body reference to table"));
@@ -660,3 +698,4 @@ class RuleDescriptionsTest {
         judgement, expected, actual, reasonCode, SOURCE);
   }
 }
+

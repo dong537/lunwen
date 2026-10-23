@@ -13,6 +13,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class HttpAuditEngineTest {
   @TempDir Path directory;
@@ -79,7 +82,7 @@ class HttpAuditEngineTest {
     var result=engine(Duration.ofSeconds(5)).inspect(original(),directory);
     assertTrue(Files.isRegularFile(directory.resolve("report.docx")),"报告必须从引擎下载");
     assertArrayEquals(reportBytes,Files.readAllBytes(directory.resolve("report.docx")));
-    assertEquals(directory.resolve("report.docx"),result.reportDocx());
+    assertEquals(directory.resolve("report.docx"),result.wordReport());
   }
   @Test void requiresAvailableReportFromThisInspection() throws Exception {
     for(String reportFile:java.util.List.of("null","{\"available\":false}",
@@ -185,13 +188,58 @@ class HttpAuditEngineTest {
     respond("/api/inspections/other/annotated",200,markedDocx());
     assertTrue(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)).retryable());
   }
-  @Test void malformedDocumentIsPermanentButServerFailureRetries() throws Exception {
-    respond("/api/inspections",422,"bad document".getBytes());
-    assertFalse(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)).retryable());
-    server.removeContext("/api/inspections"); respond("/api/inspections",503,"unavailable".getBytes());
-    assertTrue(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)).retryable());
-    server.removeContext("/api/inspections"); respond("/api/inspections",403,"gateway authorization failure".getBytes());
-    assertTrue(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)).retryable());
+  @Test void uploadResourceLimitDoesNotBlameReadableDocumentForCorruption() throws Exception {
+    var failure=inspectionFailure(413,"{\"requestId\":\"test-39\",\"code\":\"RESOURCE_LIMIT\",\"message\":\"file exceeds configured upload limit\"}");
+    assertFalse(failure.retryable());
+    assertEquals("论文文件或解压后的内容超过审核服务处理上限，请联系管理员检查上传与处理限制",failure.getMessage());
+  }
+  @ParameterizedTest @ValueSource(ints={400,422})
+  void explicitlyInvalidDocxIsPermanentWithSafeInstructions(int status) throws Exception {
+    var failure=inspectionFailure(status,"{\"code\":\"INVALID_DOCX\",\"message\":\"unsafe XML private-document-content\"}");
+    assertFalse(failure.retryable());
+    assertEquals("上传的文件不是可读取的 DOCX，或含有不支持的文档内容，请在 Word 中另存为 DOCX 后重新提交",failure.getMessage());
+  }
+  @Test void uploadedRuleSpecificationIsDistinguishedFromCorruptDocument() throws Exception {
+    var failure=inspectionFailure(400,"{\"code\":\"RULE_SPECIFICATION_DOCUMENT\",\"message\":\"private-document-content\"}");
+    assertFalse(failure.retryable());
+    assertEquals("上传的是论文格式规范，请上传需要审核的论文 DOCX 文件",failure.getMessage());
+  }
+  @ParameterizedTest @CsvSource({"400,RESOURCE_LIMIT","422,RESOURCE_LIMIT"})
+  void resourceCodeUsesProcessingLimitInstructions(int status,String code) throws Exception {
+    var failure=inspectionFailure(status,"{\"code\":\""+code+"\",\"message\":\"ZIP part exceeds configured limit\"}");
+    assertFalse(failure.retryable());
+    assertEquals("论文文件或解压后的内容超过审核服务处理上限，请联系管理员检查上传与处理限制",failure.getMessage());
+  }
+  @ParameterizedTest @CsvSource({"400,FORMULA_CONVERSION_FAILED","400,REPORT_GENERATION_FAILED",
+      "422,PARSER_FAILED","400,UNKNOWN_CODE","422,UNKNOWN_CODE","500,INVALID_DOCX","503,RESOURCE_LIMIT"})
+  void serviceFailuresCannotBeReclassifiedAsDamagedPaper(int status,String code) throws Exception {
+    var failure=inspectionFailure(status,"{\"code\":\""+code+"\",\"message\":\"private-document-content\"}");
+    assertTrue(failure.retryable());
+    assertEquals("审核服务异常，请重新提交或联系管理员",failure.getMessage());
+  }
+  @ParameterizedTest @ValueSource(strings={"bad document","<html>proxy failure</html>","{", "null", "[]",
+      "{}","{\"code\":null}","{\"code\":123}","{\"code\":[\"INVALID_DOCX\"]}",
+      "{\"code\":\"INVALID_DOCX private-document-content\"}"})
+  void unverifiedErrorBodiesCannotBlamePaper(String response) throws Exception {
+    var failure=inspectionFailure(422,response);
+    assertTrue(failure.retryable());
+    assertEquals("审核服务异常，请重新提交或联系管理员",failure.getMessage());
+  }
+  @ParameterizedTest @ValueSource(ints={400,403,422,503})
+  void unstructuredHttpErrorsRemainRetryableServiceFailures(int status) throws Exception {
+    var failure=inspectionFailure(status,"gateway authorization failure");
+    assertTrue(failure.retryable());
+    assertEquals("审核服务异常，请重新提交或联系管理员",failure.getMessage());
+  }
+  @Test void gateway413StillExplainsSizeLimitWithoutClaimingCorruption() throws Exception {
+    var failure=inspectionFailure(413,"<html>request too large</html>");
+    assertFalse(failure.retryable());
+    assertEquals("论文文件或解压后的内容超过审核服务处理上限，请联系管理员检查上传与处理限制",failure.getMessage());
+  }
+  EngineFailure inspectionFailure(int status,String response) throws Exception {
+    respond("/api/inspections",status,response.getBytes(StandardCharsets.UTF_8));
+    Path original=original();
+    return assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original,directory));
   }
   @Test void htmlDownloadCannotBecomeSuccessfulDocx() throws Exception {
     respond("/api/inspections",200,report(finding,annotation,"/api/inspections/abc/annotated").getBytes());

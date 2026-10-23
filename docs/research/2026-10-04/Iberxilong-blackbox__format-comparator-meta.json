@@ -1,0 +1,16 @@
+{
+  "full_name": "Iberxilong-blackbox/format-comparator",
+  "description": "格式自动体检器，帮你自动检查word论文中哪里有格式问题~      Format Automatic Inspection Instrument, helps you automatically check for any format issues in your Word paper.",
+  "default_branch": "main",
+  "archived": false,
+  "pushed_at": "2025-05-30T10:15:43Z",
+  "license": {
+    "key": "mit",
+    "name": "MIT License",
+    "spdx_id": "MIT",
+    "url": "https://api.github.com/licenses/mit",
+    "node_id": "MDc6TGljZW5zZTEz"
+  },
+  "stargazers_count": 12,
+  "open_issues_count": 0
+}

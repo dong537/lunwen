@@ -460,7 +460,7 @@ export function SubmissionDetailPage() {
                 onClick={() =>
                   fileDownload.mutate({
                     kind: 'report',
-                    name: data.originalFilename.replace(/\.docx$/i, '.report.docx'),
+                    name: data.originalFilename.replace(/\.docx$/i, '-检查报告.docx'),
                   })
                 }
               >

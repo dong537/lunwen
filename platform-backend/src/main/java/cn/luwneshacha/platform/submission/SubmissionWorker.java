@@ -52,8 +52,8 @@ public class SubmissionWorker {
       try(var content=Files.newInputStream(result.marked())) {
         storage.put(claim.attemptPrefix()+"marked.docx",content,Files.size(result.marked()),SubmissionService.DOCX);
       }
-      try(var content=Files.newInputStream(result.reportDocx())) {
-        storage.put(claim.attemptPrefix()+"report.docx",content,Files.size(result.reportDocx()),SubmissionService.DOCX);
+      try(var content=Files.newInputStream(result.wordReport())) {
+        storage.put(claim.attemptPrefix()+"report.docx",content,Files.size(result.wordReport()),SubmissionService.DOCX);
       }
       try(var content=new ByteArrayInputStream(result.reportJson())) {
         storage.put(claim.attemptPrefix()+"report.json",content,result.reportJson().length,"application/json");

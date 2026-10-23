@@ -37,7 +37,7 @@ public class SubmissionTasks {
   public boolean fail(Claim claim, boolean retryable, String message, Instant now) {
     boolean retry = retryable && claim.attempt() < 3;
     return Boolean.TRUE.equals(transaction.execute(status -> repository.fail(claim.id(), claim.attempt(),
-        retry ? SubmissionStatus.PENDING : SubmissionStatus.FAILED, retry ? null : message,
+        retry ? SubmissionStatus.PENDING : SubmissionStatus.FAILED, message,
         retry ? null : now, retry ? now.plusSeconds(30) : now, now.minus(lease)) == 1));
   }
   public int recoverExhausted(Instant now) {

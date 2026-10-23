@@ -1,3 +1,12 @@
 node_modules
 dist
 *.log
+.env*
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+playwright.config.js
+playwright.config.d.ts
+playwright-report
+test-results
+blob-report

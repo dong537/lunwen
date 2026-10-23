@@ -15,9 +15,6 @@ final class ContentsRuleChecker implements RuleModule {
   private static final Pattern ENTRY = Pattern.compile(".+(?:\\.{2,}|……+|\\t|[\\p{Zs}]{2,})\\s*\\d+$", Pattern.DOTALL);
   private static final Pattern CHAPTER = Pattern.compile("^第[一二三四五六七八九十百千万零〇]+章");
   private static final Pattern NUMERIC = Pattern.compile("^(\\d+(?:\\.\\d+){1,2})(.*)$", Pattern.DOTALL);
-  private static final Pattern ENTRY_WITH_PAGE = Pattern.compile(
-      "^(.*?)(?:\\.{2,}|……+|\\t|[\\p{Zs}]{2,})\\s*\\d+$", Pattern.DOTALL);
-  private static final Pattern SIMPLE_ENTRY_WITH_PAGE = Pattern.compile("^(.*?)\\s+\\d+$", Pattern.DOTALL);
   private static final Pattern NUMERIC_PAGE = Pattern.compile(
       "(?s)^.*?(?:\\.{2,}|……+|\\t|[\\p{Zs}]+)\\s*(\\d+)$");
 
@@ -35,6 +32,7 @@ final class ContentsRuleChecker implements RuleModule {
     var results = new ArrayList<CheckResult>();
     var contentsEntries = new ArrayList<RelationItem>();
     var bodyHeadings = new ArrayList<RelationItem>();
+    var embeddedHeadings = new EmbeddedHeadingDetector(document);
     boolean inContents = false;
     boolean contentsSeen = false;
     SourceAddress contentsAnchor = null;
@@ -77,6 +75,9 @@ final class ContentsRuleChecker implements RuleModule {
         relationItem(raw, paragraph, false).ifPresent(bodyHeadings::add);
       } else if (!inContents && contentsSeen && !insideTable && isBodyHeading(paragraph, raw)) {
         relationItem(raw, paragraph, false).ifPresent(bodyHeadings::add);
+      } else if (!inContents && contentsSeen && !insideTable && !paragraph.insideTextBox()) {
+        embeddedHeadings.find(paragraph).ifPresent(heading -> bodyHeadings.add(
+            new RelationItem(compact(heading.title()), heading.source(), false)));
       }
       if (isEntry(paragraph, raw)) checkEntrySpacing(results, paragraph, raw);
     }
@@ -195,7 +196,7 @@ final class ContentsRuleChecker implements RuleModule {
 
   private java.util.Optional<RelationItem> relationItem(String raw, ParagraphModel paragraph,
       boolean contentsEntry) {
-    String title = contentsEntry ? removePageSuffix(raw) : raw.strip();
+    String title = contentsEntry ? DocumentRegionClassifier.contentsTitle(raw) : raw.strip();
     String key = compact(title);
     if (key.isEmpty()) return java.util.Optional.empty();
     if (!contentsEntry && !isBodyHeading(paragraph, raw)) return java.util.Optional.empty();
@@ -207,14 +208,6 @@ final class ContentsRuleChecker implements RuleModule {
     String normalized = compact(raw);
     return headingChecker.headingLevel(paragraph) > 0
         || isEndMatter(raw) || normalized.equals("绪论") || normalized.equals("引言");
-  }
-
-  private static String removePageSuffix(String raw) {
-    String value = raw.strip();
-    Matcher matcher = ENTRY_WITH_PAGE.matcher(value);
-    if (matcher.matches()) return matcher.group(1).strip();
-    matcher = SIMPLE_ENTRY_WITH_PAGE.matcher(value);
-    return matcher.matches() ? matcher.group(1).strip() : value;
   }
 
   private record RelationItem(String key, SourceAddress source, boolean pageNumberPresent) { }
@@ -369,7 +362,7 @@ final class ContentsRuleChecker implements RuleModule {
     Matcher numeric = DocumentRegionClassifier.NUMERIC_CONTENTS_WITH_INTERNAL_WHITESPACE.matcher(value);
     if (numeric.matches())
       return numeric.group(1).chars().filter(character -> character == '.').count() == 1 ? 2 : 3;
-    return isEndMatter(removePageSuffix(value)) ? 1 : 0;
+    return isEndMatter(DocumentRegionClassifier.contentsTitle(value)) ? 1 : 0;
   }
 
   private CheckResult checkFirstLevelEntryIndent(ParagraphModel paragraph) {

@@ -925,16 +925,19 @@ class Docx4jDocumentParserTest {
     Path file = temp.resolve("automatic-heading.docx");
     pkg.save(file.toFile());
 
-    ParagraphModel heading = new Docx4jDocumentParser().parse(new DocxReader().read(file)).paragraphs().get(0);
+    var parsed = new Docx4jDocumentParser().parse(new DocxReader().read(file));
+    ParagraphModel heading = parsed.paragraphs().get(0);
 
     assertEquals("第1章", heading.numberingLabel());
     assertEquals(1, heading.numberingSeparatorSpaces());
     assertEquals(0, heading.numberingFormatTrailingSpaces());
-    var spacing = new cn.luwneshacha.thesis.rules.RuleEngine()
-        .check(new ParsedDocument("source", List.of(heading), List.of(), List.of()),
-            cn.luwneshacha.thesis.rules.RuleSet.schoolV1()).stream()
-        .filter(result -> result.ruleId().equals("HEAD-01-SPACING")).findFirst().orElseThrow();
-    assertEquals(cn.luwneshacha.thesis.rules.Judgement.PASS, spacing.judgement());
+    var results = new cn.luwneshacha.thesis.rules.RuleEngine()
+        .check(parsed, cn.luwneshacha.thesis.rules.RuleSet.schoolV1());
+    var numbering = results.stream().filter(result -> result.ruleId().equals("NUMBERING-01"))
+        .findFirst().orElseThrow();
+    assertEquals(cn.luwneshacha.thesis.rules.Judgement.FAIL, numbering.judgement());
+    assertEquals("AUTOMATIC_NUMBERING_FORBIDDEN", numbering.reasonCode());
+    assertFalse(results.stream().anyMatch(result -> result.ruleId().equals("HEAD-01-SPACING")));
   }
 
   @Test
@@ -1006,14 +1009,13 @@ class Docx4jDocumentParserTest {
     Path file = temp.resolve("automatic-heading-unknown-numbering.docx");
     pkg.save(file.toFile());
 
-    ParagraphModel heading = new Docx4jDocumentParser().parse(new DocxReader().read(file)).paragraphs().get(0);
+    var parsed = new Docx4jDocumentParser().parse(new DocxReader().read(file));
     var result = new cn.luwneshacha.thesis.rules.RuleEngine()
-        .check(new ParsedDocument("source", List.of(heading), List.of(), List.of()),
-            cn.luwneshacha.thesis.rules.RuleSet.schoolV1()).stream()
-        .filter(item -> item.ruleId().equals("HEAD-01-SPACING")).findFirst().orElseThrow();
+        .check(parsed, cn.luwneshacha.thesis.rules.RuleSet.schoolV1()).stream()
+        .filter(item -> item.ruleId().equals("NUMBERING-01")).findFirst().orElseThrow();
 
-    assertEquals(cn.luwneshacha.thesis.rules.Judgement.FAIL, result.judgement());
-    assertEquals("HEADING_NUMBER_SPACING_MISMATCH", result.reasonCode());
+    assertEquals(cn.luwneshacha.thesis.rules.Judgement.REVIEW, result.judgement());
+    assertEquals("AUTOMATIC_NUMBERING_UNCONFIRMED", result.reasonCode());
   }
 
   @Test

@@ -1,6 +1,7 @@
 package cn.luwneshacha.thesis.rules;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.luwneshacha.thesis.document.ParagraphModel;
@@ -3733,44 +3734,42 @@ class RuleEngineTest {
   }
 
   @Test
-  void checksAutomaticHeadingSpacingFromNumberingSuffixAndParagraphText() {
+  void keepsHeadingFormattingButDoesNotApproveAutomaticNumberingBasedOnItsSpaces() {
     var source = new SourceAddress("word/document.xml", List.of(0, 9), 0, 3);
     var heading = new ParagraphModel(List.of(new RunModel(" 标题", "Times New Roman", "黑体", null,
         32, true, source)), null, null, null, null, null, null, source, null, 0, "left", "1", 1, 0);
     var document = new ParsedDocument("source", List.of(heading), List.of(), List.of());
 
-    var result = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
-        .filter(item -> item.ruleId().equals("HEAD-01-SPACING")).findFirst().orElseThrow();
-
-    assertEquals(Judgement.PASS, result.judgement());
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+    assertFalse(results.stream().anyMatch(item -> item.ruleId().equals("HEAD-01-SPACING")));
+    assertTrue(results.stream().anyMatch(item -> item.ruleId().equals("HEADING-SIZE")
+        && item.judgement() == Judgement.PASS));
+    assertTrue(results.stream().anyMatch(item -> item.ruleId().equals("HEAD-01-ALIGNMENT")
+        && item.judgement() == Judgement.FAIL));
   }
 
   @Test
-  void rejectsAutomaticHeadingWhenNumberingSuffixIsATab() {
+  void doesNotRecommendChangingTheSeparatorOfProhibitedAutomaticHeadingNumbering() {
     var source = new SourceAddress("word/document.xml", List.of(0, 9), 0, 4);
     var heading = new ParagraphModel(List.of(new RunModel("  标题", "Times New Roman", "黑体", null,
         32, true, source)), null, null, null, null, null, null, source, null, 0, "left", "1", null, 0);
     var document = new ParsedDocument("source", List.of(heading), List.of(), List.of());
 
-    var result = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
-        .filter(item -> item.ruleId().equals("HEAD-01-SPACING")).findFirst().orElseThrow();
-
-    assertEquals(Judgement.FAIL, result.judgement());
-    assertEquals("HEADING_NUMBER_SPACING_MISMATCH", result.reasonCode());
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+    assertFalse(results.stream().anyMatch(item -> item.ruleId().equals("HEAD-01-SPACING")));
+    assertTrue(results.stream().anyMatch(item -> item.ruleId().equals("HEADING-SIZE")));
   }
 
   @Test
-  void rejectsNonBreakingSpaceAsAutomaticHeadingSeparator() {
+  void doesNotCheckAutomaticHeadingSeparatorsEvenWhenTheirVisibleWhitespaceIsUnusual() {
     var source = new SourceAddress("word/document.xml", List.of(0, 9), 0, 3);
     var heading = new ParagraphModel(List.of(new RunModel("\u00a0标题", "Times New Roman", "黑体", null,
         32, true, source)), null, null, null, null, null, null, source, null, 0, "left", "1", 1, 1);
     var document = new ParsedDocument("source", List.of(heading), List.of(), List.of());
 
-    var result = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
-        .filter(item -> item.ruleId().equals("HEAD-01-SPACING")).findFirst().orElseThrow();
-
-    assertEquals(Judgement.FAIL, result.judgement());
-    assertEquals("HEADING_NUMBER_SPACING_MISMATCH", result.reasonCode());
+    var results = new RuleEngine().check(document, RuleSet.schoolV1());
+    assertFalse(results.stream().anyMatch(item -> item.ruleId().equals("HEAD-01-SPACING")));
+    assertTrue(results.stream().anyMatch(item -> item.ruleId().equals("HEADING-SIZE")));
   }
 
   @Test

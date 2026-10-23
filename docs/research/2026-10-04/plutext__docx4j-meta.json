@@ -1,0 +1,10 @@
+{
+  "full_name": "plutext/docx4j",
+  "description": "JAXB-based Java library for Word docx, Powerpoint pptx, and Excel xlsx files",
+  "default_branch": "VERSION_17_2_1",
+  "archived": false,
+  "pushed_at": "2026-10-02T19:46:11Z",
+  "license": null,
+  "stargazers_count": 2386,
+  "open_issues_count": 202
+}

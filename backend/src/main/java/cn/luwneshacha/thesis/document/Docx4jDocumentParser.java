@@ -17,10 +17,20 @@ import org.docx4j.TraversalUtil;
 import org.docx4j.TraversalUtil.Callback;
 import org.docx4j.XmlUtils;
 import org.docx4j.finders.ClassFinder;
+import org.docx4j.openpackaging.contenttype.ContentType;
+import org.docx4j.openpackaging.contenttype.ContentTypeManager;
+import org.docx4j.openpackaging.exceptions.Docx4JException;
+import org.docx4j.openpackaging.io3.Load3;
+import org.docx4j.openpackaging.io3.stores.ZipPartStore;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
+import org.docx4j.openpackaging.parts.Part;
+import org.docx4j.openpackaging.parts.PartName;
+import org.docx4j.openpackaging.parts.WordprocessingML.BinaryPart;
 import org.docx4j.openpackaging.parts.WordprocessingML.MainDocumentPart;
+import org.docx4j.openpackaging.parts.relationships.RelationshipsPart;
 import org.docx4j.model.listnumbering.Emulator;
 import org.docx4j.model.listnumbering.NumberingState;
+import org.docx4j.relationships.Relationship;
 import org.docx4j.wml.Br;
 import org.docx4j.wml.P;
 import org.docx4j.wml.PPr;
@@ -59,7 +69,8 @@ public final class Docx4jDocumentParser {
   public ParsedDocument parse(RawDocx raw) {
     Objects.requireNonNull(raw, "raw");
     try {
-      WordprocessingMLPackage pkg = WordprocessingMLPackage.load(new ByteArrayInputStream(raw.sourceBytes()));
+      WordprocessingMLPackage pkg = (WordprocessingMLPackage) new ImageMediaPackageLoader(raw).get();
+      pkg.setNew(false);
       MainDocumentPart main = pkg.getMainDocumentPart();
       var paragraphs = new ArrayList<ParagraphModel>();
       var sections = new ArrayList<SectionModel>();
@@ -105,9 +116,37 @@ public final class Docx4jDocumentParser {
           new EquationParser().parse(documentXml, styles == null ? null : styles.bytes(), equationThemeFonts(pkg)),
           new ReferenceParser().parse(paragraphs), new ImageParser().parse(documentXml, styles == null ? null : styles.bytes()), parsePageNumbers(raw, pkg),
           parseChapterBreaks(documentXml, pkg, finder.results, paragraphPaths, paragraphs),
-          parseHeaders(raw, pkg, evenAndOddHeaders));
+          parseHeaders(raw, pkg, evenAndOddHeaders), new AutomaticNumberingParser().parse(raw));
     } catch (Exception error) {
       throw new IllegalArgumentException("unable to parse DOCX: " + error.getMessage(), error);
+    }
+  }
+
+  private static final class ImageMediaPackageLoader extends Load3 {
+    private static final String SVG_CONTENT_TYPE = "image/svg+xml";
+    private final RawDocx raw;
+
+    private ImageMediaPackageLoader(RawDocx raw) throws Docx4JException {
+      super(new ZipPartStore(new ByteArrayInputStream(raw.sourceBytes())));
+      this.raw = raw;
+    }
+
+    @Override
+    public Part getRawPart(ContentTypeManager contentTypes, String resolvedPartUri,
+        Relationship relationship, RelationshipsPart relationships) throws Docx4JException {
+      PartName name = new PartName("/" + resolvedPartUri);
+      boolean image = (OFFICE_RELATIONSHIPS + "/image").equals(relationship.getType())
+          || (STRICT_OFFICE_RELATIONSHIPS + "/image").equals(relationship.getType());
+      if (image && !"External".equalsIgnoreCase(relationship.getTargetMode())
+          && SVG_CONTENT_TYPE.equals(contentTypes.getContentType(name))) {
+        // SVG is opaque image media, not a document XML part. Never parse its DTD;
+        // document XML safety and outer drawing/caption checks remain unchanged.
+        BinaryPart part = new BinaryPart(name);
+        part.setContentType(new ContentType(SVG_CONTENT_TYPE));
+        part.setBinaryData(raw.part(resolvedPartUri).bytes());
+        return part;
+      }
+      return super.getRawPart(contentTypes, resolvedPartUri, relationship, relationships);
     }
   }
 

@@ -125,6 +125,7 @@ final class TableRuleModule implements RuleModule {
           paragraph.source()));
     }
     for (RunModel run : paragraph.runs()) {
+      if (ParagraphFormatChecker.isLayoutControlOnly(run)) continue;
       results.add(paragraphFormatChecker.checkFont(run, rules, "CAPTION-FONT"));
       results.add(checkCaptionSize(run));
     }

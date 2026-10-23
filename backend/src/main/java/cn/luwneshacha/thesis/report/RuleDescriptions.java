@@ -10,6 +10,7 @@ public final class RuleDescriptions {
   public static String name(String ruleId) {
     if (ruleId == null) return "格式检查";
     return switch (ruleId) {
+      case "NUMBERING-01" -> "自动编号";
       case "PAGE-01" -> "页边距"; case "PAGE-04", "PAGE-05" -> "页码格式";
       case "PAGE-03" -> "章节分页";
       case "HEADER-01-MISSING", "HEADER-01-TEXT" -> "页眉文字";
@@ -30,6 +31,7 @@ public final class RuleDescriptions {
       case "HEAD-01-SPACING" -> "一级标题编号空格";
       case "HEAD-01-ALIGNMENT" -> "一级标题对齐";
       case "HEAD-02-BLANK" -> "章标题后空行";
+      case "HEAD-EMBEDDED" -> "标题独立成段";
       case "HEAD-02-SPACING", "HEAD-03-SPACING" -> "标题编号空格";
       case "HEAD-03-INDENT" -> "三级标题缩进";
       case "HEAD-05-FONT" -> "三级以下标题字体";
@@ -124,6 +126,8 @@ public final class RuleDescriptions {
     if ("LINE_SPACING_INVALID".equals(code)) return "行距设置的数值无法读取，不符合明确的行距要求";
     if ("MARGIN_INVALID".equals(code)) return "页边距设置的数值无法读取，不符合四边 2.6 cm 的要求";
     return switch (code) {
+      case "AUTOMATIC_NUMBERING_FORBIDDEN" -> "此处使用了自动编号；全文编号（包括标题和参考文献）必须手动输入";
+      case "AUTOMATIC_NUMBERING_UNCONFIRMED" -> "编号设置不完整，暂无法确认此处是否使用自动编号";
       case "MARGIN_MISMATCH" -> "页边距不是 2.6 cm";
       case "MARGIN_GUTTER_MISMATCH" -> "页面设置了额外装订线";
       case "MARGIN_GUTTER_UNKNOWN" -> "Word XML 中没有可确认的装订线数值";
@@ -253,8 +257,7 @@ public final class RuleDescriptions {
       case "ENGLISH_KEYWORD_WRAP_ALIGNMENT_MISMATCH" -> "英文关键词换行后没有与第一个关键词首字母对齐";
       case "BODY_REGION_UNDETERMINED" -> "无法从章节证据确定正文检查范围";
       case "APPENDIX_PAGE_BREAK_REVIEW" -> "无法从 XML 确认附录标题是否另起一页";
-      case "CONCLUSION_CHAPTER_MISMATCH" -> "结论章节不是第五章";
-      case "CONCLUSION_CHAPTER_UNCONFIRMED" -> "无法从无编号标题确认结论是否为第五章";
+      case "HEADING_JOINED_TO_BODY" -> "标题与上一段正文连在同一段落";
       case "ENGLISH_KEYWORD_SEPARATOR_MISMATCH" -> "英文关键词没有用分号分隔";
       case "ENGLISH_KEYWORD_COUNT_MISMATCH" -> "英文关键词应为3至5个";
       case "EQUATION_NOT_REFERENCED" -> "正文没有引用该公式";
@@ -283,7 +286,6 @@ public final class RuleDescriptions {
       case "REFERENCE_NUMBER_SEQUENCE_MISMATCH" -> "参考文献编号没有连续排列";
       case "REFERENCE_NUMBER_INVALID" -> "参考文献编号格式不正确";
       case "REFERENCE_NUMBER_SPACING_MISMATCH" -> "参考文献编号与文献内容之间不是一个普通半角空格";
-      case "REFERENCE_NUMBER_SPACING_UNCONFIRMED" -> "无法从文档结构确认自动编号后的分隔符是否为一个普通半角空格";
       case "REFERENCE_PAGE_RANGE_SPACING" -> "页码范围连接号两侧有多余空格";
       case "REFERENCE_ORDER_MISMATCH" -> "参考文献顺序与正文首次引用顺序不一致";
       case "SECTION_TITLE_BLANK_LINE_MISSING" -> "标题与正文之间没有空一行";
@@ -299,12 +301,25 @@ public final class RuleDescriptions {
   }
 
   public static String suggestion(CheckResult result) {
+    if ("AUTOMATIC_NUMBERING_FORBIDDEN".equals(result.reasonCode())) {
+      if ("自动序号".equals(result.actual()) || "行内自动编号".equals(result.actual()))
+        return "请保留此处显示的序号，仅将此处自动序号转换为普通文字，或删除该自动序号后手动输入原序号；保留周围文字。";
+      return "先记下当前序号，在 Word/WPS 的“开始”中取消该段的编号或多级列表，再手动输入原序号。"
+          + "参考文献写成“[1] 作者…”（编号后一个普通空格）；一级标题序数后两个普通空格；"
+          + "二、三级标题编号后一个普通空格。";
+    }
+    if ("AUTOMATIC_NUMBERING_UNCONFIRMED".equals(result.reasonCode()))
+      return "请在 Word/WPS 中检查此处编号；如为自动编号列表，先记下当前序号，再取消该段的编号或多级列表并手动输入原序号；"
+          + "如为自动序号域，保留此处显示的序号，仅将该序号转换为普通文字。";
+    if ("HEADING_JOINED_TO_BODY".equals(result.reasonCode())) {
+      String format = "三级标题独立成段".equals(result.expected()) ? "小四号黑体" : "四号黑体";
+      return "“" + result.actual() + "”与上一段正文连在同一段落。请将光标放在该标题编号前，按 Enter 回车键，"
+          + "使标题独立成段，保留标题的" + format + "，不要改成正文的宋体。";
+    }
     if ("REFERENCE_PAGE_RANGE_SPACING".equals(result.reasonCode()))
       return "请删除页码范围连接号两侧的空格，写成“140-145”这样的格式。";
     if ("REFERENCE_NUMBER_SPACING_MISMATCH".equals(result.reasonCode())) {
       String actual = result.actual() == null ? "" : result.actual();
-      if (actual.matches(".*suffix=0, formatTrailing=\\d+.*"))
-        return "自动编号的“编号之后”应设为“空格”；不要使用制表符或不留间隔。";
       if (actual.contains("没有空格"))
         return "参考文献编号后缺少空格；请在编号后补一个普通半角空格，再接作者姓名。";
       if (actual.startsWith("编号后连续 ")) {
@@ -315,8 +330,6 @@ public final class RuleDescriptions {
         return "参考文献编号后使用的空白符号不符合要求；请换成一个普通半角空格，再接作者姓名。";
       return "参考文献编号与作者姓名之间只保留一个普通半角空格。";
     }
-    if ("REFERENCE_NUMBER_SPACING_UNCONFIRMED".equals(result.reasonCode()))
-      return "请在 Word 中检查参考文献自动编号后是否只保留一个普通半角空格；建议转换为可直接编辑的编号文本后重新检查。";
     if ("HEADING_NUMBER_INTERNAL_WHITESPACE".equals(result.reasonCode()))
       return "编号写成了“" + result.actual() + "”，请删除编号内部的空格，改为“" + result.expected()
           + "”。编号与标题文字之间保留一个普通空格。";
@@ -520,7 +533,6 @@ public final class RuleDescriptions {
       case "APP-01" -> "附录按 A、B、C 顺序编号，并在附录图、表、公式编号前加对应字母。";
       case "APP-02-SPACING" -> "附录标题按“附    录”书写，中间留四个空格。";
       case "APP-03" -> "将“附    录”总标题设置为从新页开始；没有明确分页证据时先在 Word 中确认实际版面。";
-      case "CONCLUSION_CHAPTER_MISMATCH" -> "将结论标题改为第五章，并保持章节编号与目录一致。";
       case "END-01-SPACING" -> "标题写成“致    谢”，两个字之间保留 4 个普通空格。";
       case "REF-01-SPACING" -> "标题写成“参考文献”，两个词之间不要插入空格。";
       case "END-01-BLANK", "APP-02-BLANK", "REF-01-BLANK" -> switch (result.reasonCode()) {
@@ -659,7 +671,7 @@ public final class RuleDescriptions {
   private static String missingSectionSuggestion(CheckResult result) {
     String section = result.expected() == null ? "该章节" : result.expected().strip();
     if ("结论".equals(section) || "结论与展望".equals(section))
-      return "未找到“结论”章节，请补齐第五章“结论”并与目录保持一致后重新检测。";
+      return "未找到“结论”章节，请补齐“结论”并与目录保持一致后重新检测。";
     if (section.isBlank()) return "未找到学校要求的章节，请补齐对应标题和内容后重新检测。";
     return "未找到“" + section + "”章节，请补齐该章节标题和内容后重新检测。";
   }
@@ -687,7 +699,6 @@ public final class RuleDescriptions {
       case "CHAPTER_PAGE_BREAK_REVIEW" -> "Word XML 无法确认是否另起一页，请先在 Word 中查看章节起始页；只有确实未另起一页时，再给章节标题设置段前分页。";
       case "APPENDIX_PAGE_BREAK_REVIEW" -> "请先在 Word 中确认“附    录”是否从新页开始；只有确认未另起一页时，再设置段前分页。";
       case "BODY_REGION_UNDETERMINED" -> "请确认论文有清晰的正文一级章节标题后重新检查，系统才能准确区分正文与前置内容。";
-      case "CONCLUSION_CHAPTER_UNCONFIRMED" -> "请在 Word 中确认结论标题属于第五章，并保留明确的章节编号。";
       case "CITATION_RANGE_REVIEW" -> "逐个核对引用编号与文末条目，并按首次出现顺序排列。";
       case "REQUIRED_SECTION_MISSING" -> missingSectionSuggestion(result);
       case "APPENDIX_TITLE_MISSING" -> "在附录A等分项之前补充独立的“附    录”总标题，并在标题后保留一空行。";

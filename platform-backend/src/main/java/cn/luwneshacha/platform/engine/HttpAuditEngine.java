@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class HttpAuditEngine implements AuditEngine {
   private static final String SERVICE_ERROR="审核服务异常，请重新提交或联系管理员";
+  private static final String RESOURCE_LIMIT="论文文件或解压后的内容超过审核服务处理上限，请联系管理员检查上传与处理限制";
   private final EngineProperties properties;
   private final ObjectMapper json;
   private final HttpClient client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NEVER).build();
@@ -31,8 +32,8 @@ public class HttpAuditEngine implements AuditEngine {
       var request=HttpRequest.newBuilder(properties.baseUrl().resolve("/api/inspections"))
           .timeout(properties.timeout()).header("Content-Type","multipart/form-data; boundary="+boundary).POST(body).build();
       HttpResponse<byte[]> response=send(request,limited(HttpResponse.BodyHandlers.ofByteArray(),16L*1024*1024),deadline);
-      checkStatus(response.statusCode());
       byte[] bytes=response.body();
+      checkStatus(response.statusCode(),bytes);
       JsonNode root=json.readTree(bytes);
       String requestId=root.path("requestId").asText();
       if(!root.path("requestId").isTextual()||!requestId.matches("[A-Za-z0-9-]{1,128}")) throw new EngineFailure(true,SERVICE_ERROR);
@@ -67,7 +68,7 @@ public class HttpAuditEngine implements AuditEngine {
         String part=anchor.path("partName").asText();
         if(!part.isBlank()) anchorParts.add(part);
       }
-      MarkedDocumentValidator.validate(original,marked,failures>0,anchorParts);
+      WordDocumentValidator.validate(original,marked,failures>0,anchorParts);
       JsonNode reportFile=root.path("reportFile");
       String reportDownload=reportFile.path("downloadPath").asText();
       if(!reportFile.path("available").isBoolean()||!reportFile.path("available").booleanValue()
@@ -76,7 +77,7 @@ public class HttpAuditEngine implements AuditEngine {
       var reportOutput=send(HttpRequest.newBuilder(properties.baseUrl().resolve(reportDownload)).timeout(properties.timeout()).GET().build(),
           limited(HttpResponse.BodyHandlers.ofFile(reportDocx),100L*1024*1024),deadline);
       if(reportOutput.statusCode()!=200) throw new EngineFailure(true,SERVICE_ERROR);
-      MarkedDocumentValidator.validateReport(reportDocx);
+      WordDocumentValidator.validateReport(reportDocx);
       if(System.nanoTime()>=deadline) throw new HttpTimeoutException("engine total deadline exceeded");
       return new Result(failures,marked,reportDocx,bytes);
     } catch(EngineFailure error) { throw error; }
@@ -128,10 +129,25 @@ public class HttpAuditEngine implements AuditEngine {
       actual.put(key,count-1);
     }
   }
-  private static void checkStatus(int status) throws EngineFailure {
+  private void checkStatus(int status,byte[] body) throws EngineFailure {
     if(status>=200&&status<300) return;
-    if(status==400||status==413||status==422)
-      throw new EngineFailure(false,"文档损坏或无法解析，请重新保存为 DOCX 后上传");
+    if(status==413) throw new EngineFailure(false,RESOURCE_LIMIT);
+    if(status==400||status==422) {
+      JsonNode error;
+      try {error=json.reader().with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(body);}
+      catch(IOException malformedResponse) {throw new EngineFailure(true,SERVICE_ERROR);}
+      // Only stable error codes establish an input problem; never expose raw error messages.
+      if(error!=null&&error.isObject()&&error.path("code").isTextual()) {
+        switch(error.path("code").textValue()) {
+          case "RESOURCE_LIMIT" -> throw new EngineFailure(false,RESOURCE_LIMIT);
+          case "INVALID_DOCX" -> throw new EngineFailure(false,
+              "上传的文件不是可读取的 DOCX，或含有不支持的文档内容，请在 Word 中另存为 DOCX 后重新提交");
+          case "RULE_SPECIFICATION_DOCUMENT" -> throw new EngineFailure(false,
+              "上传的是论文格式规范，请上传需要审核的论文 DOCX 文件");
+          default -> throw new EngineFailure(true,SERVICE_ERROR);
+        }
+      }
+    }
     throw new EngineFailure(true,SERVICE_ERROR);
   }
   public static void copyLimited(InputStream input,OutputStream output,long limit) throws IOException {

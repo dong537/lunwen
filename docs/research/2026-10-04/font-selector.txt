@@ -1,0 +1,2574 @@
+SOURCE: https://api.github.com/repos/plutext/docx4j/contents/docx4j-core/src/main/java/org/docx4j/fonts/RunFontSelector.java?ref=VERSION_17_2_1
+SHA: de789ec1dd43818413917fa982f1ac65c0163a46
+package org.docx4j.fonts;
+
+import org.docx4j.Docx4jProperties;
+import org.docx4j.XmlUtils;
+import org.docx4j.jaxb.Context;
+import org.docx4j.convert.out.common.writer.SymbolMapper;
+import org.docx4j.convert.out.common.writer.SymbolUtils;
+import org.docx4j.model.PropertyResolver;
+import org.docx4j.model.properties.Property;
+import org.docx4j.openpackaging.exceptions.CyclicStylesException;
+import org.docx4j.openpackaging.exceptions.Docx4JException;
+import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
+import org.docx4j.openpackaging.parts.ThemePart;
+import org.docx4j.wml.BooleanDefaultTrue;
+import org.docx4j.wml.CTLanguage;
+import org.docx4j.wml.PPr;
+import org.docx4j.wml.PPrBase;
+import org.docx4j.wml.RFonts;
+import org.docx4j.wml.RPr;
+import org.docx4j.wml.STHint;
+import org.docx4j.wml.Style;
+import org.docx4j.wml.Text;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.docx4j.fonts.fop.fonts.CustomFont;
+import org.docx4j.fonts.fop.fonts.Typeface;
+import org.w3c.dom.Node;
+import org.w3c.dom.Document;
+import org.w3c.dom.DocumentFragment;
+import org.w3c.dom.Element;
+
+import java.awt.font.NumericShaper;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutionException;
+
+/**
+ * Apply the appropriate font to the characters in the run, following the rules in the
+ * Microsoft implementer notes on rFonts: [MS-OI29500] Part 1 section 17.3.2.26 (ISO 29500),
+ * https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/aef3c9a6-5d6c-434b-90b7-85e761fd8e62
+ * The table in [MS-OE376] Part 4 section 2.3.2.24 (the ECMA-376 notes, documenting Word 2007)
+ * is identical, so the documented behaviour is stable across Word generations.
+ *
+ * ECMA-376 itself (mirrored at http://webapp.docx4java.org/OnlineDemo/ecma376/WordML/rFonts.html)
+ * just says font use "shall be determined by the Unicode character values of the run content",
+ * without saying how; the old MSDN article ff533743 (link now dead) derived from the same
+ * material as the implementer notes.
+ *
+ * The implementation was validated against the [MS-OI29500] table on 2026-08-19.  The table
+ * itself is {@link #fontFor}, one function of the code point; the known deliberate
+ * divergences from it, each measured against Word, are listed there.
+ *
+ * How a run is handled (CR-016): its effective properties are resolved once - by the caller,
+ * which passes them with {@code rPrIsEffective}, or here through
+ * {@link PropertyResolver#getEffectiveRPr(RPr, PPr)} - and this class then decides script and
+ * glyph only.  A run whose hAnsi names one of the symbol fonts takes the SymbolMapper path;
+ * a run with w:cs or w:rtl on (by value: {@code w:val="0"} is off) is set whole in the cs
+ * font; otherwise each of the four slots is resolved through the theme part for the
+ * document's themeFontLang, and every code point is given a font by {@link #fontFor}, one
+ * span per stretch of the same font and script.  For XSL FO the fragment is then
+ * post-processed ({@link #finish}): a glyph-coverage pass sends what the font cannot draw to
+ * a face of the same class which can, then the line height ({@link WordLineMetrics}), kerned
+ * spaces, w:w scaling, small caps and the no-ligature twin.  For HTML the span's font-family
+ * names the document font, the physical family and the generic class.
+ *
+ * See also http://blogs.msdn.com/b/officeinteroperability/archive/2013/04/22/office-open-xml-themes-schemes-and-fonts.aspx
+ * 
+ * The ASCII font formats all characters in the ASCII range (character values 0–127). 
+ * This font is specified using the ascii attribute on the rFonts element.
+ * 
+ * The East Asian font formats all characters that belong to Unicode sub ranges for East Asian languages. 
+ * This font is specified using the eastAsia attribute on the rFonts element.
+ * 
+ * The complex script font formats all characters that belong to Unicode sub ranges for complex script languages. 
+ * This font is specified using the cs attribute on the rFonts element.
+ * 
+ * The high ANSI font formats all characters that belong to Unicode sub ranges other than those explicitly included 
+ * by one of the groups above. This font is specified using the hAnsi attribute on the rFonts element.	
+ * 
+ * Per Tristan Davis
+ * http://openxmldeveloper.org/discussions/formats/f/13/t/150.aspx
+ * 
+ * First, the characters are classified into the high ansi / east asian / complex script buckets [per above]
+ * 
+ * Next, we grab *one* theme font from the theme for each bucket - in the settings part, there's an element called themeFontLang
+ * The three attributes on that specify the language to use for the characters in each bucket
+ * 
+ * Then you take the language specified for each attribute and look out for the right language in the theme - and you use that font
+ * 
+ * See also http://blogs.msdn.com/b/officeinteroperability/archive/2013/04/22/office-open-xml-themes-schemes-and-fonts.aspx
+ * regarding what to do if the font is not available on the computer.
+ * 
+ * @author jharrop
+ *
+ */
+public class RunFontSelector {
+	
+	protected static Logger log = LoggerFactory.getLogger(RunFontSelector.class);	
+
+	private WordprocessingMLPackage wordMLPackage;
+	private RunFontCharacterVisitor vis;
+		
+	private RunFontActionType outputType;
+	public enum RunFontActionType {
+		XSL_FO,
+		XHTML,
+		/**
+		 * @deprecated since 17.2.0: font discovery is a walk for the document's font
+		 *             names ({@link org.docx4j.openpackaging.parts.WordprocessingML.MainDocumentPart#fontsInUse()}),
+		 *             which needs no selection; a caller wanting the document font the
+		 *             selector picks for a character uses {@link RunFontSelector#documentFontFor}.
+		 *             A selector in this mode produces no output; its visitor still
+		 *             receives {@code fontAction} for each span.
+		 */
+		@Deprecated
+		DISCOVERY
+	}
+	
+	public RunFontSelector(WordprocessingMLPackage wordMLPackage, RunFontCharacterVisitor visitor, 
+			RunFontActionType outputType) {
+		
+		this.wordMLPackage = wordMLPackage;
+		this.vis = visitor;
+		this.outputType = outputType;
+				
+		vis.setRunFontSelector(this);
+
+		// the theme language first: the default font is a theme reference in most
+		// documents, and its resolution depends on it (until 17.2.0 it was read after
+		// the default font had been computed and cached, so the default font ignored it)
+		if (wordMLPackage.getMainDocumentPart().getDocumentSettingsPart()!=null) {
+			try {
+				themeFontLang = wordMLPackage.getMainDocumentPart().getDocumentSettingsPart().getContents().getThemeFontLang();
+			} catch (Docx4JException e) {
+				log.error(e.getMessage(), e);
+			}
+		}
+		
+		fallbackPhysicalFont = physicalFontFor(getDefaultFont());
+		fallbackFont = getPhysicalFont(getDefaultFont());
+		if (fallbackFont==null) {
+			fallbackFont = getDefaultFont();
+			if (outputType!= RunFontActionType.DISCOVERY) {
+				log.warn("Default font " + getDefaultFont() + " is not mapped; Fallback set to default.");
+			}
+		} else {
+			log.debug("Fallback font set to " + fallbackFont);			
+		}
+		
+		vis.setFallbackFont(fallbackFont);
+	}
+	
+	String fallbackFont = null;
+
+	/** The physical font {@link #fallbackFont} names, registered with the Mapper the
+	 *  first time a run actually falls back to it so that FopConfigUtil declares it:
+	 *  it is the default font's physical font, which need not be among the fonts the
+	 *  document names, in which case FOP reported "Font ... not found. Substituting
+	 *  with any" and used a default font.  @since 17.0.5 */
+	private PhysicalFont fallbackPhysicalFont = null;
+
+	private final java.util.Set<String> registeredFonts = new java.util.HashSet<String>();
+
+	/**
+	 * Tell the Mapper (and so FopConfigUtil, which asks it after the FO has been
+	 * generated) about a physical font this conversion actually put in @font-family.
+	 * The FOP configuration is built from the fonts the document's runs name, so a
+	 * font reached only through a paragraph mark, an empty paragraph, a style or the
+	 * fallback was not declared and FOP reported "Font ... not found. Substituting
+	 * with any", quietly rendering that text in a default font.
+	 *
+	 * @since 17.0.5
+	 */
+	private void registerUsedFont(String family, PhysicalFont pf) {
+		if (pf==null || family==null || outputType!=RunFontActionType.XSL_FO) return;
+		if (!registeredFonts.add(family)) return;
+		if (wordMLPackage!=null && wordMLPackage.getFontMapper()!=null) {
+			wordMLPackage.getFontMapper().registerLastResortFallback(pf);
+		}
+	}
+	
+	CTLanguage themeFontLang = null;
+	
+	public final static String CSS_NAME = "font-family"; 
+	public final static String FO_NAME  = "font-family"; 
+
+	public String getCssName() {
+		return CSS_NAME;
+	}
+	
+	
+	private ThemePart getThemePart() {
+		return wordMLPackage.getMainDocumentPart().getThemePart();
+	}
+	
+    /**
+     * The font a theme reference names: the theme part's answer for the document's
+     * themeFontLang; or, where the document has no theme part, the Office theme's own
+     * Latin faces - Word supplies that theme to such a document (measured, CR-016 probe
+     * fonts-missing-slots (b): the explicit w:ascii beside the reference is unused).  Its
+     * East Asian and complex-script faces are empty, so those references resolve to
+     * nothing here and the explicit attribute, if any, stands.  Null where neither the
+     * theme nor the default says.
+     *
+     * <p>Which Latin faces the Office theme names depends on the version of Word, and
+     * {@code docx4j.fonts.defaultTheme} says which to answer for - see
+     * {@link org.docx4j.Docx4jProperties#DEFAULT_THEME}.</p>
+     *
+     * @since 17.2.0
+     */
+    private String themeFont(org.docx4j.wml.STTheme type) {
+    	try {
+    		return themeFont(getThemePart(), type, themeFontLang);
+    	} catch (Docx4JException e) {
+    		if (warnedOnce.add("theme")) {
+    			// once per selector; until 17.2.0 every run logged the stack trace
+    			log.warn("Theme part unreadable; theme font references unresolved: " + e.getMessage());
+    		}
+    		return null;
+    	}
+    }
+
+    /**
+     * {@link #themeFont(org.docx4j.wml.STTheme)} for any caller: the theme part's answer
+     * for this themeFontLang, the Office theme's Latin faces where there is no theme part.
+     *
+     * <p>Which faces those are is the version of Word the themeless document is read as
+     * having come from, and {@code docx4j.fonts.defaultTheme} says which: Aptos Display /
+     * Aptos for Word 365 (the default), Calibri Light / Calibri for Office 2013 to 2022,
+     * Cambria / Calibri for Office 2007 to 2010 - which is what docx4j answered up to
+     * 17.1.0, and was right for the Word the CR-016 probe was rendered on.  Measured on a
+     * Word 365 rendering of a package with no theme part at all (probe
+     * {@code theme-fonts-no-theme-part}, CR-001 batch 49): at 11pt the ten digits advance
+     * 58.865pt and a-z 137.923pt in the minor slot, which is Aptos, against 55.28 / 130.32
+     * for an explicit Calibri control on the same page; the major slot is 57.40 / 129.16,
+     * Aptos Display, against 61.00 / 139.55 for an explicit Cambria.</p>
+     *
+     * <p>Only the two Latin slots are answered.  The Office theme's East Asian and
+     * complex-script entries are empty, so those references resolve to nothing and the
+     * explicit attribute, if any, stands - and where a package does have a theme part it
+     * is that part which answers, script fonts included.</p>
+     *
+     * @since 17.2.0
+     */
+    static String themeFont(ThemePart themePart, org.docx4j.wml.STTheme type, CTLanguage themeFontLang)
+    		throws Docx4JException {
+    	if (type==null) return null;
+    	if (themePart!=null) {
+    		return themePart.getFont(type, themeFontLang);
+    	}
+    	org.docx4j.Docx4jProperties.DefaultTheme theme = org.docx4j.Docx4jProperties.getDefaultTheme();
+    	switch (type) {
+    		case MINOR_ASCII: case MINOR_H_ANSI: return theme.minorLatin();
+    		case MAJOR_ASCII: case MAJOR_H_ANSI: return theme.majorLatin();
+    		default: return null;
+    	}
+    }
+
+    /**
+     * The document fonts an rFonts names once its theme references are resolved: for each
+     * of the four slots, the theme's face for the document's themeFontLang (the Office
+     * theme's Latin face where the document has no theme part), else the explicit
+     * attribute - the resolution {@code fontSelector} applies to a run.  Blank names are
+     * left out.  This is what font discovery collects
+     * ({@link org.docx4j.openpackaging.parts.WordprocessingML.MainDocumentPart#fontsInUse()}).
+     *
+     * @since 17.2.0
+     */
+    public static java.util.List<String> documentFontsOf(RFonts rFonts, ThemePart themePart, CTLanguage themeFontLang) {
+    	java.util.List<String> names = new java.util.ArrayList<String>(4);
+    	if (rFonts==null) return names;
+    	org.docx4j.wml.STTheme[] refs = { rFonts.getAsciiTheme(), rFonts.getHAnsiTheme(), rFonts.getEastAsiaTheme(), rFonts.getCstheme() };
+    	String[] explicit = { rFonts.getAscii(), rFonts.getHAnsi(), rFonts.getEastAsia(), rFonts.getCs() };
+    	for (int i=0; i<4; i++) {
+    		String name = null;
+    		try {
+    			name = themeFont(themePart, refs[i], themeFontLang);
+    		} catch (Docx4JException e) {
+    			log.warn("Theme part unreadable: " + e.getMessage());
+    		}
+    		if (name==null) name = explicit[i];
+    		if (name!=null && name.trim().length()>0) names.add(name.trim());
+    	}
+    	return names;
+    }
+
+    /** Warnings this selector has given, so that each is given once (a font not mapped,
+     *  a symbol with no replacement, the theme part unreadable) rather than once per run. */
+    private final java.util.Set<String> warnedOnce = new java.util.HashSet<String>();
+
+    private String defaultFont = null;
+
+    /**
+     * The document's default font for Latin text: the document defaults' w:ascii (a
+     * theme reference resolved through {@link #themeFont}), else w:hAnsi; Times New
+     * Roman where the defaults name no font at all (Word's built-in default, measured:
+     * CR-016 probe fonts-missing-slots (a)).
+     */
+	public String getDefaultFont() {
+		
+		if (defaultFont == null) {
+			PropertyResolver propertyResolver = propertyResolver();
+			org.docx4j.wml.RFonts rFonts = propertyResolver==null ? null
+					: propertyResolver.getDocumentDefaultRPr().getRFonts();
+			defaultFont = defaultFontOf(rFonts, getThemePart(), themeFontLang);
+		}
+		return defaultFont;
+	}
+
+	/** {@link #getDefaultFont()} for any caller, from the document defaults' rFonts
+	 *  (null where the defaults name none).  @since 17.2.0 */
+	public static String defaultFontOf(RFonts docDefaultsRFonts, ThemePart themePart, CTLanguage themeFontLang) {
+		RFonts rFonts = docDefaultsRFonts;
+		String f = null;
+		if (rFonts!=null) {
+			try {
+				if (rFonts.getAsciiTheme()!=null) f = themeFont(themePart, rFonts.getAsciiTheme(), themeFontLang);
+				if (f==null) f = rFonts.getAscii();
+				if (f==null && rFonts.getAsciiTheme()!=null) {
+					// a theme reference the theme part cannot answer (an empty typeface)
+					f = "Calibri";
+				}
+				if (f==null && rFonts.getHAnsiTheme()!=null) f = themeFont(themePart, rFonts.getHAnsiTheme(), themeFontLang);
+			} catch (Docx4JException e) {
+				log.warn("Theme part unreadable: " + e.getMessage());
+			}
+			if (f==null) f = rFonts.getHAnsi();
+		}
+		if (f==null) {
+			log.info("No font in styles/docDefaults/rPrDefault/rPr/rFonts - default to Times New Roman");
+			f = "Times New Roman";
+		}
+		return f;
+	}
+	
+	
+    /** The one DOM Document this selector builds every run's fragment in. */
+    private Document scratch;
+
+    /**
+     * The scratch Document, for the visitor to create a run's elements in.  One per
+     * selector: the fragment a run yields is detached from it and imported into the
+     * caller's output document, so nothing of one run is left for the next (any element
+     * left on the Document itself is dropped here).  Until 17.2.0 every run created a
+     * Document of its own (measured at 8 microseconds against 23 for the selection).
+     *
+     * @since 17.2.0
+     */
+    private Document scratchDocument() {
+    	if (scratch==null) {
+    		scratch = XmlUtils.getNewDocumentBuilder().newDocument();
+    	} else {
+    		Node stale = scratch.getDocumentElement();
+    		if (stale!=null) scratch.removeChild(stale);
+    	}
+    	return scratch;
+    }
+
+    /** The final touches on a converted run's fragment: a font which has the glyphs,
+     *  then kerned spaces, then small caps, then the no-ligature declaration where
+     *  Word would apply none. */
+    private Object finish(Object fragment) {
+    	return noLigatures(smallCaps(characterScaling(kernSpaces(glyphFallback(fragment)))));
+    }
+
+    /**
+     * Send the spans of this run to the font's {@link #NOLIGA_SUFFIX} declaration,
+     * where Word would apply no OpenType feature to them: the run asks for no
+     * ligatures (w14:ligatures) and no kerning (w:kern), and its text is Latin, which
+     * is the script Word's standard ligatures are about.
+     *
+     * <p>Only Latin: FOP's single-byte font puts anything outside its primary
+     * encoding into chained 256-glyph encodings, and measured over a real-document
+     * corpus a whole non-Latin alphabet comes out of that with characters missing
+     * from the PDF's text layer (Cyrillic; the ink is right, the extraction is not).
+     * Text which needs shaping - Arabic, Indic, Khmer, Hebrew - must keep GSUB
+     * anyway.  Only a TrueType-flavoured font has such a twin at all
+     * (FopConfigUtil), so the font-family is left alone for the rest.</p>
+     *
+     * @since 17.0.5
+     */
+    private Object noLigatures(Object fragment) {
+    	if (outputType!=RunFontActionType.XSL_FO || !(fragment instanceof DocumentFragment)
+    			|| currentLigatures || (currentKerned && perRunKerning()) || ligatures()) {
+    		return fragment;
+    	}
+    	for (Node n = ((DocumentFragment)fragment).getFirstChild(); n!=null; n = n.getNextSibling()) {
+    		if (n instanceof Element) noLigatures((Element)n);
+    	}
+    	return fragment;
+    }
+
+    private void noLigatures(Element el) {
+    	String family = el.getAttribute("font-family");
+    	if (family.length()>0 && !family.endsWith(KERNED_SUFFIX) && !family.endsWith(NOLIGA_SUFFIX)) {
+    		String text = el.getTextContent();
+    		if (text!=null && text.length()>0 && latinOnly(text.codePoints().toArray())) {
+    			PhysicalFont pf = physicalFontNamed(family);
+    			if (pf!=null && pf.getEmbeddedURI()!=null
+    					&& org.docx4j.fonts.fop.util.FopConfigUtil.isTrueTypeFlavoured(pf.getEmbeddedURI().toString())) {
+    				el.setAttribute("font-family", family + NOLIGA_SUFFIX);
+    			}
+    		}
+    	}
+    	for (Node c = el.getFirstChild(); c!=null; c = c.getNextSibling()) {
+    		if (c instanceof Element) noLigatures((Element)c);
+    	}
+    }
+
+    /** whether every code point is Latin (or script-neutral: punctuation, digits, marks) */
+    private static boolean latinOnly(int[] cps) {
+    	for (int cp : cps) {
+    		Character.UnicodeScript script = FontFallback.scriptOf(cp);
+    		if (script!=Character.UnicodeScript.LATIN
+    				&& script!=Character.UnicodeScript.COMMON
+    				&& script!=Character.UnicodeScript.INHERITED) {
+    			return false;
+    		}
+    	}
+    	return true;
+    }
+    
+
+    public Element createElement(Document document) {
+    	Element el=null;
+		if (outputType== RunFontActionType.DISCOVERY) {
+			return null;
+		} else if (outputType==RunFontActionType.XHTML) {
+    		 el = document.createElement("span");
+    	} else if (outputType==RunFontActionType.XSL_FO) {
+    		el = document.createElementNS("http://www.w3.org/1999/XSL/Format", "fo:inline");
+    	} 
+		/* Can't do document.appendChild(el) here, since its a problem if called multiple
+		 * times - a run yielding more than one span would get
+		 *
+		 *   org.w3c.dom.DOMException: HIERARCHY_REQUEST_ERR: An attempt was made to insert
+		 *   a node where it is not permitted.
+		 *
+		 * The caller appends the elements to a DocumentFragment instead.
+		 */
+    	return el;
+    }
+    
+    public void setAttribute(Element el, String fontName) {
+    	
+    	// could a document fragment contain just a #text node?
+    	
+		if (outputType== RunFontActionType.DISCOVERY) {
+			return;
+		} else if (outputType==RunFontActionType.XHTML) {
+    		if (spacePreserve) {
+    	    	/*
+    	    	 * 	Convert @xml:space='preserve' to style="white-space:pre-wrap;"
+    				which is good for FF3, and WebKit; not honoured by IE7 though. 
+    	    	 */
+    			el.setAttribute("style", getCssProperty(fontName) + "white-space:pre-wrap;");
+    			
+    		} else {
+    			el.setAttribute("style", getCssProperty(fontName));
+    		}
+    	} else if (outputType==RunFontActionType.XSL_FO) {
+    		PhysicalFont resolved = physicalFontResolved(fontName);
+    		String val = resolved==null ? null : resolved.getName();
+    		if (val==null) {
+    			// the font's decision (UNMAPPED) says this; see Mapper.getDecisions
+    			// Avoid @font-family="", which FOP doesn't like
+    			el.setAttribute("font-family", fallbackFont );
+    			applyLineHeight(el, fontName, fallbackPhysicalFont);
+    			registerUsedFont(fallbackFont, fallbackPhysicalFont);
+    		} else {
+    			el.setAttribute("font-family", foFontFamily(val) );
+    			applyLineHeight(el, fontName, resolved);
+    			registerUsedFont(val, resolved);
+    		}
+    		if (fontName!=null) {
+    			// glyphFallback needs the font the document asked for; it removes this
+    			el.setAttribute(MARK_DOCUMENT_FONT, fontName);
+    			// and the measured width factor for this pair, where there is one;
+    			// characterScaling spreads it and removes it.  @since 17.2.0
+    			markWidthFactor(el, fontName, val==null ? fallbackFont : val);
+    		}
+
+			// NB, for PDF/FOP, white space handling on the parent fo:block,
+    		// see XsltFOFunctions (for XSLT), and AbstractVisitorExporterGenerator (non XSLT).
+    		// Not here: white-space-treatment="preserve" on the inline alone may stop
+    		// FOP 1.x from line wrapping.
+
+    	}
+    }
+
+    public void symbolSetAttribute(Element el, String fontName, String textValue) {
+    	// We only pass the actual text here, so that we can do GlyphCheck
+    	// to ensure the correct font in the PDF case.  The first code point decides the
+    	// face for the whole of this span, which is why symbolRun cuts the run wherever
+    	// the substitute face changes (symbolSegments, since 17.2.0)
+
+		if (outputType== RunFontActionType.DISCOVERY) {
+			return;
+		} else if (outputType==RunFontActionType.XHTML) {
+			// In XHTML, we leave it up to the browser to choose the specific font
+    		if (spacePreserve) {
+    	    	/*
+    	    	 * 	Convert @xml:space='preserve' to style="white-space:pre-wrap;"
+    				which is good for FF3, and WebKit; not honoured by IE7 though. 
+    	    	 */
+    			el.setAttribute("style", Property.composeCss(CSS_NAME, SymbolUtils.HTML_FONT_FAMILY) + "white-space:pre-wrap;");
+    			
+    		} else {
+    			el.setAttribute("style", Property.composeCss(CSS_NAME, SymbolUtils.HTML_FONT_FAMILY) );
+    		}
+    	} else if (outputType==RunFontActionType.XSL_FO) {
+    		
+    		if (textValue.equals(SymbolUtils.MISSING_SYMBOL)) {
+    			/* The symbol font's code has no Unicode replacement, so what is drawn is
+    			 * docx4j's own missing-symbol box - not a character of that font, and no
+    			 * reason to look for a face which has the font's own glyphs.
+    			 *
+    			 * It still needs a font.  The box went out with no font-family at all, and
+    			 * glyphFallback declines to look at a span which has none, so it was drawn
+    			 * as notdef in whatever face the context supplied - and for a numbering
+    			 * label, which is an fo:block of its own outside the paragraph, that is
+    			 * FOP's base-14 default: a font the PDF names and does not embed
+    			 * (CR-001, non-embedded fonts).
+    			 *
+    			 * The box is the right mark.  Measured on Word's own renderings of three
+    			 * corpus documents: Symbol 0x7F and 0xFF are an open square, 0.60 and 0.50
+    			 * em (14_en-GB_num_tbl_4090, 16_en-AU_num_tbl_3493), and U+2B1A, which
+    			 * SymbolMT has no glyph for, Word draws as nothing at all
+    			 * (14_fr-FR_sdt_num_tbl_7357).  So it wanted a font which has U+25A1, not
+    			 * a different character: a bullet would be wrong for all three.
+    			 *
+    			 * The document's own font, then, and glyphFallback replaces that where it
+    			 * cannot draw the box - measured, Arimo and Carlito have U+25A1 and Droid
+    			 * Sans does not - which is why the document font is marked for it here, as
+    			 * setAttribute marks it for an ordinary run.  @since 17.2.0
+    			 */
+    			el.setAttribute("font-family", fallbackFont);
+    			registerUsedFont(fallbackFont, fallbackPhysicalFont);
+    			if (fontName!=null) {
+    				el.setAttribute(MARK_DOCUMENT_FONT, fontName);
+    			}
+    			return;
+    		}
+
+			PhysicalFont pf = null;
+			PhysicalFont pf2 = null;
+			if (fontName.equals("Webdings")
+					|| fontName.equals("Wingdings")
+					|| fontName.equals("Wingdings 2")
+					|| fontName.equals("Wingdings 3")
+					) {
+				pf = PhysicalFonts.getWDingsFont();
+				pf2 = PhysicalFonts.getWDingsFont2();
+			} else if (fontName.equals("Symbol")) {
+				pf = PhysicalFonts.getSymbolFont();
+			} 
+			
+			try {
+				if (pf !=null && GlyphCheck.hasCodepoint(pf, textValue.codePointAt(0))) {
+					// good, it is there
+				} else if (pf2!=null && GlyphCheck.hasCodepoint(pf2, textValue.codePointAt(0))) {
+					pf =pf2; // use pf2
+					log.debug("For " + fontName + " mapped to " + textValue.codePointAt(0) + ", using 2nd substitute font " + pf2.getName());
+				} else if (warnedOnce.add("missing " + fontName + " " + textValue.codePointAt(0))) {
+					log.warn("Missing symbol " + fontName + " " + textValue);
+				}
+			} catch (ExecutionException e) {}
+
+			/* A symbol font is drawn in whatever face has the glyphs, whatever the mapper
+			 * made of its name (PhysicalFonts.getWDingsFont / getSymbolFont, which still
+			 * name their candidates in code).  Recorded as the decision for this document
+			 * font, since it is what the reader will see (CR-017 phase 1). */
+			if (pf!=null && wordMLPackage!=null && wordMLPackage.getFontMapper()!=null) {
+				wordMLPackage.getFontMapper().recordSymbolFace(fontName, pf);
+			}
+
+			if (pf == null) {
+				pf = physicalFontResolved(fontName);
+			}
+    		
+    		if (pf==null) {
+    			// Avoid @font-family="", which FOP doesn't like
+    			el.setAttribute("font-family", fallbackFont );
+    			applyLineHeight(el, fontName, fallbackPhysicalFont);
+    			registerUsedFont(fallbackFont, fallbackPhysicalFont);
+    		} else {	
+    			el.setAttribute("font-family", foFontFamily(pf.getName()) );
+    			applyLineHeight(el, fontName, pf);
+    			registerUsedFont(pf.getName(), pf);
+    		}
+    	} 
+    }
+    
+    
+    // ---- Word line height (XSL FO only); see WordLineMetrics. @since 17.0.5
+
+    /** The paragraph spacing and run size of the run currently being processed, captured in
+     *  fontSelector so that the spans it creates can carry the line-height Word would give them. */
+    private PPrBase.Spacing currentSpacing;
+    private double currentSizePt = -1;
+
+    /**
+     * Suffix of the font-family name under which FopConfigUtil registers a
+     * font's kerned twin (same file, FOP kerning on).  Word kerns a run only
+     * when its w:kern threshold is at or below its size (ECMA-376 17.3.2.19),
+     * and FOP kerns per font, so kerned runs use the twin.
+     *
+     * @since 17.0.5
+     */
+    public static final String KERNED_SUFFIX = "+kern";
+
+    /**
+     * Suffix of the font-family name under which FopConfigUtil registers a
+     * font's declaration with no OpenType features (FOP's
+     * encoding-mode="single-byte").  FOP applies the GSUB feature "liga" to every
+     * font that has it; Word applies no standard ligature unless the run asks
+     * (w14:ligatures), and the ligature glyph has no Unicode of its own, so the
+     * PDF's ToUnicode maps it to a private-use code point and the text cannot be
+     * extracted, searched or read out.  Runs of Latin text which ask for neither
+     * ligatures nor kerning use this twin.
+     *
+     * @since 17.0.5
+     */
+    public static final String NOLIGA_SUFFIX = "+noliga";
+
+    /** whether the current run is kerned in Word: w:kern present, non-zero, and no
+     *  larger than the run's w:sz (both half-points) */
+    private boolean currentKerned;
+
+    /** w:w, the current run's character scaling as a percentage; 100 for none.
+     *  @since 17.0.6 */
+    private int currentScalingPct = 100;
+
+    /** On an FO span whose letter-spacing is w:w character scaling alone: the run's own
+     *  w:spacing (an ancestor inline's letter-spacing, which this one would otherwise
+     *  replace, the property being inherited) has still to be added to it.  Removed by
+     *  WordLayoutFixups.  @since 17.0.6 */
+    public static final String HINT_SCALED_LETTER_SPACING = "docx4j-scaled-spacing";
+
+    /** whether the current run asks for ligatures (w14:ligatures); Word's default is none */
+    private boolean currentLigatures;
+
+    /** The face the current run is set in, from its <b>effective</b> w:b and w:i, so that
+     *  the width factor can be the one measured for that face ({@link WidthFactors}).  The
+     *  FO does not say: the weight is on an ancestor block or inline, never on the span
+     *  this class writes - measured on a corpus document, all 13359 of its P052 inlines
+     *  name the regular family and 357 of them are bold by inheritance - so the run's own
+     *  properties are the only place to read it.  @since 17.2.0 */
+    private boolean currentBold, currentItalic;
+
+    /** Word's rule for a run's ligatures: none unless w14:ligatures says otherwise. */
+    public static boolean hasLigatures(RPr rPr) {
+    	if (rPr==null || rPr.getLigatures()==null || rPr.getLigatures().getVal()==null) return false;
+    	return rPr.getLigatures().getVal() != org.docx4j.w14.STLigatures.NONE;
+    }
+
+    /** Word's rule for a run's kerning (the rPr must be the effective one). */
+    public static boolean isKerned(RPr rPr) {
+    	if (rPr==null || rPr.getKern()==null || rPr.getKern().getVal()==null) return false;
+    	java.math.BigInteger kern = rPr.getKern().getVal();
+    	if (kern.signum()<=0) return false;
+    	java.math.BigInteger sz = (rPr.getSz()==null || rPr.getSz().getVal()==null)
+    			? java.math.BigInteger.valueOf(20) : rPr.getSz().getVal(); // 10pt if nothing says otherwise
+    	return sz.compareTo(kern) >= 0;
+    }
+
+    /**
+     * Leave FOP to apply the OpenType ligature features to every font, as it did
+     * before 17.0.5 - Word applies none unless the run asks (w14:ligatures), so this
+     * is off by default.
+     *
+     * @since 17.0.5
+     */
+    private static boolean ligatures() {
+    	return Docx4jProperties.getProperty("docx4j.convert.out.fo.ligatures", false);
+    }
+
+    /** per-run kerning is only needed while FOP's fonts are unkerned (the default) */
+    private static boolean perRunKerning() {
+    	return !Docx4jProperties.getProperty("docx4j.convert.out.fo.kerning", false);
+    }
+
+    /** the font-family for the FO span: the kerned twin when the run kerns */
+    private String foFontFamily(String physicalFontName) {
+    	return (currentKerned && perRunKerning()) ? physicalFontName + KERNED_SUFFIX : physicalFontName;
+    }
+
+    /**
+     * Word kerns pairs involving the space glyph as well (measured: "A␠" -50/1000
+     * em, "␠A" -60, "T␠", "Y␠", "V␠", "W␠" in Liberation Serif), whereas FOP
+     * kerns only within words, its spaces being glue.  For a kerned run each
+     * space whose pairs kern is wrapped in an inline whose word-spacing carries
+     * the pair values (FOP: a space's width is the glyph plus word-spacing), so
+     * it stays a break opportunity.  Pairs across run boundaries are not seen.
+     *
+     * @since 17.0.5
+     */
+    private Object kernSpaces(Object fragment) {
+    	if (!(fragment instanceof DocumentFragment) || outputType!=RunFontActionType.XSL_FO
+    			|| !currentKerned || !perRunKerning() || currentSizePt<=0) return fragment;
+    	DocumentFragment df = (DocumentFragment)fragment;
+    	for (Node n = df.getFirstChild(); n!=null; n = n.getNextSibling()) {
+    		if (!(n instanceof Element)) continue;
+    		Element span = (Element)n;
+    		String family = span.getAttribute("font-family");
+    		if (family.length()==0 || span.getChildNodes().getLength()!=1 || !(span.getFirstChild() instanceof org.w3c.dom.Text)) continue;
+    		String text = span.getTextContent();
+    		if (text.indexOf(' ')<0) continue;
+    		java.util.Map<Integer, java.util.Map<Integer, Integer>> kern = kerningPairs(physicalFontNamed(family));
+    		if (kern==null) continue;
+    		int[] cps = text.codePoints().toArray();
+    		Document doc = span.getOwnerDocument();
+    		StringBuilder seg = new StringBuilder();
+    		boolean any = false;
+    		java.util.List<Node> children = new java.util.ArrayList<>();
+    		for (int i=0; i<cps.length; i++) {
+    			int cp = cps[i];
+    			if (cp==' ') {
+    				int k = (i>0 ? kernValue(kern, cps[i-1], ' ') : 0) + (i+1<cps.length ? kernValue(kern, ' ', cps[i+1]) : 0);
+    				if (k!=0) {
+    					if (seg.length()>0) { children.add(doc.createTextNode(seg.toString())); seg.setLength(0); }
+    					Element sp = doc.createElementNS(span.getNamespaceURI(),
+    							(span.getPrefix()==null ? "" : span.getPrefix() + ":") + "inline");
+    					sp.setAttribute("word-spacing", WordLineMetrics.format(k * currentSizePt / 1000.0));
+    					sp.appendChild(doc.createTextNode(" "));
+    					children.add(sp);
+    					any = true;
+    					continue;
+    				}
+    			}
+    			seg.appendCodePoint(cp);
+    		}
+    		if (!any) continue;
+    		if (seg.length()>0) children.add(doc.createTextNode(seg.toString()));
+    		span.removeChild(span.getFirstChild());
+    		for (Node c : children) span.appendChild(c);
+    	}
+    	return fragment;
+    }
+
+    /**
+     * <code>w:w</code>, Word's character scaling: the run's glyph advances are
+     * multiplied by a percentage (ECMA-376 17.3.2.43).
+     *
+     * <p>Neither XSL-FO nor FOP can scale text horizontally - there is no property for
+     * it, <code>font-stretch</code> is CSS and would in any case pick a different face
+     * rather than scale one, and scaling only the measurement would leave FOP painting
+     * glyphs wider than the space reserved for them.  What can be reproduced exactly is
+     * the effect that matters for layout, the run's total advance: the difference is
+     * spread over the run's characters as <code>letter-spacing</code>, which FOP both
+     * measures and renders.  The glyphs keep their shape; the words fall where Word puts
+     * them and the lines break where Word breaks them.</p>
+     *
+     * <p>The amount is measured, not estimated: each span's natural width is taken from
+     * the font FOP will use ({@link TextMeasurer}), and the letter space is
+     * <code>width x (w/100 - 1) / characters</code>.  Measured on a document of 186
+     * scaled runs (w:w 102/103/105), whose font mapping is exact: the median width ratio
+     * of our lines to Word's over twenty long matched lines was 0.9516 - "With over 45
+     * years of professional leather cleaning &amp; restoration..." is 447.8pt in Word and
+     * was 424.8pt here.</p>
+     *
+     * <p>Since 17.2.0 the same pass also carries the measured width factors
+     * ({@link WidthFactors}), which say what a substitute's advances have to be
+     * multiplied by to be the document font's.  The two are independent - Word's scaling
+     * is the author's instruction, the factor is docx4j's correction for the face it had
+     * to use - so they are multiplied, and a run with both gets one letter space for the
+     * product.  The spread is even over the characters where Word's difference is per
+     * glyph, so the word spaces shrink with the letters; what is exact is the run's
+     * total advance.</p>
+     *
+     * @since 17.0.6
+     */
+    private Object characterScaling(Object fragment) {
+
+    	if (!(fragment instanceof DocumentFragment) || outputType!=RunFontActionType.XSL_FO) return fragment;
+
+    	for (Node n = ((DocumentFragment)fragment).getFirstChild(); n!=null; n = n.getNextSibling()) {
+    		if (!(n instanceof Element)) continue;
+    		applyScaling((Element)n);
+    	}
+    	return fragment;
+    }
+
+    /**
+     * The scale this span's advances are to be multiplied by: Word's own character
+     * scaling (<code>w:w</code>, the run's) times the measured width factor for the
+     * document font and the face which is drawing it ({@link WidthFactors}, the span's).
+     * Word applies the first to a face whose widths are already the document font's; the
+     * second is there because ours are not, so the two compose.  The mark is taken off
+     * whatever is decided, so that none of it reaches the FO.
+     *
+     * @since 17.2.0
+     */
+    private double scaleOf(Element span) {
+    	double scale = currentScalingPct/100.0;
+    	if (span.hasAttribute(MARK_WIDTH_FACTOR)) {
+    		try {
+    			scale *= Double.parseDouble(span.getAttribute(MARK_WIDTH_FACTOR));
+    		} catch (NumberFormatException e) {
+    			log.debug("Width factor not applied: " + span.getAttribute(MARK_WIDTH_FACTOR));
+    		}
+    		span.removeAttribute(MARK_WIDTH_FACTOR);
+    	}
+    	return scale;
+    }
+
+    private void applyScaling(Element span) {
+
+    	String family = span.getAttribute("font-family");
+    	if (family.length()==0) {
+    		span.removeAttribute(MARK_WIDTH_FACTOR); // nothing here to apply it to
+    		for (Node n = span.getFirstChild(); n!=null; n = n.getNextSibling()) {
+    			if (n instanceof Element) applyScaling((Element)n);
+    		}
+    		return;
+    	}
+    	double factor = scaleOf(span) - 1;
+    	if (currentScalingPct<=0 || currentSizePt<=0 || Math.abs(factor) < 1e-9) return;
+    	// Word applies both w:spacing and w:w, and letter-spacing (the one XSL-FO
+    	// property they share) is inherited, so this value has to be added to whatever
+    	// the run's own inline carries rather than replacing it.  The span is marked so
+    	// that WordLayoutFixups.combineLetterSpacing, which sees the finished tree, can
+    	// do the addition; a span which already carries the run's spacing here is
+    	// summed directly.  @since 17.0.6
+    	String text = span.getTextContent();
+    	if (text==null || text.length()==0) return;
+    	PhysicalFont pf = physicalFontNamed(family);
+    	if (pf==null) return;
+    	int characters = text.codePointCount(0, text.length());
+    	if (characters==0) return;
+    	double width;
+    	try {
+    		width = TextMeasurer.widthPt(text, pf, currentSizePt);
+    	} catch (Exception e) {
+    		log.debug("w:w not applied: " + e.getMessage());
+    		return;
+    	}
+    	if (width<=0) return;
+    	double letterSpacing = width * factor / characters;
+    	if (Math.abs(letterSpacing) < 0.001) return;
+    	if (span.hasAttribute("letter-spacing")) {
+    		double own = 0;
+    		String v = span.getAttribute("letter-spacing");
+    		if (v.endsWith("pt")) {
+    			try {
+    				own = Double.parseDouble(v.substring(0, v.length()-2));
+    			} catch (NumberFormatException e) {
+    				return; // some other unit: leave the run's own spacing alone
+    			}
+    		} else {
+    			return;
+    		}
+    		span.setAttribute("letter-spacing", WordLineMetrics.format(own + letterSpacing));
+    	} else {
+    		span.setAttribute("letter-spacing", WordLineMetrics.format(letterSpacing));
+    		span.setAttribute(HINT_SCALED_LETTER_SPACING, "1");
+    	}
+    }
+
+    private static int kernValue(java.util.Map<Integer, java.util.Map<Integer, Integer>> kern, int a, int b) {
+    	java.util.Map<Integer, Integer> m = kern.get(a);
+    	if (m==null) return 0;
+    	Integer v = m.get(b);
+    	return v==null ? 0 : v;
+    }
+
+    private static final java.util.Map<PhysicalFont, java.util.Map<Integer, java.util.Map<Integer, Integer>>> KERNING
+    		= java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+    private static final java.util.Map<Integer, java.util.Map<Integer, Integer>> NO_KERNING = java.util.Collections.emptyMap();
+
+    /** the font's kern-table pairs (unicode -> unicode -> 1/1000 em), or null */
+    private static java.util.Map<Integer, java.util.Map<Integer, Integer>> kerningPairs(PhysicalFont pf) {
+    	if (pf==null) return null;
+    	java.util.Map<Integer, java.util.Map<Integer, Integer>> m = KERNING.get(pf);
+    	if (m==null) {
+    		m = NO_KERNING;
+    		try {
+    			Typeface tf = GlyphCheck.getTypeface(pf);
+    			if (tf instanceof CustomFont && ((CustomFont)tf).hasKerningInfo()) {
+    				m = ((CustomFont)tf).getKerningInfo();
+    			}
+    		} catch (Exception e) {
+    			log.warn("No kerning for " + pf.getName() + ": " + e.getMessage());
+    		}
+    		KERNING.put(pf, m);
+    	}
+    	return m==NO_KERNING ? null : m;
+    }
+    private PPr lastPPr;
+    private PPrBase.Spacing lastPPrSpacing;
+
+    /**
+     * The document font an rPr asks for its ASCII text (w:ascii, or the theme font
+     * w:asciiTheme names; failing those, w:hAnsi or the document default), for
+     * line metrics of generated text and paragraph marks.
+     *
+     * @since 17.0.5
+     */
+    public String asciiFontName(RPr rPr) {
+    	RFonts rFonts = rPr==null ? null : rPr.getRFonts();
+    	if (rFonts!=null) {
+    		if (rFonts.getAsciiTheme()!=null) {
+    			String f = themeFont(rFonts.getAsciiTheme());
+    			if (f!=null && f.length()>0) return f;
+    		}
+    		if (rFonts.getAscii()!=null) return rFonts.getAscii();
+    		if (rFonts.getHAnsi()!=null) return rFonts.getHAnsi();
+    	}
+    	return getDefaultFont();
+    }
+
+    private void captureLineSpec(PropertyResolver propertyResolver, PPr pPr, RPr rPr, boolean pPrIsEffective) {
+    	if (outputType!=RunFontActionType.XSL_FO) return;
+    	currentKerned = isKerned(rPr);
+    	currentScalingPct = (rPr!=null && rPr.getW()!=null && rPr.getW().getVal()!=null)
+    			? rPr.getW().getVal().intValue() : 100;
+    	currentLigatures = hasLigatures(rPr);
+    	currentBold = isOn(rPr==null ? null : rPr.getB());
+    	currentItalic = isOn(rPr==null ? null : rPr.getI());
+    	currentSizePt = (rPr!=null && rPr.getSz()!=null && rPr.getSz().getVal()!=null)
+    			? rPr.getSz().getVal().doubleValue()/2 : -1;
+    	// effective pPr is needed for the style-inherited w:spacing; cache per pPr object
+    	// (the visitor pathway passes the same object for every run of a paragraph)
+    	if (pPr!=null && pPr==lastPPr) {
+    		currentSpacing = lastPPrSpacing;
+    		return;
+    	}
+    	PPrBase.Spacing spacing = null;
+    	try {
+    		PPr effective = (propertyResolver==null || pPrIsEffective) ? pPr : propertyResolver.getEffectivePPr(pPr);
+    		if (effective!=null) spacing = effective.getSpacing();
+    	} catch (Exception e) {
+    		log.warn("Couldn't resolve effective pPr for line height: " + e.getMessage());
+    		if (pPr!=null) spacing = pPr.getSpacing();
+    	}
+    	lastPPr = pPr;
+    	lastPPrSpacing = spacing;
+    	currentSpacing = spacing;
+    }
+
+    /** Hint on the FO span naming the font whose Word metrics size the line - the one the
+     *  docx asks for, or (since 17.2.0) the family this document aliased it to - so the
+     *  block's line box and the line manager can size the line from its metrics when a
+     *  substitute renders it; removed by WordLayoutFixups.  @since 17.0.5 */
+    public static final String HINT_FONT = "docx4j-font";
+
+    /**
+     * The family whose Word line metrics a document font takes: its own name, unless this
+     * document declared an alternate for it - a {@code w:altName} docx4j resolved, or
+     * Word's own answer for a font it cannot find - in which case Word is using that
+     * family outright and the vertical metrics are its (&#xa7;2.7).
+     *
+     * <p>The alias lives on the {@link Mapper}, one per package, and is resolved here
+     * rather than downstream because here is the last place that has it: the FO exporter's
+     * line-box pass, {@code WordLayoutFixups} and the FOP fork's line layout manager all
+     * read the document font out of the {@link #HINT_FONT} attribute and none of them can
+     * reach a Mapper.  Writing the resolved family into the hint is what let the alias map
+     * stop being a JVM-wide static in 17.2.0, where one document's alternate font had been
+     * answering for every later document in the same process.</p>
+     *
+     * @since 17.2.0
+     */
+    public String lineMetricsFamily(String documentFontName) {
+    	if (documentFontName==null) return null;
+    	Mapper mapper = wordMLPackage==null ? null : wordMLPackage.getFontMapper();
+    	return mapper==null ? documentFontName : mapper.lineMetricsFamily(documentFontName);
+    }
+
+    /** The family whose Word line metrics this run's ASCII text takes: {@link #asciiFontName}
+     *  resolved through {@link #lineMetricsFamily}.  For generated text and paragraph marks,
+     *  whose document font the exporter names itself.  @since 17.2.0 */
+    public String lineMetricsFontName(RPr rPr) {
+    	return lineMetricsFamily(asciiFontName(rPr));
+    }
+
+    /** Hint on the fo:inline holding a small-caps run's originally-lower-case stretch,
+     *  naming the fraction of the run's size the glyphs are drawn at.  The <em>line</em>
+     *  is Word's at the run's declared size - Word scales the glyphs, not the line - and
+     *  without it FOP takes the line's ascent from the 80% inline where that inline is a
+     *  block's only content.  @since 17.0.6 */
+    public static final String HINT_SMALL_CAPS = "docx4j-small-caps";
+
+    /** Set line-height on this FO span from the physical font's Word metrics, the run's
+     *  size and the paragraph's w:spacing.  Word sizes a line by the tallest run on it;
+     *  with these on every fo:inline, FOP's max-height line stacking does the same.
+     *
+     *  <p>The line box is Word's for the document font where the table knows it, else the
+     *  physical font's own - the PhysicalFont the caller resolved, which for an embedded
+     *  font is the document's file (until 17.2.0 the name was looked up in PhysicalFonts,
+     *  where an embedded font never is, so an embedded font's line height was the 1.2
+     *  fallback; CR-016 gap 7).</p> */
+    private void applyLineHeight(Element el, String documentFontName, PhysicalFont pf) {
+    	if (outputType!=RunFontActionType.XSL_FO || currentSizePt<=0 || el==null) return;
+    			// the family whose Word metrics this font takes: its own, or the one this
+    			// document aliased it to (w:altName, or Word's answer for a font it cannot
+    			// find).  Resolved here, where the mapper is still in hand, and written out
+    			// resolved, so that nothing downstream needs the alias - see
+    			// lineMetricsFamily.  @since 17.2.0
+    			String metricsFont = lineMetricsFamily(documentFontName);
+    	    	el.setAttribute("line-height", WordLineMetrics.lineHeightPtString(metricsFont, pf, currentSizePt, currentSpacing));
+    	    	if (metricsFont!=null && WordLineMetrics.hasTableEntry(metricsFont)
+    	    			&& Docx4jProperties.getProperty("docx4j.convert.out.fo.wordLayoutFixups", true)) {
+    	    		el.setAttribute(HINT_FONT, metricsFont);
+    	    	}
+    	// Not done: moving the text to where Word puts it within the line (FOP centres
+    	// the leading, Word does not; see WordLineMetrics.baselineShiftPt).  Tried as
+    	// baseline-shift on the span: FOP enlarges the line box by the shift instead of
+    	// moving the glyphs inside it, so the pitch drifted.  Needs a layout-manager
+    	// level change (CR-001 option B); the residual is a constant per paragraph.
+    }
+
+    // ---- glyph-aware last-resort fallback (XSL FO only). @since 17.0.5
+
+    /**
+     * Attribute in which setAttribute leaves the font the *document* asked for, so that
+     * glyphFallback can consult its class and its line metrics; always removed there.
+     */
+    private static final String MARK_DOCUMENT_FONT = "docx4j-document-font";
+
+    /**
+     * Attribute in which setAttribute leaves the measured width factor for the document
+     * font and the physical font it resolved to ({@link WidthFactors}), so that
+     * {@link #characterScaling} can spread it over the span's characters as Word's own
+     * <code>w:w</code> is spread; always removed there.
+     *
+     * @since 17.2.0
+     */
+    private static final String MARK_WIDTH_FACTOR = "docx4j-width-factor";
+
+    /** Leave {@link #MARK_WIDTH_FACTOR} on this span where the pair has a measured
+     *  factor, and take any stale one off where it has not (the glyph-aware pass can
+     *  move a span to a different face after setAttribute ran).  @since 17.2.0 */
+    private void markWidthFactor(Element el, String documentFontName, String physicalFontName) {
+    	Mapper mapper = wordMLPackage==null ? null : wordMLPackage.getFontMapper();
+    	double factor = mapper==null
+    			? WidthFactors.factorFor(documentFontName, physicalFontName, currentBold, currentItalic)
+    			: mapper.widthFactorFor(documentFontName, physicalFontName, currentBold, currentItalic);
+    	if (factor==1) {
+    		el.removeAttribute(MARK_WIDTH_FACTOR);
+    	} else {
+    		el.setAttribute(MARK_WIDTH_FACTOR, Double.toString(factor));
+    	}
+    }
+
+    /** The choice made for a (document font, script) pair, for this conversion.  A null
+     *  value means nothing installed covers it (already warned about). */
+    private final java.util.Map<String, PhysicalFont> fallbackByScript
+    		= new java.util.HashMap<String, PhysicalFont>();
+
+    /**
+     * Where the font a span ended up with has no glyphs for the span's characters, put
+     * the characters in one which has.
+     *
+     * <p>An unmapped font falls back to the document default's physical font, which is
+     * chosen without reference to what the run actually contains: a document setting
+     * Georgian in a font the box lacks rendered as a row of notdef boxes even where the
+     * box had Noto Sans Georgian installed (CR-001 cause C3).  The choice is made per
+     * script, preferring a font of the document font's own class, and cached for the
+     * conversion.  Where nothing installed covers the script, the span is left alone and
+     * {@link FontFallback#warnNoCoverage} says so once, rather than FOP saying so once
+     * per glyph.</p>
+     *
+     * <p>Only spans containing something outside Latin/Greek/Cyrillic are examined, so
+     * ordinary documents pay one code point scan per span.</p>
+     */
+    private Object glyphFallback(Object fragment) {
+
+    	if (outputType!=RunFontActionType.XSL_FO || !(fragment instanceof DocumentFragment)) {
+    		return fragment;
+    	}
+    	java.util.List<Node> spans = new java.util.ArrayList<Node>();
+    	for (Node n = ((DocumentFragment)fragment).getFirstChild(); n!=null; n = n.getNextSibling()) spans.add(n);
+    	for (Node n : spans) {
+    		if (n instanceof Element) {
+    			try {
+    				glyphFallback((Element)n);
+    			} catch (Exception e) {
+    				log.warn("Couldn't check glyph coverage: " + e.getMessage());
+    				((Element)n).removeAttribute(MARK_DOCUMENT_FONT);
+    			}
+    		}
+    	}
+    	return fragment;
+    }
+
+    private void glyphFallback(Element span) throws ExecutionException {
+
+    	String documentFont = span.getAttribute(MARK_DOCUMENT_FONT);
+    	span.removeAttribute(MARK_DOCUMENT_FONT);
+
+    	String text = span.getTextContent();
+    	if (text==null || text.length()==0 || span.getChildNodes().getLength()>1) return;
+
+    	int[] cps = text.codePoints().toArray();
+    	if (!FontFallback.needsCoverage(cps)) return;
+
+    	String family = span.getAttribute("font-family");
+    	if (family.length()==0) return;
+    	boolean kerned = family.endsWith(KERNED_SUFFIX);
+    	PhysicalFont current = physicalFontNamed(family);
+    	if (current==null && documentFont.length()>0) current = physicalFontFor(documentFont);
+
+    	// what the current font can't render, by script (the symbol blocks their own
+    	// group, since they are COMMON but are not shared; FontFallback.isSymbol)
+    	java.util.Map<String, java.util.List<Integer>> missing
+    			= new java.util.LinkedHashMap<String, java.util.List<Integer>>();
+    	boolean[] covered = new boolean[cps.length];
+    	for (int i=0; i<cps.length; i++) {
+    		covered[i] = current!=null && GlyphCheck.hasCodepoint(current, cps[i]);
+    		if (covered[i]) continue;
+    		String group = FontFallback.coverageGroupOf(cps[i]);
+    		java.util.List<Integer> list = missing.get(group);
+    		if (list==null) {
+    			list = new java.util.ArrayList<Integer>();
+    			missing.put(group, list);
+    		}
+    		if (!list.contains(cps[i]) && list.size()<32) list.add(cps[i]);
+    	}
+    	if (missing.isEmpty()) return;
+
+    	java.util.Map<String, PhysicalFont> chosen
+    			= new java.util.HashMap<String, PhysicalFont>();
+    	for (java.util.Map.Entry<String, java.util.List<Integer>> e : missing.entrySet()) {
+    		chosen.put(e.getKey(), fallbackFor(documentFont, e.getKey(), e.getValue()));
+    	}
+
+    	/* Assign a font per code point.  A character the span's font covers keeps it, a
+    	 * shared character (a space, a digit, punctuation, a dot leader) included: Word
+    	 * draws it in the run's font (measured, CR-016: the space between two MS Gothic
+    	 * words is Carlito's 2.6pt at 12pt, not MS Gothic's 6; and Sylfaen's space is
+    	 * 0.250em, Tinos's, where the substitute for its Georgian, DejaVu Serif Condensed,
+    	 * has 0.286 - the 17.1.0 rule that sent a covered shared character with the
+    	 * substitute before it set the corpus's Greek document's dot leaders in P052 and
+    	 * cost it a page once the dispatch stopped cutting them into a span of their own).
+    	 * An uncovered shared character takes its neighbours' substitute where that has it
+    	 * (the ideographic comma, probe fonts-space-cjk (c)). */
+    	PhysicalFont[] assigned = new PhysicalFont[cps.length];
+    	PhysicalFont previous = null;
+    	boolean any = false;
+    	boolean anyCoveredKept = false; // something the span's font draws itself
+    	for (int i=0; i<cps.length; i++) {
+    		String group = FontFallback.coverageGroupOf(cps[i]);
+    		PhysicalFont pf;
+    		if (covered[i]) {
+    			pf = null;
+    			anyCoveredKept = true;
+    		} else if (isShared(group) && previous!=null && GlyphCheck.hasCodepoint(previous, cps[i])) {
+    			// an uncovered shared character (an ideographic comma between CJK words) goes
+    			// with its neighbours' substitute, not with whichever installed face covers it
+    			// first by name (Noto Sans Mongolian, measured: CR-016 probe fonts-space-cjk (c))
+    			pf = previous;
+    		} else if (isShared(group)) {
+    			// the same rule as above for a shared character standing alone in its run,
+    			// where there is no neighbour in the span to follow: the face this document
+    			// font's own characters are being drawn in
+    			pf = substituteAlreadyChosen(documentFont, cps[i]);
+    			if (pf==null) pf = chosen.get(group);
+    			if (pf==null) pf = lastResortFor(documentFont, group, cps[i]);
+    		} else {
+    			pf = chosen.get(group);
+    			if (pf==null) pf = lastResortFor(documentFont, group, cps[i]);
+    		}
+    		assigned[i] = pf;
+    		if (pf!=null) any = true;
+    		// a symbol or an emoji does not carry the space after it into its font: the run
+    		// around it is ordinary text, and its space is that text's
+    		previous = (FontFallback.SYMBOL_GROUP.equals(group) || FontFallback.EMOJI_GROUP.equals(group)) ? null : pf;
+    	}
+    	if (!any) return;
+
+    	// the common case: one substitute, nothing the span's own font drew, and the
+    	// substitute can render the whole span (a span now holds every character of the
+    	// run that shares a document font, Latin beside CJK, so the shortcut must not
+    	// take the characters the font did cover along with it)
+    	PhysicalFont single = null;
+    	boolean one = true;
+    	for (PhysicalFont pf : assigned) {
+    		if (pf==null) continue;
+    		if (single==null) single = pf;
+    		else if (single!=pf) { one = false; break; }
+    	}
+    	if (one && single!=null && !anyCoveredKept && FontFallback.covers(single, cps)) {
+    		setFallbackFamily(span, documentFont, single, kerned);
+    		return;
+    	}
+
+    	/* Mixed: one span per stretch, each a sibling cloned from the original (its
+    	 * line-height, hint and the rest), the substituted ones renamed - the structure the
+    	 * range cut used to produce for such text, and the one the block-font choice and
+    	 * FOP's line stacking were measured on.  Until 17.2.0 the stretches were nested
+    	 * inside the original span; measured on the corpus's Greek document once the
+    	 * dispatch joined Latin, Greek and leaders in one span, the nesting cost a page. */
+    	java.util.List<Node> siblings = new java.util.ArrayList<Node>();
+    	StringBuilder seg = new StringBuilder();
+    	PhysicalFont segFont = assigned[0];
+    	for (int i=0; i<cps.length; i++) {
+    		if (assigned[i]!=segFont) {
+    			siblings.add(segmentSpan(span, seg.toString(), segFont, documentFont, kerned));
+    			seg.setLength(0);
+    			segFont = assigned[i];
+    		}
+    		seg.appendCodePoint(cps[i]);
+    	}
+    	if (seg.length()>0) {
+    		siblings.add(segmentSpan(span, seg.toString(), segFont, documentFont, kerned));
+    	}
+    	Node parent = span.getParentNode();
+    	if (parent==null) return;
+    	for (Node c : siblings) parent.insertBefore(c, span);
+    	parent.removeChild(span);
+    }
+
+    /**
+     * The face for one character of a group no single face could cover.
+     *
+     * <p>{@link FontFallback#selectCovering} answers for a whole group at once, and
+     * where nothing covers all of it the answer is null - which used to leave every
+     * character of the group in the span's own font, including the ones that font cannot
+     * draw.  FOP then draws its not-found character: measured on a corpus document, a
+     * fullwidth comma (U+FF0C) whose run's font is an East Asian one docx4j substituted
+     * with a Latin face came out of the PDF as <code>#</code>, on the page and in the text
+     * layer both, 25 times in the one document.</p>
+     *
+     * <p>A <b>shared</b> character (a comma, a space, a digit) takes the substitute this
+     * document font's own characters were given where that covers it - the same answer
+     * {@code previous} gives a character standing between two of them, for one standing
+     * alone in its run - and anything else is asked for on its own.</p>
+     *
+     * @since 17.2.0
+     */
+    private PhysicalFont lastResortFor(String documentFont, String group, int cp) {
+
+    	if (isShared(group)) {
+    		PhysicalFont own = substituteAlreadyChosen(documentFont, cp);
+    		if (own!=null) return own;
+    	}
+    	return fallbackFor(documentFont, group + " " + Integer.toHexString(cp),
+    			java.util.Collections.singletonList(Integer.valueOf(cp)));
+    }
+
+    /** The substitute a non-shared group of this document font already resolved to, where
+     *  it covers this character: what the document font's own script is being drawn in.
+     *  @since 17.2.0 */
+    private PhysicalFont substituteAlreadyChosen(String documentFont, int cp) {
+
+    	String prefix = documentFont + " ";
+    	for (java.util.Map.Entry<String, PhysicalFont> e : fallbackByScript.entrySet()) {
+    		if (e.getValue()==null || !e.getKey().startsWith(prefix)) continue;
+    		if (isShared(e.getKey().substring(prefix.length()))) continue;
+    		try {
+    			if (GlyphCheck.hasCodepoint(e.getValue(), cp)) return e.getValue();
+    		} catch (java.util.concurrent.ExecutionException ex) {
+    			// can't read that face; try the next
+    		}
+    	}
+    	return null;
+    }
+
+    /** Characters a script shares with its neighbours (spaces, digits, punctuation). */
+    private static boolean isShared(String coverageGroup) {
+    	return Character.UnicodeScript.COMMON.name().equals(coverageGroup)
+    			|| Character.UnicodeScript.INHERITED.name().equals(coverageGroup);
+    }
+
+    /** A copy of the span (its attributes, none of its content) holding this stretch, in
+     *  the substitute where there is one and in the span's own font where there is not. */
+    private Element segmentSpan(Element span, String text, PhysicalFont pf, String documentFont, boolean kerned) {
+
+    	Element copy = (Element)span.cloneNode(false);
+    	if (pf!=null) setFallbackFamily(copy, documentFont, pf, kerned);
+    	copy.appendChild(span.getOwnerDocument().createTextNode(text));
+    	return copy;
+    }
+
+    private void setFallbackFamily(Element el, String documentFont, PhysicalFont pf, boolean kerned) {
+
+    	el.setAttribute("font-family", kerned && perRunKerning() ? pf.getName() + KERNED_SUFFIX : pf.getName());
+    	applyLineHeight(el, documentFont.length()==0 ? null : documentFont, pf);
+    	// the face has changed, so the factor setAttribute left (if any) was measured
+    	// against a different one; re-ask for this pair.  @since 17.2.0
+    	markWidthFactor(el, documentFont, pf.getName());
+    	if (wordMLPackage!=null && wordMLPackage.getFontMapper()!=null) {
+    		// so that the FOP configuration declares it; see FopConfigUtil
+    		wordMLPackage.getFontMapper().registerLastResortFallback(pf);
+    	}
+    }
+
+    /** The font to render this script in, for text the document sets in this font; null
+     *  where nothing installed can. */
+    private PhysicalFont fallbackFor(String documentFont, String coverageGroup,
+    		java.util.List<Integer> codePoints) {
+
+    	String key = documentFont + " " + coverageGroup;
+    	if (fallbackByScript.containsKey(key)) return fallbackByScript.get(key);
+
+    	int[] cps = new int[codePoints.size()];
+    	for (int i=0; i<cps.length; i++) cps[i] = codePoints.get(i);
+
+    	PhysicalFont pf = FontFallback.selectCovering(documentFont, cps);
+    	if (pf==null) {
+    		FontFallback.warnNoCoverage(documentFont, cps);
+    	}
+    	/* The decision this conversion made for that script, so the report - and a bisect -
+    	 * can say which scripts left the document font's face, and for what (CR-017 phase
+    	 * 1).  Recorded once per pair, as this cache is. */
+    	if (wordMLPackage!=null && wordMLPackage.getFontMapper()!=null) {
+    		wordMLPackage.getFontMapper().recordScriptChoice(documentFont, coverageGroup, pf);
+    	}
+    	fallbackByScript.put(key, pf);
+    	return pf;
+    }
+
+    // ---- w:caps / w:smallCaps, and the literal soft hyphen (XSL FO only). @since 17.0.5
+
+    /**
+     * The size of a small capital, as a proportion of the run's font size.  Word's
+     * small caps are about 80% of the size (it uses the font's own small-cap design
+     * where there is one, and scales otherwise); FO has no font-variant, and FOP
+     * would ignore it, so docx4j uppercases the text itself and puts the
+     * originally-lower-case stretches in an inline at this size.
+     */
+    private static final String SMALL_CAPS_SIZE = "80%";
+
+    /** for the text last transformed: whether each code point was originally lower case
+     *  (so is to be set as a small capital), or null when the run is not small caps */
+    private boolean[] smallCapsMask;
+
+    /**
+     * The text as it is to be rendered: upper-cased where the effective run properties
+     * say w:caps or w:smallCaps, and with literal soft hyphens (U+00AD) dropped.
+     *
+     * <p>Word applies w:caps and w:smallCaps when it renders, leaving the stored text
+     * alone; FOP has no text-transform or font-variant, so the transformation has to
+     * happen here.  It is upper-cased in the run's own language (w:lang, else the
+     * document's, both of which the effective rPr carries), since Turkish and
+     * Lithuanian case differently.</p>
+     *
+     * <p>FOP does not break at U+00AD, and most fonts have no glyph for it, so a
+     * literal soft hyphen came out as a notdef box in the middle of a word; Word only
+     * ever shows one where it breaks the line.</p>
+     *
+     * <p>HTML gets text-transform/font-variant instead (see the Caps and SmallCaps
+     * properties), so the text itself is left alone there.</p>
+     */
+    private String capsAndSoftHyphens(RPr rPr, String text) {
+
+    	smallCapsMask = null;
+    	if (text==null || text.length()==0 || outputType!=RunFontActionType.XSL_FO) return text;
+
+    	boolean caps = isOn(rPr==null ? null : rPr.getCaps());
+    	boolean smallCaps = !caps && isOn(rPr==null ? null : rPr.getSmallCaps());
+    	boolean softHyphen = text.indexOf('\u00AD')>=0;
+    	if (!caps && !smallCaps && !softHyphen) return text;
+
+    	java.util.Locale locale = runLocale(rPr);
+    	StringBuilder sb = new StringBuilder(text.length());
+    	java.util.List<Boolean> lower = smallCaps ? new java.util.ArrayList<Boolean>(text.length()) : null;
+    	for (int i=0; i<text.length(); ) {
+    		int cp = text.codePointAt(i);
+    		i += Character.charCount(cp);
+    		if (cp=='\u00AD') continue; // a discretionary hyphen: nothing is painted unless it breaks
+    		int out = cp;
+    		if (caps || smallCaps) {
+    			String one = new String(Character.toChars(cp));
+    			String up = one.toUpperCase(locale);
+    			// keep the mapping one code point to one, so that the small caps mask lines
+    			// up with the text (eg German ß upper-cases to SS, which Word leaves alone)
+    			if (up.codePointCount(0, up.length())==1) out = up.codePointAt(0);
+    		}
+    		if (lower!=null) lower.add(Character.isLowerCase(cp));
+    		sb.appendCodePoint(out);
+    	}
+    	if (lower!=null) {
+    		boolean any = false;
+    		boolean[] mask = new boolean[lower.size()];
+    		for (int i=0; i<mask.length; i++) {
+    			mask[i] = lower.get(i);
+    			any |= mask[i];
+    		}
+    		if (any) smallCapsMask = mask;
+    	}
+    	return sb.toString();
+    }
+
+    private static boolean isOn(BooleanDefaultTrue val) {
+    	return val!=null && val.isVal();
+    }
+
+    /** The run's language, for case conversion: w:lang (the effective rPr carries the
+     *  document default), else the root locale. */
+    private static java.util.Locale runLocale(RPr rPr) {
+    	if (rPr!=null && rPr.getLang()!=null) {
+    		String tag = rPr.getLang().getVal();
+    		if (tag!=null && tag.length()>0) {
+    			try {
+    				java.util.Locale l = java.util.Locale.forLanguageTag(tag);
+    				if (l!=null && l.getLanguage().length()>0) return l;
+    			} catch (Exception e) {
+    				log.debug("Not a language tag: " + tag);
+    			}
+    		}
+    	}
+    	return java.util.Locale.ROOT;
+    }
+
+    /**
+     * Put the originally-lower-case stretches of a small caps run into an inline at
+     * {@value #SMALL_CAPS_SIZE} of the run's size.  The mask was built from the text
+     * this fragment was made from, so the two are walked in step; if they have come
+     * apart (a run whose text was rewritten on the way, as Arabic-Indic shaping does),
+     * the run is simply left in full capitals.
+     */
+    private Object smallCaps(Object fragment) {
+
+    	boolean[] mask = smallCapsMask;
+    	smallCapsMask = null;
+    	if (mask==null || !(fragment instanceof DocumentFragment) || outputType!=RunFontActionType.XSL_FO) {
+    		return fragment;
+    	}
+    	DocumentFragment df = (DocumentFragment)fragment;
+    	java.util.List<org.w3c.dom.Text> texts = new java.util.ArrayList<>();
+    	collectTextNodes(df, texts);
+    	int total = 0;
+    	for (org.w3c.dom.Text t : texts) {
+    		String v = t.getNodeValue();
+    		if (v!=null) total += v.codePointCount(0, v.length());
+    	}
+    	if (total!=mask.length) {
+    		log.debug("Small caps skipped: " + total + " characters rendered, " + mask.length + " expected");
+    		return fragment;
+    	}
+    	Document doc = df.getOwnerDocument();
+    	int pos = 0;
+    	for (org.w3c.dom.Text t : texts) {
+    		String v = t.getNodeValue();
+    		if (v==null || v.length()==0) continue;
+    		int[] cps = v.codePoints().toArray();
+    		java.util.List<Node> replacement = new java.util.ArrayList<>();
+    		StringBuilder seg = new StringBuilder();
+    		boolean segSmall = mask[pos];
+    		for (int cp : cps) {
+    			boolean small = mask[pos++];
+    			if (small!=segSmall) {
+    				flushSmallCapsSegment(doc, replacement, seg, segSmall);
+    				segSmall = small;
+    			}
+    			seg.appendCodePoint(cp);
+    		}
+    		flushSmallCapsSegment(doc, replacement, seg, segSmall);
+    		if (replacement.size()==1 && replacement.get(0) instanceof org.w3c.dom.Text) continue; // nothing to wrap
+    		Node parent = t.getParentNode();
+    		if (parent==null) continue;
+    		for (Node n : replacement) parent.insertBefore(n, t);
+    		parent.removeChild(t);
+    	}
+    	return fragment;
+    }
+
+    private void flushSmallCapsSegment(Document doc, java.util.List<Node> out, StringBuilder seg, boolean small) {
+    	if (seg.length()==0) return;
+    	if (small) {
+    		Element inline = doc.createElementNS("http://www.w3.org/1999/XSL/Format", "fo:inline");
+    		inline.setAttribute("font-size", SMALL_CAPS_SIZE);
+    		if (outputType==RunFontActionType.XSL_FO) {
+    			inline.setAttribute(HINT_SMALL_CAPS, "0.8");
+    		}
+    		inline.appendChild(doc.createTextNode(seg.toString()));
+    		out.add(inline);
+    	} else {
+    		out.add(doc.createTextNode(seg.toString()));
+    	}
+    	seg.setLength(0);
+    }
+
+    private static void collectTextNodes(Node n, java.util.List<org.w3c.dom.Text> out) {
+    	for (Node c = n.getFirstChild(); c!=null; c = c.getNextSibling()) {
+    		if (c.getNodeType()==Node.TEXT_NODE) {
+    			out.add((org.w3c.dom.Text)c);
+    		} else {
+    			collectTextNodes(c, out);
+    		}
+    	}
+    }
+
+    /** whether the run being selected preserves its white space; see the worker */
+    private boolean spacePreserve;
+
+
+    /**
+     * Apply the font selection algorithm to this Text, based on the supplied PPr and RPr
+     * (and the document defaults, theme part etc).
+     *
+     * @param pPr the paragraph's properties, or null
+     * @param rPr the run's properties (direct formatting), or null: resolved here
+     * @param wmlText the run's w:t (its xml:space decides whether white space is preserved)
+     * @return the DocumentFragment of spans for this run (XSL FO or XHTML); null in the
+     *         deprecated DISCOVERY mode, or where the text is null
+     */
+    public Object fontSelector(PPr pPr, RPr rPr, Text wmlText) {
+    	return fontSelector(pPr, rPr, wmlText, false);
+    }
+
+    /**
+     * As {@link #fontSelector(PPr, RPr, Text)}, for a caller which has already resolved
+     * the run's properties: with {@code rPrIsEffective} true, {@code rPr} is taken as the
+     * effective run properties (document defaults, styles and direct formatting merged,
+     * as {@link PropertyResolver#getEffectiveRPr(RPr, PPr)} gives them) and {@code pPr} as
+     * the effective paragraph properties, and nothing is resolved here.  The visitor
+     * exporters resolve every run for its other properties and pass the answer, so a run
+     * is resolved once (CR-016 phase 1).
+     *
+     * @since 17.2.0
+     */
+    public Object fontSelector(PPr pPr, RPr rPr, Text wmlText, boolean rPrIsEffective) {
+
+    	String text=null;
+    	boolean preserve = false;
+    	if (wmlText==null) {
+    		log.debug("Null Text object");
+    	} else {
+    		text = wmlText.getValue();
+    		preserve = (wmlText.getSpace()!=null) && (wmlText.getSpace().equals("preserve"));
+        	if (!preserve) text = trimUnpreservedWhitespace(text);
+    	}
+    	
+    	return fontSelector( pPr,  rPr,  text, rPrIsEffective, preserve);
+    }
+
+    /**
+     * The leading and trailing white space of a {@code w:t} which does not ask for it to
+     * be preserved, which Word discards.
+     *
+     * <p>{@code xml:space} is the XML mechanism (ECMA-376 Part 1 uses it on
+     * {@code ST_String}, and the schema's whiteSpace facet is "preserve" only with it):
+     * without {@code xml:space="preserve"} the leading and trailing white space of the
+     * element is not significant, and Word - which writes the attribute itself whenever
+     * the space matters - drops it.  A {@code w:t} whose text has leading or trailing
+     * space and no {@code xml:space} therefore came from some other producer, and Word
+     * renders it trimmed.
+     *
+     * <p>Measured against Word 365.  A centred paragraph built out of
+     * {@code <w:t>Chantier\nd'enl&#232;vement d'amiante</w:t>} then
+     * {@code <w:t>\n${caze.descriptive}</w:t>}, neither with {@code xml:space}: Word's
+     * line runs 136.6..458.6 = 322.0pt and ours ran 132.7..458.5 = 325.9 - +3.9pt, and
+     * being centred it also started 3.9pt to the left.  The trailing-space form,
+     * {@code <w:t>WEIGHT: </w:t>}: Word 72.0..218.6, ours 72.0..220.4.  (A newline
+     * <em>inside</em> the text is collapsed to a space by both, and stays.)
+     *
+     * <p>This is the {@code w:t} emission path both the FO and the HTML exporters share,
+     * so both take it; the load path is untouched, so a document read and written back
+     * is unchanged.  Set {@code docx4j.fonts.runFontSelector.trimUnpreservedWhitespace}
+     * to false to restore the old behaviour.
+     *
+     * @since 17.0.6
+     */
+    private static String trimUnpreservedWhitespace(String text) {
+    	if (text==null || text.length()==0) return text;
+    	if (!TRIM_UNPRESERVED) return text;
+    	int from = 0, to = text.length();
+    	while (from < to && isXmlSpace(text.charAt(from))) from++;
+    	// A w:t of nothing but white space keeps it.  Emptying one changes what the
+    	// paragraph is rather than how wide it is, and the FO layer then treats the
+    	// block as having no content at all and gives it a line of its own: measured on
+    	// a corpus document, page 12 of 80 opened 20.6pt below Word's (133.8 against
+    	// 113.3) because one such paragraph gained a line.  Word paints no glyph for it
+    	// either way, so nothing is lost by leaving it.
+    	if (from == to) return text;
+    	while (to > from && isXmlSpace(text.charAt(to-1))) to--;
+    	return (from==0 && to==text.length()) ? text : text.substring(from, to);
+    }
+
+    /** The four characters XML's S production covers; a no-break space is not one. */
+    private static boolean isXmlSpace(char c) {
+    	return c==' ' || c=='\t' || c=='\n' || c=='\r';
+    }
+
+    private static final boolean TRIM_UNPRESERVED = Docx4jProperties.getProperty(
+    		"docx4j.fonts.runFontSelector.trimUnpreservedWhitespace", true);
+    
+    /**
+     * As {@link #fontSelector(PPr, RPr, Text)}, for text a caller generated rather than a
+     * {@code w:t}: a note number, a list label, a field's sample.
+     *
+     * @param pPr the paragraph's properties, or null
+     * @param rPr the run's properties (direct formatting), or null: resolved here
+     * @param text the text; its white space is never preserved
+     * @return the DocumentFragment of spans for this text, as the Text overload
+     */
+    public Object fontSelector(PPr pPr, RPr rPr, String text) {
+    	// text a caller generated (a note number, a list label, a field's sample), never
+    	// white-space preserved
+    	return fontSelector(pPr, rPr, text, false, false);
+    }
+
+    /**
+     * @param spacePreserve whether the text's white space is to be preserved (the
+     *        {@code w:t}'s {@code xml:space}); an HTML span then gets
+     *        {@code white-space:pre-wrap}.  A parameter since 17.2.0: it was a field
+     *        the {@code Text} overload set and the {@code String} overload left as it
+     *        was, so generated text inherited the last {@code w:t}'s setting.
+     */
+    private Object fontSelector(PPr pPr, RPr rPr, String text, boolean rPrIsEffective, boolean spacePreserve) {
+    	this.spacePreserve = spacePreserve; // read by setAttribute, which the visitor calls back
+    	
+    	if (text==null) {
+    		log.debug("w:t with null value"); 
+    		return null;
+    	}
+    	log.debug(text);
+    	
+    	PropertyResolver propertyResolver = propertyResolver();
+    	rPr = effectiveRPr(propertyResolver, pPr, rPr, rPrIsEffective);
+    	captureLineSpec(propertyResolver, pPr, rPr, rPrIsEffective);
+
+    	text = capsAndSoftHyphens(rPr, text);
+
+    	if(log.isDebugEnabled()) {
+            log.debug("effective\n" + XmlUtils.marshaltoString(rPr));
+        }
+    	
+    	/* eg
+    	 * 
+				<w:r>
+				  <w:rPr>
+				    <w:rFonts w:ascii="Courier New" w:cs="Times New Roman" />
+				  </w:rPr>
+				  <w:t>English العربية</w:t>
+				</w:r>
+				
+    	 */
+
+		Document document = scratchDocument();
+		RFonts rFonts = rFontsOf(rPr);
+		
+		// Symbol handling
+		// @since 11.5.5
+		// by the canonical name: font names are case-insensitive (Word draws 'symbol' with
+		// Symbol; CR-016 probe fonts-symbol-and-emoji (a), (b)), and the mapper lower-cases
+		String symbolFont = symbolFontName(rFonts.getHAnsi());
+		if (symbolFont!=null) {
+			return symbolRun(document, symbolFont, text);
+		}
+    	
+		if (pPr!=null && pPr.getBidi()!=null && pPr.getBidi().isVal() ) {
+			text = this.arabicNumbering(text, rPr.getRtl(), rPr.getCs(), themeFontLang);
+		}
+		
+    	/* If the run has the cs element ("[ISO/IEC-29500-1] §17.3.2.7; cs") 
+    	 * or the rtl element ("[ISO/IEC-29500-1] §17.3.2.30; rtl"), 
+    	 * then the cs (or cstheme if defined) font is used, 
+    	 * regardless of the Unicode character values of the run's content.
+    	 *
+    	 * "Has" means the property is on: both are ST_OnOff values, and w:cs w:val="0"
+    	 * is how a run turns an inherited complex-script flag off.  Measured (CR-016
+    	 * probe fonts-cs-off): a false w:cs or w:rtl leaves Latin text in the ascii
+    	 * font; w:rtl alone on Latin text does take the cs font.  Until 17.2.0 the
+    	 * elements' presence was tested, so a false value took the cs font too.
+    	 */
+		String csFont = complexScriptFont(rPr, rFonts);
+		if (csFont!=null) {
+			return singleFont(document, csFont, text);
+		}
+
+		String[] slots = resolvedSlots(rFonts);
+		String eastAsia = slots[0];
+		String ascii = slots[1];
+		String hAnsi = slots[2];
+		String cs = slots[3];
+
+    	/*
+    	 * If the eastAsia (or eastAsiaTheme if defined) attribute's value is "Times New Roman"
+    	 * and the ascii (or asciiTheme if defined) and hAnsi (or hAnsiTheme if defined) attributes are equal, 
+    	 * then the ascii (or asciiTheme if defined) font is used.
+    	 */
+		if (preambleRule(eastAsia, ascii, hAnsi)) {
+			return singleFont(document, ascii, text);
+		}
+		
+		if (ascii==null) {
+			log.debug("No value for ascii, using default font");
+			ascii = this.getDefaultFont();
+		}
+    		    	
+    	/* Otherwise, the following table is used. For all ranges not listed in the following table, 
+    	 * the hAnsi (or hAnsiTheme if defined) font shall be used.
+    	 */
+		if (hAnsi==null) {
+			log.debug("No value for hAnsi, using default font");
+			hAnsi = this.getDefaultFont();				
+		}
+		
+		String langEastAsia = null;
+		if (rPr.getLang()!=null) {
+			langEastAsia = rPr.getLang().getEastAsia();
+		}
+		
+		vis.setDocument(document);
+		return unicodeRangeToFont(text,  rFonts.getHint(),  langEastAsia,
+	    		 eastAsia,  ascii,  hAnsi,  cs );
+    }
+
+    /**
+     * The document font the selector picks for one code point in a run with these
+     * properties: the resolution {@link #fontSelector(PPr, RPr, Text)} applies, without a
+     * visitor and without output - the symbol font by its canonical name where the run's
+     * hAnsi is one, the complex-script font where {@code w:cs} or {@code w:rtl} is on and
+     * names one, the ascii font under the preamble rule, else the font the character-range
+     * table gives the code point ({@link #fontFor}).  The theme references are resolved
+     * through the theme part and the document's themeFontLang.  For a caller which needs the
+     * name only, such as docx4j-docx-anon's text scrambler, which checks the replacement it
+     * scrambles in has a glyph in that font; until 17.2.0 it ran the selector in the
+     * DISCOVERY mode over one character for this.
+     *
+     * @param pPr the paragraph's properties, or null
+     * @param rPr the run's properties (direct formatting), or null
+     * @param codePoint the character
+     * @return the document font's name; never null (the document default at least)
+     * @since 17.2.0
+     */
+    public String documentFontFor(PPr pPr, RPr rPr, int codePoint) {
+    	return documentFontFor(pPr, rPr, codePoint, false);
+    }
+
+    /**
+     * As {@link #documentFontFor(PPr, RPr, int)}, for a caller which has resolved the
+     * run's effective properties already - as {@link #fontSelector(PPr, RPr, Text,
+     * boolean)} takes them.  A walk asking per character (FontsAnalysis.usage) would
+     * otherwise resolve the same run's properties once per character.
+     *
+     * @since 17.2.0
+     */
+    public String documentFontFor(PPr pPr, RPr rPr, int codePoint, boolean rPrIsEffective) {
+
+    	rPr = effectiveRPr(propertyResolver(), pPr, rPr, rPrIsEffective);
+    	RFonts rFonts = rFontsOf(rPr);
+    	String symbolFont = symbolFontName(rFonts.getHAnsi());
+    	if (symbolFont!=null) return symbolFont;
+    	String csFont = complexScriptFont(rPr, rFonts);
+    	if (csFont!=null) return csFont;
+    	String[] slots = resolvedSlots(rFonts);
+    	String eastAsia = slots[0];
+    	String ascii = slots[1];
+    	String hAnsi = slots[2];
+    	String cs = slots[3];
+    	if (preambleRule(eastAsia, ascii, hAnsi)) return ascii;
+    	if (ascii==null) ascii = getDefaultFont();
+    	if (hAnsi==null) hAnsi = getDefaultFont();
+    	String langEastAsia = rPr.getLang()==null ? null : rPr.getLang().getEastAsia();
+    	String font = fontFor(codePoint, rFonts.getHint(), langEastAsia, eastAsia, ascii, hAnsi, cs);
+    	return font==null ? getDefaultFont() : font;
+    }
+
+    private PropertyResolver propertyResolver() {
+    	try {
+    		return wordMLPackage.getMainDocumentPart().getPropertyResolver();
+    	} catch (Docx4JException e) {
+    		log.error(e.getMessage(), e);
+    		return null;
+    	}
+    }
+
+    /**
+     * The run's effective properties, never null.
+     *
+     * <p>One resolution: the document defaults, the paragraph style's run properties
+     * (the default paragraph style where the pPr names none, or names a missing
+     * one), the run's character style, its direct formatting - the resolver's
+     * order (CR-015).  Until 17.2.0 this walked the paragraph style itself and
+     * composed through getEffectiveRPrUsingPStyleRPr; a caller holding the
+     * effective rPr already passes it with rPrIsEffective (CR-016 phase 1).  The
+     * theme references survive the merge (StyleUtil.apply(RFonts) keeps them), which
+     * is what this class needs: they are resolved here, per document, through the
+     * theme part and themeFontLang.</p>
+     */
+    private RPr effectiveRPr(PropertyResolver propertyResolver, PPr pPr, RPr rPr, boolean rPrIsEffective) {
+    	if (!rPrIsEffective && propertyResolver!=null) {
+    		try {
+    			rPr = propertyResolver.getEffectiveRPr(rPr, pPr);
+    		} catch (CyclicStylesException e) {
+    			log.error(e.getMessage(), e);
+    		}
+    	}
+    	if (rPr==null) {
+    		// only when there is no property resolver at all
+    		log.warn("effective rPr is null");
+    		rPr = Context.getWmlObjectFactory().createRPr();
+    	}
+    	return rPr;
+    }
+
+    /**
+     * The run's rFonts, or where nothing anywhere names a font, the document default
+     * (Times New Roman when the defaults are silent, see getDefaultFont) for the ascii
+     * and hAnsi slots, the East Asian and complex-script slots left unnamed as for any
+     * run that never named them, and then the range dispatch as for any other run, so
+     * that East Asian or Georgian text still gets its own span and the glyph-coverage
+     * pass.  (Until 17.2.0 the whole text was set in the default font with no
+     * dispatch.  An rFonts which is present but empty - a w:hint alone - was always
+     * dispatched; RunFontSelectorChinese2Test covers that.  Not the eastAsia slot: a
+     * Times New Roman there would fire the table's preamble rule and set the whole run
+     * in one span.)
+     */
+    private RFonts rFontsOf(RPr rPr) {
+    	RFonts rFonts = rPr.getRFonts();
+    	if (rFonts==null) {
+    		rFonts = Context.getWmlObjectFactory().createRFonts();
+    		rFonts.setAscii(getDefaultFont());
+    		rFonts.setHAnsi(getDefaultFont());
+    	}
+    	return rFonts;
+    }
+
+    /**
+     * The complex-script font the run is set in as a whole, where {@code w:cs} or
+     * {@code w:rtl} is on and the cs slot names a font (the theme reference resolved
+     * first, else the attribute); null where the run is dispatched by range instead -
+     * neither is on, or the reference resolves to nothing and there is no w:cs.
+     */
+    private String complexScriptFont(RPr rPr, RFonts rFonts) {
+    	if (!isOn(rPr.getCs()) && !isOn(rPr.getRtl())) return null;
+    	if (rFonts.getCstheme()!=null) {
+    		String fontName = themeFont(rFonts.getCstheme());
+    		if (fontName==null) fontName = rFonts.getCs();
+    		if (fontName==null && log.isDebugEnabled()) {
+    			// the reference resolves to nothing and there is no w:cs: nothing to
+    			// set the run in, so it is dispatched by range like any other
+    			log.debug("No complex-script font (w:cstheme " + rFonts.getCstheme()
+    					+ " resolves to nothing, and no w:cs)");
+    		}
+    		return fontName;
+    	}
+    	return rFonts.getCs(); // null: no CS value, dispatched by range
+    }
+
+    /**
+     * The four slots resolved: each the theme reference where there is one (resolved
+     * through the theme part and themeFontLang, or the Office theme's face where the
+     * document has no theme part; see themeFont), else the explicit attribute; the
+     * explicit attribute also where the reference resolves to nothing (an empty typeface
+     * in the theme).  Order: eastAsia, ascii, hAnsi, cs; any may be null.
+     */
+    private String[] resolvedSlots(RFonts rFonts) {
+    	String eastAsia = themeFont(rFonts.getEastAsiaTheme());
+    	if (eastAsia==null) eastAsia = rFonts.getEastAsia();
+    	String ascii = themeFont(rFonts.getAsciiTheme());
+    	if (ascii==null) ascii = rFonts.getAscii();
+    	String hAnsi = themeFont(rFonts.getHAnsiTheme());
+    	if (hAnsi==null) hAnsi = rFonts.getHAnsi();
+    	String cs = themeFont(rFonts.getCstheme());
+    	if (cs==null) cs = rFonts.getCs();
+    	if (cs!=null && cs.trim().length()==0) {
+    		// eg LibreOffice writes w:cs="" in docDefaults
+    		cs = null;
+    	}
+    	return new String[] { eastAsia, ascii, hAnsi, cs };
+    }
+
+    /** The table's preamble: an eastAsia of Times New Roman with ascii and hAnsi equal
+     *  sets the whole run in the ascii font. */
+    private static boolean preambleRule(String eastAsia, String ascii, String hAnsi) {
+    	return "Times New Roman".equals(eastAsia) && ascii!=null && ascii.equals(hAnsi);
+    }
+
+    /**
+     * The whole text in one font, through the visitor as the range dispatch would emit a
+     * single span: the cs-font and preamble-rule cases.  Until 17.2.0 these built their
+     * span directly and told the visitor only in the DISCOVERY mode; through the visitor
+     * every mode's visitor learns the font, and a DISCOVERY visitor (deprecated) records
+     * it as it did.
+     */
+    private Object singleFont(Document document, String font, String text) {
+    	vis.setDocument(document);
+    	vis.createNew();
+    	vis.setMustCreateNewFlag(false);
+    	vis.fontAction(font);
+    	for (int i = 0; i < text.length(); i = text.offsetByCodePoints(i, 1)) {
+    		int cp = text.codePointAt(i);
+    		if (cp > 0xFFFF) {
+    			vis.addCodePointToCurrent(cp);
+    		} else {
+    			vis.addCharacterToCurrent((char)cp);
+    		}
+    	}
+    	vis.finishPrevious();
+    	return finish(vis.getResult());
+    }
+
+    /**
+     * A run in one of the symbol fonts SymbolMapper knows.  For these fonts, we depart
+     * from the general approach outlined in the class comment above, and map each
+     * character to a known Unicode replacement; then one span per stretch the same
+     * substitute face can draw: the Wingdings ranges are split across two substitutes
+     * (PhysicalFonts.getWDingsFont and getWDingsFont2), and until 17.2.0 the first code
+     * point chose the face for the whole run (and a run needing both faces failed, the
+     * second span being appended to the scratch Document beside the first).
+     */
+    private Object symbolRun(Document document, String actualFontName, String text) {
+
+    	StringBuilder sb = new StringBuilder();
+    	for (int i = 0; i < text.length(); i = text.offsetByCodePoints(i, 1)) {
+    		int cp = text.codePointAt(i);
+    		String valStr = null;
+
+    		// VBA like rng.InsertAfter Chr(i); rng.Font.Name = "Wingdings"
+    		// for code points 128-159 (0x80-0x9F) results in Unicode you might not expect (rather than the code point asked for).
+    		// This is because these are used in the Windows-1252 codepage but are reserved in Unicode for 
+    		// control characters: https://en.wikipedia.org/wiki/Windows-1252
+    		// For example, codepoint 137 (0x89) gets translated to U+2030.	
+    		// See further https://github.com/plutext/docx4j/issues/632
+    		if (cp>255) {
+    			cp = translateUnicode2SingleByte(cp);
+    		}
+
+    		if (cp>255 /* couldn't translate using explicit mapping */ ) {
+    			// Word will also do the following...
+    			int mappedIndex = cp - 0xF000;
+    			valStr = SymbolMapper.getUnicodeReplacementChar(actualFontName, (short)mappedIndex);
+    			if (log.isDebugEnabled()) {
+    				log.debug("Mapped char: " + actualFontName + " " + (short)cp + " Hex " + Integer.toHexString(cp) + " to " + (short)mappedIndex + " Hex " + Integer.toHexString(mappedIndex));
+    			}
+    		} /* usual case */ else {
+    			valStr = SymbolMapper.getUnicodeReplacementChar(actualFontName, (short)cp);
+    		}
+    		if (valStr==null) {
+    			sb.append(SymbolUtils.MISSING_SYMBOL); 
+    			if (warnedOnce.add("symbol " + actualFontName + " " + cp)) {
+    				log.warn(actualFontName + " " + (short)cp + " Hex " + Integer.toHexString(cp) + " has no replacement.");
+    			}
+    		} else {
+    			sb.append(valStr);  						
+    		}
+    	}
+
+    	DocumentFragment fragment = document.createDocumentFragment();
+    	for (String segment : symbolSegments(actualFontName, sb.toString())) {
+    		Element seg = createElement(document);
+    		if (seg==null) continue; // the DISCOVERY mode
+    		fragment.appendChild(seg);
+    		seg.setTextContent(segment==null ? sb.toString() : segment);
+    		this.symbolSetAttribute(seg, actualFontName, seg.getTextContent());
+    	}
+    	return outputType==RunFontActionType.DISCOVERY ? null : finish(fragment);
+    }
+    
+    /** The canonical name of one of the fonts SymbolMapper knows, whatever case the
+     *  document wrote it in; null for any other font. */
+    static String symbolFontName(String documentFontName) {
+    	if (documentFontName==null) return null;
+    	for (String known : new String[] { "Symbol", "Webdings", "Wingdings", "Wingdings 2", "Wingdings 3" }) {
+    		if (known.equalsIgnoreCase(documentFontName.trim())) return known;
+    	}
+    	return null;
+    }
+
+    /**
+     * The mapped text of a symbol-font run cut where the substitute face changes; a
+     * single null element where one face draws it all (or the output is not XSL FO,
+     * where no substitute is chosen here).
+     */
+    private java.util.List<String> symbolSegments(String fontName, String mapped) {
+    	java.util.List<String> one = java.util.Collections.singletonList(null);
+    	if (outputType!=RunFontActionType.XSL_FO || mapped==null || mapped.isEmpty()) return one;
+    	PhysicalFont pf = fontName.equals("Symbol") ? PhysicalFonts.getSymbolFont() : PhysicalFonts.getWDingsFont();
+    	PhysicalFont pf2 = fontName.equals("Symbol") ? null : PhysicalFonts.getWDingsFont2();
+    	if (pf==null || pf2==null) return one;
+    	java.util.List<String> segments = new java.util.ArrayList<String>();
+    	StringBuilder seg = new StringBuilder();
+    	Boolean segInFirst = null;
+    	try {
+    		for (int i=0; i<mapped.length(); i=mapped.offsetByCodePoints(i, 1)) {
+    			int cp = mapped.codePointAt(i);
+    			boolean inFirst = GlyphCheck.hasCodepoint(pf, cp) || !GlyphCheck.hasCodepoint(pf2, cp);
+    			if (segInFirst!=null && inFirst!=segInFirst) {
+    				segments.add(seg.toString());
+    				seg.setLength(0);
+    			}
+    			segInFirst = inFirst;
+    			seg.appendCodePoint(cp);
+    		}
+    	} catch (ExecutionException e) {
+    		return one;
+    	}
+    	if (seg.length()>0) segments.add(seg.toString());
+    	return segments.size()<=1 ? one : segments;
+    }
+
+    private int translateUnicode2SingleByte(int cp) {
+
+		switch (cp) {
+		case 0x20AC: return 0x80;
+		case 0x201A: return 0x82;
+		case 0x0192: return 0x83;
+		case 0x201E: return 0x84;
+		case 0x2026: return 0x85;
+		case 0x2020: return 0x86;
+		case 0x2021: return 0x87;
+		case 0x02C6: return 0x88;
+		case 0x2030: return 0x89;
+		case 0x0160: return 0x8A;
+		case 0x2039: return 0x8B;
+		case 0x0152: return 0x8C;
+		case 0x017D: return 0x8E;
+		case 0x2018: return 0x91;
+		case 0x2019: return 0x92;
+		case 0x201C: return 0x93;
+		case 0x201D: return 0x94;
+		case 0x2022: return 0x95;
+		case 0x2013: return 0x96;
+		case 0x2014: return 0x97;
+		case 0x02DC: return 0x98;
+		case 0x2122: return 0x99;
+		case 0x0161: return 0x9A;
+		case 0x203A: return 0x9B;
+		case 0x0153: return 0x9C;
+		case 0x017E: return 0x9E;
+		case 0x0178: return 0x9F;		
+		default: return cp;
+		}
+	}
+
+
+	private boolean contains(String langEastAsia, String lang) {
+    	// eg <w:lang w:eastAsia="zh-CN" .. />
+    	if (langEastAsia==null) return false;
+    	return langEastAsia.contains(lang);
+    }
+
+	private static String EMOJI_FONT=null;
+	private static String getEmojiFont() {
+
+		if (EMOJI_FONT==null) {
+			EMOJI_FONT = Docx4jProperties.getProperty("docx4j.fonts.RunFontSelector.EmojiFont");
+		}
+		return EMOJI_FONT;
+	}
+
+	/** The emoji blocks - Mahjong, Domino and Playing Card tiles, the enclosed
+	 *  alphanumerics and ideographs, Miscellaneous Symbols and Pictographs, Emoticons,
+	 *  Transport and Map, the supplemental and extended symbol blocks (U+1F000-U+1FAFF).
+	 *  Word sets them in Segoe UI Emoji (CR-016 probe fonts-symbol-and-emoji (c)).
+	 *  @since 17.2.0 */
+	static boolean isEmoji(int cp) {
+		return cp>=0x1F000 && cp<=0x1FAFF;
+	}
+
+    /**
+     * Walk the text, choosing a font for each code point ({@link #fontFor}) and building
+     * one span per stretch of characters that share a font: a character joins the span
+     * being built when it is assigned the same font, whatever its range.
+     *
+     * <p>Until 17.2.0 spans were cut by <em>range</em> (a character joined the span while
+     * it fell in the range the previous one had been dispatched by), which cut a Latin
+     * run at every exception character, sent a space to the East Asian font of the word
+     * before it, and - the Latin-1 branch having reset the range to ASCII - kept the
+     * ASCII letters after an accented one in the hAnsi font.  Joining by chosen font gives
+     * the same span for the same font, and one span for a stretch of the same font
+     * however many ranges it crosses, which FOP kerns and letter-spaces as one.</p>
+     */
+    private Object unicodeRangeToFont(String text, STHint hint, String langEastAsia,
+    		String eastAsia, String ascii, String hAnsi, String cs) {
+
+    	if (text==null) {
+    		return null;
+    	}
+    	String currentFont = null;
+    	String currentScript = null; // of the span's last non-shared character
+    	boolean open = false;
+    	for (int i = 0; i < text.length(); i=text.offsetByCodePoints(i, 1)){
+    		int cp = text.codePointAt(i);
+    		String font = fontFor(cp, hint, langEastAsia, eastAsia, ascii, hAnsi, cs);
+    		/* A span is one font and one script: a character joins while it has the
+    		 * span's font and, unless it is shared (a space, a digit, punctuation), the
+    		 * span's script.  The script cut keeps the coverage pass's spans whole - a
+    		 * Greek stretch in a Latin font substituted as one top-level span, not nested
+    		 * inside the Latin one (measured: nesting it changed FOP's line stacking and
+    		 * cost the corpus's Greek document a page).  The CJK scripts are one group, so
+    		 * kanji and kana share a span as they did. */
+    		String script = spanScript(cp);
+    		boolean sameFont = font==null ? currentFont==null : font.equals(currentFont);
+    		boolean sameScript = script==null || currentScript==null || script.equals(currentScript);
+    		if (open && vis.isReusable() && sameFont && sameScript) {
+    			// it joins
+    		} else {
+    			vis.finishPrevious();
+    			vis.createNew();
+    			vis.setMustCreateNewFlag(false);
+    			vis.fontAction(font);
+    			currentFont = font;
+    			currentScript = null;
+    			open = true;
+    		}
+    		if (script!=null) currentScript = script;
+    		if (cp > 0xFFFF) {
+    			vis.addCodePointToCurrent(cp);
+    		} else {
+    			vis.addCharacterToCurrent((char)cp);
+    		}
+    	}
+    	vis.finishPrevious();
+    	return finish(vis.getResult());
+    }
+
+    /** The group a span is cut by: the coverage group of the code point (its script, or
+     *  SYMBOL / EMOJI), the CJK scripts as one, and null for a shared character (COMMON,
+     *  INHERITED), which joins whatever it follows. */
+    private static String spanScript(int cp) {
+    	String group = FontFallback.coverageGroupOf(cp);
+    	if (Character.UnicodeScript.COMMON.name().equals(group)
+    			|| Character.UnicodeScript.INHERITED.name().equals(group)) return null;
+    	if (Character.UnicodeScript.HAN.name().equals(group)
+    			|| Character.UnicodeScript.HIRAGANA.name().equals(group)
+    			|| Character.UnicodeScript.KATAKANA.name().equals(group)
+    			|| Character.UnicodeScript.HANGUL.name().equals(group)
+    			|| Character.UnicodeScript.BOPOMOFO.name().equals(group)) return "CJK";
+    	return group;
+    }
+
+    /**
+     * The document font which formats one code point, given the run's four fonts (each
+     * already resolved through the theme) and its hint: the table in [MS-OI29500]
+     * 17.3.2.26 (see the class javadoc), with these departures from it, each measured:
+     * <ul>
+     * <li>the Indic, Thai, Lao, Myanmar and Khmer ranges use cs, where the table says
+     *     hAnsi (issues 622 and 666);</li>
+     * <li>the symbol blocks U+2190-U+2BFF ask the hAnsi font for the glyph and name
+     *     Segoe UI Symbol where it lacks it (Word 2016; the coverage pass in
+     *     {@link #glyphFallback} then finds a face that has it on any box);</li>
+     * <li>an East Asian reference is "eastAsia (or eastAsiaTheme) if defined": a run
+     *     naming none gets hAnsi in those places, never nothing;</li>
+     * <li>characters outside the Basic Multilingual Plane, which the table does not
+     *     cover: the emoji font the docx4j.fonts.RunFontSelector.EmojiFont property
+     *     names, else hAnsi and the coverage pass (Word: Segoe UI Emoji).</li>
+     * </ul>
+     * What the table says and Word confirmed (CR-016 goldens, 2026-09-12): U+0020 is
+     * ASCII and takes the ascii font, so the space between two East Asian words is the
+     * Latin font's (2.6pt at 12pt in Carlito, not MS Gothic's 6); Hebrew, Arabic and
+     * the rest of U+0590-U+07BF in a run with no w:cs take the ascii font, and where
+     * that font lacks the script the coverage pass substitutes within its class, as
+     * Word does (Arial for Liberation Sans, Times New Roman for Liberation Serif) - until
+     * 17.2.0 this range tried Times New Roman for the glyph and set nothing where it
+     * lacked it; the preamble rule (eastAsia is Times New Roman and ascii equals hAnsi:
+     * use ascii) is applied by the caller before the walk.  The table's other condition
+     * for U+0100-U+02AF and U+1E00-U+1EFF under hint=eastAsia, "or the character set of
+     * the eastAsia font is Chinese5 or GB2312", needs the font's OS/2 code-page bits and
+     * is not implemented.
+     *
+     * @return a document font name; null only where the run names no hAnsi font either
+     * @since 17.2.0 (the table as one function; it was the body of the walk)
+     */
+    String fontFor(int cp, STHint hint, String langEastAsia,
+    		String eastAsia, String ascii, String hAnsi, String cs) {
+
+    	// "eastAsia (or eastAsiaTheme if defined)": where the run names none, the table's hAnsi
+    	String ea = eastAsia!=null ? eastAsia : hAnsi;
+    	boolean hintEA = hint == STHint.EAST_ASIA;
+
+    	if (cp > 0xFFFF) {
+    		if (isEmoji(cp) && getEmojiFont()!=null) return getEmojiFont();
+    		return hAnsi;
+    	}
+    	char c = (char)cp;
+    	// Basic Latin: "@ascii (or @asciiTheme) is used to format all characters in the ASCII range (0-127)"
+    	if (c<='\u007F') return ascii;
+    	// Latin-1 Supplement: hAnsi, with the table's exceptions under hint=eastAsia
+    	if (c>='\u00A0' && c<='\u00FF') {
+    		if (hintEA && eastAsia!=null) {
+    			// "If hint is eastAsia, the following characters use eastAsia: A1, A4, A7-A8, AA, AD, AF, B0-B4, B6-BA, BC-BF, D7, F7"
+    			if (c=='\u00A1' || c=='\u00A4' || (c>='\u00A7' && c<='\u00A8') || c=='\u00AA'
+    					|| c=='\u00AD' || c=='\u00AF' || (c>='\u00B0' && c<='\u00B4')
+    					|| (c>='\u00B6' && c<='\u00BA') || (c>='\u00BC' && c<='\u00BF')
+    					|| c=='\u00D7' || c=='\u00F7') return eastAsia;
+    			// "If hint is eastAsia and the language of the run is either Chinese Traditional or
+    			// Chinese Simplified, the following characters use eastAsia: E0-E1, E8-EA, EC-ED, F2-F3, F9-FA, FC"
+    			if (contains(langEastAsia, "zh") && ((c>='\u00E0' && c<='\u00E1') || (c>='\u00E8' && c<='\u00EA')
+    					|| (c>='\u00EC' && c<='\u00ED') || (c>='\u00F2' && c<='\u00F3')
+    					|| (c>='\u00F9' && c<='\u00FA') || c=='\u00FC')) return eastAsia;
+    		}
+    		return hAnsi;
+    	}
+    	// Latin Extended-A, Latin Extended-B, IPA Extensions
+    	if (c>='\u0100' && c<='\u02AF') return (hintEA && contains(langEastAsia, "zh")) ? ea : hAnsi;
+    	// Spacing Modifier Letters .. Cyrillic Supplement
+    	if (c>='\u02B0' && c<='\u04FF') return hintEA ? ea : hAnsi;
+    	// Hebrew, Arabic, Syriac, Thaana, NKo: ascii (measured, fonts-hebrew-no-cs)
+    	if (c>='\u0590' && c<='\u07BF') return ascii;
+    	// the Indic scripts, Thai, Lao, Myanmar, Khmer and the Khmer symbols: cs (issues 622, 666)
+    	if ((c>='\u0900' && c<='\u0DFF') || (c>='\u0E00' && c<='\u0EFF') || (c>='\u1000' && c<='\u109F')
+    			|| (c>='\u1780' && c<='\u17FF') || (c>='\u19E0' && c<='\u19FF')) {
+    		return cs!=null ? cs : hAnsi;
+    	}
+    	// Hangul Jamo
+    	if (c>='\u1100' && c<='\u11FF') return ea;
+    	// Latin Extended Additional
+    	if (c>='\u1E00' && c<='\u1EFF') return (hintEA && contains(langEastAsia, "zh")) ? ea : hAnsi;
+    	// General Punctuation .. Number Forms: ordinary text (until 17.0.4 the symbol path)
+    	if (c>='\u2000' && c<='\u218F') return hintEA ? ea : hAnsi;
+    	// the symbol blocks: Arrows .. Braille
+    	if (c>='\u2190' && c<='\u2BFF') return hintEA ? ea : symbolBlockFont(cp, hAnsi);
+    	// Glagolitic .. CJK Radicals Supplement
+    	if (c>='\u2C00' && c<='\u2EFF') return hintEA ? ea : hAnsi;
+    	// the CJK ranges (and the surrogate range, which a paired surrogate never reaches here)
+    	if (c>='\u2F00' && c<='\uDFFF') return ea;
+    	// Private Use Area; F000-F0FF is where the symbol fonts live
+    	if (c>='\uE000' && c<='\uF8FF') return hintEA ? ea : hAnsi;
+    	// CJK Compatibility Ideographs
+    	if (c>='\uF900' && c<='\uFAFF') return ea;
+    	// Alphabetic Presentation Forms: "If the hint is eastAsia then eastAsia is used for FB00-FB1C. For FB1D-FB4F, ascii is used."
+    	if (c>='\uFB00' && c<='\uFB4F') {
+    		if (c>='\uFB1D') return ascii;
+    		return hintEA ? ea : hAnsi;
+    	}
+    	// Arabic Presentation Forms-A
+    	if (c>='\uFB50' && c<='\uFDFF') return ascii;
+    	// CJK Compatibility Forms, Small Form Variants
+    	if (c>='\uFE30' && c<='\uFE6F') return ea;
+    	// Arabic Presentation Forms-B
+    	if (c>='\uFE70' && c<='\uFEFE') return ascii;
+    	// Halfwidth and Fullwidth Forms
+    	if (c>='\uFF00' && c<='\uFFEF') return ea;
+    	// "for all ranges not listed in the above, the hAnsi (or hAnsiTheme if defined) font shall be used"
+    	// (Georgian, Armenian, Ethiopic, Tibetan, Mongolian, Greek Extended, the C1 controls ...)
+    	return hAnsi;
+    }
+
+    /** the Word-2016 face for a symbol the hAnsi font lacks; Segoe UI Symbol is a Windows
+     *  face, so elsewhere the run's own font is named and the coverage pass finds one
+     *  (FontFallback.isSymbol, measured order: Segoe UI Symbol, Noto Sans Symbols 2, ...) */
+    private static final String FONT_WORD_2016_USES = "Segoe UI Symbol";
+
+    /**
+     * The font for a character of the symbol blocks U+2190-U+2BFF: the hAnsi font where
+     * it has the glyph (the table); else Segoe UI Symbol where that is mapped and has it
+     * (what Word 2016 does for Calibri's U+2751, RunFontSelectorCalibriCheckBoxTest);
+     * else the hAnsi font all the same, so that the span has a family for the coverage
+     * pass to work on.
+     */
+    private String symbolBlockFont(int cp, String hAnsi) {
+    	if (hAnsi==null) return null;
+    	try {
+    		if (hasGlyph(hAnsi, cp)) return hAnsi;
+    		PhysicalFont segoe = ownFont(FONT_WORD_2016_USES);
+    		if (segoe!=null && GlyphCheck.hasCodepoint(segoe, cp)) return FONT_WORD_2016_USES;
+    		if (log.isDebugEnabled()) {
+    			log.debug("U+" + Integer.toHexString(cp) + " is not in " + hAnsi + " (" + physicalFontFor(hAnsi)
+    					+ "); the coverage pass will look for a face which has it");
+    		}
+    	} catch (ExecutionException e) {
+    		log.error(e.getMessage(), e);
+    	}
+    	return hAnsi;
+    }
+
+    /** The PhysicalFont this *document* font name maps to.
+     *
+     *  This must go via the Mapper, not PhysicalFonts: a font embedded in the document
+     *  is deliberately not added to PhysicalFonts (those are shared by all documents;
+     *  see ObfuscatedFontPart.extract), and a document font is commonly mapped to a
+     *  substitute with a different name (eg Arial to Arimo Regular), which
+     *  PhysicalFonts.get(documentFontName) wouldn't find either.
+     *
+     * @since 17.0.3
+     */
+    private PhysicalFont physicalFontFor(String documentFontName) {
+
+    	if (documentFontName==null) return null;
+    	Mapper fontMapper = wordMLPackage.getFontMapper();
+    	PhysicalFont pf = (fontMapper==null ? null : fontMapper.get(documentFontName));
+    	return (pf!=null ? pf : PhysicalFonts.get(documentFontName));
+    }
+
+    /**
+     * A font the selector names of its own accord - the face Word 2016 uses for a symbol
+     * the run's font lacks, the configured emoji font - mapped on demand: the document
+     * never names it, so discovery does not offer it to the Mapper; where the machine has
+     * it, it is put into this document's mappings here (and declared to FOP late through
+     * {@link #registerUsedFont}, as any font the conversion reaches).
+     *
+     * @return the mapped font, or null where the machine has no such font
+     * @since 17.2.0
+     */
+    private PhysicalFont ownFont(String name) {
+    	if (name==null) return null;
+    	Mapper fontMapper = wordMLPackage.getFontMapper();
+    	if (fontMapper==null) return PhysicalFonts.get(name);
+    	PhysicalFont pf = fontMapper.get(name);
+    	if (pf==null) {
+    		pf = PhysicalFonts.get(name);
+    		if (pf!=null) fontMapper.put(name, pf);
+    	}
+    	return pf;
+    }
+
+    private boolean isOwnFont(String name) {
+    	return name!=null && (name.equals(FONT_WORD_2016_USES) || name.equals(getEmojiFont()));
+    }
+
+    /** The PhysicalFont behind a font-family this selector wrote (with any twin suffix),
+     *  through the document's Mapper, which knows the embedded fonts PhysicalFonts does
+     *  not ({@link Mapper#physicalFontNamed}).  @since 17.2.0 */
+    private PhysicalFont physicalFontNamed(String family) {
+    	Mapper fontMapper = wordMLPackage==null ? null : wordMLPackage.getFontMapper();
+    	return fontMapper==null ? PhysicalFonts.get(family) : fontMapper.physicalFontNamed(family);
+    }
+
+    /** Whether the font this document font name maps to has a glyph for this code point;
+     *  false if there is no such font, so that the caller falls back as it would have done.
+     *
+     * @since 17.0.3; by code point since 17.2.0 (a char could not ask about an emoji)
+     */
+    private boolean hasGlyph(String documentFontName, int cp) throws ExecutionException {
+
+    	PhysicalFont pf = physicalFontFor(documentFontName);
+    	if (pf==null) {
+    		log.debug("No physical font for " + documentFontName);
+    		return false;
+    	}
+    	return GlyphCheck.hasCodepoint(pf, cp);
+    }
+
+
+	/** {@code docx4j.convert.out.html.fontFamily}: {@code document} (the default since
+	 *  17.2.0) or {@code physical} (the output before it).  @since 17.2.0 */
+	public static final String HTML_FONT_FAMILY_PROPERTY = "docx4j.convert.out.html.fontFamily";
+
+	private static boolean htmlPhysicalOnly() {
+		return "physical".equalsIgnoreCase(Docx4jProperties.getProperty(HTML_FONT_FAMILY_PROPERTY, "document").trim());
+	}
+
+	/**
+	 * The {@code font-family} declaration for an HTML span in this document font: the
+	 * document's name first, then the family of the physical font this machine mapped it
+	 * to (where that differs), then the generic class, as Word's own HTML and every
+	 * browser stack expect - {@code font-family: 'Calibri','Carlito',sans-serif;} - and
+	 * never empty: the reader's browser is not on the server, and has Calibri and not
+	 * Carlito as often as the reverse.  (CR-016 Decisions 1.)
+	 *
+	 * <p>Until 17.2.0 it named the physical font alone ({@code 'Carlito Regular'}), or
+	 * nothing where the document font mapped to none; {@code docx4j.convert.out.html.fontFamily=physical}
+	 * restores that, for HTML rendered on the server itself.</p>
+	 */
+	private String getCssProperty(String fontName) {
+		
+		PhysicalFont pf = physicalFontResolved(fontName);
+		if (htmlPhysicalOnly()) {
+			if (pf!=null) {
+				String font = pf.getName();
+				if (font.endsWith(PhysicalFont.NOBOLD_SUFFIX)) {
+					// the alias for a document font with no bold face is an XSL FO matter
+					font = font.substring(0, font.length() - PhysicalFont.NOBOLD_SUFFIX.length());
+				}
+				return Property.composeCss(CSS_NAME, "'" + font + "'");
+			}
+			// We don't have this font, so don't specify it in our CSS
+			log.info("No physical font for " + fontName);
+			return Property.CSS_NULL;
+		}
+
+		StringBuilder stack = new StringBuilder();
+		String document = fontName==null ? null : fontName.trim();
+		if (document!=null && document.length()>0) {
+			stack.append('\'').append(document.replace("'", "")).append('\'');
+		}
+		String family = pf==null ? null : pf.getFamilyName();
+		if (family!=null && family.length()>0 && !family.equalsIgnoreCase(document)) {
+			if (stack.length()>0) stack.append(',');
+			stack.append('\'').append(family.replace("'", "")).append('\'');
+		}
+		FontFallback.FontClass fontClass = FontFallback.classOf(document);
+		if (fontClass==FontFallback.FontClass.UNKNOWN && family!=null) fontClass = FontFallback.classOf(family);
+		String generic = genericFamily(fontClass);
+		if (generic!=null) {
+			if (stack.length()>0) stack.append(',');
+			stack.append(generic);
+		}
+		if (stack.length()==0) {
+			// nothing named anywhere: the default font, so that the declaration is never empty
+			stack.append('\'').append(getDefaultFont().replace("'", "")).append('\'');
+		}
+		return Property.composeCss(CSS_NAME, stack.toString());
+	}
+
+	/** The CSS generic family for a class, or null where the class is not known. */
+	static String genericFamily(FontFallback.FontClass fontClass) {
+		if (fontClass==null) return null;
+		switch (fontClass) {
+			case SERIF: return "serif";
+			case SANS: return "sans-serif";
+			case MONO: return "monospace";
+			default: return null;
+		}
+	}
+
+	
+	private String getPhysicalFont(String fontName) {
+		PhysicalFont pf = physicalFontResolved(fontName);
+		return pf==null ? null : pf.getName();
+	}
+
+	/** The physical font this document font name resolves to (via the CJK alias where
+	 *  there is one), or null. */
+	private PhysicalFont physicalFontResolved(String fontName) {
+		
+		log.debug("looking for: " + fontName);
+
+		PhysicalFont pf = isOwnFont(fontName) ? ownFont(fontName) : wordMLPackage.getFontMapper().get(fontName);
+		if (pf!=null) {
+			log.debug("Font '" + fontName + "' maps to " + pf.getName() );
+			return pf;
+		} else {
+			
+			// Special cases; there are more; see http://en.wikipedia.org/wiki/List_of_CJK_fonts
+			String englishFromCJK = CJKToEnglish.toEnglish( fontName);
+			if (englishFromCJK==null) {
+				log.debug("englishFromCJK==null");
+				warnUnmapped(fontName, "");
+				return null;
+			} else {
+				pf = wordMLPackage.getFontMapper().get(englishFromCJK);
+			}
+			
+			if (pf==null) {
+				warnUnmapped(englishFromCJK, " (from CJK)");
+				return null;
+			} else {
+				log.debug(englishFromCJK + " (from CJK) maps to " + pf.getName() );				
+			}
+			
+			return pf;
+		}		
+	}	
+	
+	/** Once per font per selector (until 17.2.0, once per run). */
+	private void warnUnmapped(String fontName, String qualifier) {
+		if (!warnedOnce.add("unmapped " + fontName)) return;
+		if (wordMLPackage.getFontMapper().size()>0) {
+			log.warn("Font '" + fontName + "'" + qualifier + " is not mapped to a physical font. " );
+		} else {
+			log.info("No font mappings present");
+		}
+	}
+
+	public interface RunFontCharacterVisitor {
+		
+		void setRunFontSelector(RunFontSelector runFontSelector);
+		
+		void setDocument(Document document);
+		
+		void addCharacterToCurrent(char c);
+
+		void addCodePointToCurrent(int cp); //@since 3.3.0
+		
+		void finishPrevious();
+
+		void createNew();
+		
+		void setMustCreateNewFlag(boolean val);
+		
+		boolean isReusable();
+		
+		void fontAction(String fontname);
+		
+		void setFallbackFont(String fontname);
+		
+		// a DocumentFragment for output; in the deprecated DISCOVERY mode, whatever the
+		// visitor itself collected (the document's fonts are MainDocumentPart.fontsInUse now)
+		Object getResult();
+
+	}
+	
+	// Arabic numbering stuff
+	
+	enum MicrosoftWordNumeralOption {
+		Hindi, Context, Arabic, System;
+	}
+	enum NativeDigitsSetting {
+		National, Context;
+	}
+	
+	private static NumericShaper numericShaperArabicIndic = null;
+	private static NumericShaper getNumericShaperArabicIndic() {
+		
+		if (numericShaperArabicIndic == null) {
+			numericShaperArabicIndic = NumericShaper.getShaper(NumericShaper.ARABIC);
+				// NumericShaper.EASTERN_ARABIC actually corresponds to Unicode EXTENDED ARABIC-INDIC DIGIT
+		}
+		return numericShaperArabicIndic;
+	}
+	
+	private static NativeDigitsSetting nativeDigitsSetting = null;
+	private static NativeDigitsSetting getNativeDigitsSetting() {
+		
+		if (nativeDigitsSetting==null) {
+			nativeDigitsSetting = NativeDigitsSetting.valueOf(
+					Docx4jProperties.getProperty("docx4j.MicrosoftWindows.Region.Format.Numbers.NativeDigits", "National"));
+		}
+		return nativeDigitsSetting;
+	}
+
+	private static MicrosoftWordNumeralOption microsoftWordNumeralOption = null;
+	private static MicrosoftWordNumeralOption getMicrosoftWordNumeralOption() {
+		
+		if (microsoftWordNumeralOption==null) {
+			microsoftWordNumeralOption = MicrosoftWordNumeralOption.valueOf(
+					Docx4jProperties.getProperty("docx4j.MicrosoftWord.Numeral", "Arabic"));
+		}
+		return microsoftWordNumeralOption;
+	}
+	
+	private String shapeAsArabicIndic(String text) {
+		
+		// Use U+0660 .. U+0669 are ARABIC-INDIC DIGIT values 0 through 9
+		// See http://stackoverflow.com/questions/1676460/in-unicode-why-are-there-two-representations-for-the-arabic-digits
+		 char[] chars = text.toCharArray();
+		 getNumericShaperArabicIndic().shape(chars, 0, chars.length);
+		 return new String(chars);		
+	}
+	
+    private String arabicNumbering(String text, BooleanDefaultTrue rtl, BooleanDefaultTrue cs, CTLanguage themeFontLang ) {
+    	
+    	/* Rules below were inferred based on testing which always included
+    	 * 
+    	 *     <w:pPr>
+			      <w:bidi/>
+			    </w:pPr>
+
+    	 */
+    	if (themeFontLang!=null && isArabicScriptLanguage(themeFontLang.getBidi())) {
+    		// Do stuff in this method (until 17.2.0 for "ar-SA" alone; Word's rule is its
+    		// Numeral option, which applies to every Arabic-script language)
+    	} else {
+    		// Do nothing if those conditions don't apply
+    		return text;
+    	}
+
+    	if ( (rtl!=null && rtl.isVal())
+    			|| (cs!=null && cs.isVal()) ) {
+
+			// If rtl or cs present, use eastern numbering, except where numer option = arabic.  
+			// Return ie (If both rtl and the hint are present, do what rtl tells you
+			
+	    	if (getMicrosoftWordNumeralOption().equals(MicrosoftWordNumeralOption.Arabic)) {
+	    		return text;
+	    	} else {
+	    		return shapeAsArabicIndic(text);
+	    	}
+    	}
+    	
+    	if (getNativeDigitsSetting().equals(NativeDigitsSetting.National)) {
+    		return shapeAsArabicIndic(text);
+    	} else {
+    		// Context
+    		if (getMicrosoftWordNumeralOption().equals(MicrosoftWordNumeralOption.Hindi)) {
+        		return shapeAsArabicIndic(text);
+    		} else {
+	    		return text;
+    		}
+    	}
+    	
+    }	
+    /** whether this language tag's primary subtag is a language written in the Arabic script */
+    static boolean isArabicScriptLanguage(String tag) {
+    	if (tag==null) return false;
+    	String lang = tag.trim().toLowerCase();
+    	int dash = lang.indexOf('-');
+    	if (dash<0) dash = lang.indexOf('_');
+    	if (dash>-1) lang = lang.substring(0, dash);
+    	for (String l : new String[] { "ar", "fa", "ur", "ps", "ug", "sd", "ks", "ckb", "prs", "pnb", "bal" }) {
+    		if (l.equals(lang)) return true;
+    	}
+    	return false;
+    }
+	// end Arabic Numbering stuff 	
+}

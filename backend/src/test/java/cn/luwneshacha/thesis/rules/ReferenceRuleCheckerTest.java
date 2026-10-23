@@ -280,48 +280,44 @@ class ReferenceRuleCheckerTest {
   }
 
   @Test
-  void keepsAutomaticNumberingSpacingFindingAtZeroWidth() {
+  void delegatesAutomaticNumberingPolicyWithoutInventingAVisibleNumberRange() {
     var reference = new ReferenceEntryModel(
         new SourceAddress("word/document.xml", List.of(0), 0, 33), "1",
         "Author. Title[M]. Publisher, 2024.", "M", false,
         null, null, null, null, null, null, null, 0, 0, true);
 
-    var finding = new ReferenceRuleChecker().check(List.of(reference)).stream()
-        .filter(result -> result.reasonCode().equals("REFERENCE_NUMBER_SPACING_MISMATCH"))
-        .findFirst()
-        .orElseThrow();
-
-    assertEquals(finding.source().start(), finding.source().end());
+    var findings = new ReferenceRuleChecker().check(List.of(reference));
+    assertFalse(findings.stream().anyMatch(result -> result.reasonCode().startsWith("REFERENCE_NUMBER_SPACING")));
+    assertTrue(findings.stream().anyMatch(result -> result.ruleId().equals("REF-04")),
+        "著录字段检查仍独立执行");
   }
 
   @Test
-  void keepsUnconfirmedAutomaticNumberingSpacingFindingAtZeroWidth() {
+  void doesNotDuplicateTheGlobalPolicyWithAnUnknownAutomaticSeparatorFinding() {
     var reference = new ReferenceEntryModel(
         new SourceAddress("word/document.xml", List.of(0), 0, 33), "1",
         "Author. Title[M]. Publisher, 2024.", "M", false,
         null, null, null, null, null, null, null, null, null, true);
 
-    var finding = new ReferenceRuleChecker().check(List.of(reference)).stream()
-        .filter(result -> result.reasonCode().equals("REFERENCE_NUMBER_SPACING_UNCONFIRMED"))
-        .findFirst()
-        .orElseThrow();
-
-    assertEquals(finding.source().start(), finding.source().end());
+    var findings = new ReferenceRuleChecker().check(List.of(reference));
+    assertFalse(findings.stream().anyMatch(result -> result.reasonCode().startsWith("REFERENCE_NUMBER_SPACING")));
+    assertTrue(findings.stream().anyMatch(result -> result.ruleId().equals("REF-04")));
   }
 
   @Test
-  void checksSpacingAfterAutomaticReferenceNumberingLabel() {
+  void checksSequenceIndependentlyOfTheProhibitedAutomaticReferenceNumbering() {
     var references = new ReferenceParser().parse(List.of(
         p("References"),
         automaticReference("Author. Title[M]. Publisher, 2024.", "1.", 0, 0),
-        automaticReference("Author. Title[M]. Publisher, 2024.", "2.", 1, 0)));
+        automaticReference("Author. Title[M]. Publisher, 2024.", "3.", 1, 0)));
 
     var findings = new ReferenceRuleChecker().check(references).stream()
-        .filter(result -> result.reasonCode().equals("REFERENCE_NUMBER_SPACING_MISMATCH"))
+        .filter(result -> result.reasonCode().equals("REFERENCE_NUMBER_SEQUENCE_MISMATCH"))
         .toList();
 
     assertEquals(1, findings.size());
-    assertEquals("suffix=0, formatTrailing=0", findings.get(0).actual());
+    assertEquals("2", findings.get(0).expected());
+    assertEquals("3", findings.get(0).actual());
   }
 
   @Test

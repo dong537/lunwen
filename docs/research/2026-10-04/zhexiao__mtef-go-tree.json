@@ -1,0 +1,132 @@
+{
+  "sha": "16d536beaf41e0d88b0963a59e55c36de54e4fba",
+  "url": "https://api.github.com/repos/zhexiao/mtef-go/git/trees/16d536beaf41e0d88b0963a59e55c36de54e4fba",
+  "tree": [
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ea5c68eb57e5881bf87a42d618349d7658afd337",
+      "size": 200,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/ea5c68eb57e5881bf87a42d618349d7658afd337"
+    },
+    {
+      "path": "LICENSE",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+      "size": 11357,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d9f724297306706adb5fb5ceff575266514a72ea",
+      "size": 4304,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/d9f724297306706adb5fb5ceff575266514a72ea"
+    },
+    {
+      "path": "docx",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9c7e950553162b27ce0d247aec055d9e3b646698",
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/trees/9c7e950553162b27ce0d247aec055d9e3b646698"
+    },
+    {
+      "path": "docx/docx.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fa1f60487fe3e2a7dd220339a6704d715914bd8e",
+      "size": 1662,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/fa1f60487fe3e2a7dd220339a6704d715914bd8e"
+    },
+    {
+      "path": "eqn",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "492cc15c219583410d3fb6290f3b91d9992f817f",
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/trees/492cc15c219583410d3fb6290f3b91d9992f817f"
+    },
+    {
+      "path": "eqn/chars.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "303d991b0c53cc9760c7c8b5c127f4e83f641499",
+      "size": 36163,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/303d991b0c53cc9760c7c8b5c127f4e83f641499"
+    },
+    {
+      "path": "eqn/convert.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "60c34d1b403aec9d2e81454f559c0bd7f86718e1",
+      "size": 318,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/60c34d1b403aec9d2e81454f559c0bd7f86718e1"
+    },
+    {
+      "path": "eqn/mtef.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "41012ff77bf32f56686800d3a1d77c9625ec351e",
+      "size": 33512,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/41012ff77bf32f56686800d3a1d77c9625ec351e"
+    },
+    {
+      "path": "eqn/record.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2ad7b86b7beaa3b4c7764994e31b7dac65f8d6ce",
+      "size": 11644,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/2ad7b86b7beaa3b4c7764994e31b7dac65f8d6ce"
+    },
+    {
+      "path": "go.mod",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "79b6932925595856dd55dc54e0950b64f5451346",
+      "size": 147,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/79b6932925595856dd55dc54e0950b64f5451346"
+    },
+    {
+      "path": "go.sum",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "009f9dc58ba0629cfe02e5d62d3e6a3f54592932",
+      "size": 1464,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/009f9dc58ba0629cfe02e5d62d3e6a3f54592932"
+    },
+    {
+      "path": "main.go",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "88c8734f737079caca3cb196e0de722e4a9b4dd2",
+      "size": 1667,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/88c8734f737079caca3cb196e0de722e4a9b4dd2"
+    },
+    {
+      "path": "test",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "774be1117d24567aa86fe8b492f5a78f9eddb70c",
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/trees/774be1117d24567aa86fe8b492f5a78f9eddb70c"
+    },
+    {
+      "path": "test/oleObject1.bin",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "952110ce9f57fbd8c35e74889ece75e37515076e",
+      "size": 3584,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/952110ce9f57fbd8c35e74889ece75e37515076e"
+    },
+    {
+      "path": "test/oleObject2.bin",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7823a932c3315044dfbfd2c811d03ad895863478",
+      "size": 3584,
+      "url": "https://api.github.com/repos/zhexiao/mtef-go/git/blobs/7823a932c3315044dfbfd2c811d03ad895863478"
+    }
+  ],
+  "truncated": false
+}

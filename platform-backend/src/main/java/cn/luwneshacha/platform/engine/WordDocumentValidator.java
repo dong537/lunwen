@@ -8,11 +8,11 @@ import java.util.zip.ZipFile;
 import javax.xml.stream.*;
 
 /** Verifies the returned OOXML artifact independently of the engine's JSON claims. */
-final class MarkedDocumentValidator {
+final class WordDocumentValidator {
   private static final String MAIN="word/document.xml";
   private static final String COMMENTS="word/comments.xml";
   private static final long MAX_XML=100L*1024*1024;
-  private record WordPart(boolean body,boolean content,Set<String> references) {}
+  private record WordPart(boolean body,boolean content,boolean bodyText,Set<String> references) {}
 
   static void validateReport(Path report) throws IOException {
     try(var archive=new ZipFile(report.toFile())) {
@@ -38,32 +38,9 @@ final class MarkedDocumentValidator {
             &&URI.create("/").resolve(target).normalize().toString().equals("/word/document.xml")) officeDocument[0]=true;
       });
       if(!officeDocument[0]) throw new IOException("missing Word document relationship");
-      requireReportBodyText(archive);
+      WordPart document=wordPart(archive,MAIN);
+      if(!document.body()||!document.bodyText()) throw new IOException("Word report body is empty");
     }
-  }
-
-  private static void requireReportBodyText(ZipFile archive) throws IOException {
-    int[] depth={0},bodyDepth={0};
-    boolean[] document={false},bodyText={false};
-    read(archive,MAIN,xml->{
-      if(xml.getEventType()==XMLStreamConstants.END_ELEMENT) {
-        if(depth[0]==bodyDepth[0]) bodyDepth[0]=0;
-        depth[0]--;
-        return;
-      }
-      depth[0]++;
-      boolean word=isWord(xml.getNamespaceURI());String name=xml.getLocalName();
-      if(!document[0]) {
-        if(!word||!name.equals("document")) throw new IOException("invalid Word document root");
-        document[0]=true;
-      }
-      if(word&&name.equals("body")&&depth[0]==2) bodyDepth[0]=depth[0];
-      if(word&&name.equals("t")) {
-        if(!xml.getElementText().isBlank()&&bodyDepth[0]>0) bodyText[0]=true;
-        depth[0]--;
-      }
-    });
-    if(!bodyText[0]) throw new IOException("Word report body is empty");
   }
 
   static void validate(Path original,Path marked,boolean requireComments,Set<String> anchorParts) throws IOException {
@@ -74,6 +51,8 @@ final class MarkedDocumentValidator {
       if(wordPart(input,MAIN).content()&&!actual.content()) throw new IOException("marked document lost its original body content");
       if(!requireComments) return;
       Set<String> comments=commentIds(output,true),existing=commentIds(input,false);
+      // Comments belong to the main document; story parts reference their IDs directly.
+      requireCommentsRelationship(output,MAIN);
       var parts=new LinkedHashSet<>(anchorParts);
       if(parts.isEmpty()) parts.add(MAIN);
       for(String part:parts) {
@@ -82,16 +61,21 @@ final class MarkedDocumentValidator {
         Set<String> added=new HashSet<>(references);added.removeAll(existing);
         if(added.isEmpty()||!comments.containsAll(added))
           throw new IOException("written annotations have no new nonempty Word comment references");
-        requireCommentsRelationship(output,part);
       }
     }
   }
 
   private static WordPart wordPart(ZipFile archive,String part) throws IOException {
-    boolean[] state=new boolean[3];
+    boolean[] state=new boolean[4];
+    int[] depth={0},bodyDepth={0};
     Set<String> references=new HashSet<>();
     read(archive,part,xml->{
-      if(xml.getEventType()!=XMLStreamConstants.START_ELEMENT) return;
+      if(xml.getEventType()==XMLStreamConstants.END_ELEMENT) {
+        if(depth[0]==bodyDepth[0]) bodyDepth[0]=0;
+        depth[0]--;
+        return;
+      }
+      depth[0]++;
       boolean word=isWord(xml.getNamespaceURI());String name=xml.getLocalName();
       if(!state[0]) {
         state[0]=true;
@@ -100,14 +84,20 @@ final class MarkedDocumentValidator {
       boolean math="http://schemas.openxmlformats.org/officeDocument/2006/math".equals(xml.getNamespaceURI())
           ||"http://purl.oclc.org/ooxml/officeDocument/math".equals(xml.getNamespaceURI());
       if(math&&(name.equals("oMath")||name.equals("oMathPara"))) state[2]=true;
-      if(math&&name.equals("t")&&!xml.getElementText().isBlank()) state[2]=true;
+      if(math&&name.equals("t")) {
+        if(!xml.getElementText().isBlank()) state[2]=true;
+        depth[0]--;
+      }
       if(!word) return;
-      if(name.equals("body")) state[1]=true;
+      if(name.equals("body")&&depth[0]==2) {state[1]=true;bodyDepth[0]=depth[0];}
       if(Set.of("drawing","pict","object","tbl").contains(name)) state[2]=true;
-      if(name.equals("t")&&!xml.getElementText().isBlank()) state[2]=true;
+      if(name.equals("t")) {
+        if(!xml.getElementText().isBlank()) {state[2]=true;if(bodyDepth[0]>0) state[3]=true;}
+        depth[0]--;
+      }
       if(name.equals("commentReference")) references.add(attribute(xml,"id"));
     });
-    return new WordPart(state[1],state[2],references);
+    return new WordPart(state[1],state[2],state[3],references);
   }
 
   private static Set<String> commentIds(ZipFile archive,boolean requireNonempty) throws IOException {
@@ -131,7 +121,8 @@ final class MarkedDocumentValidator {
     String relationships=part.substring(0,slash+1)+"_rels/"+part.substring(slash+1)+".rels";
     boolean[] linked={false};
     read(archive,relationships,xml->{
-      if(xml.getEventType()!=XMLStreamConstants.START_ELEMENT||!xml.getLocalName().equals("Relationship")) return;
+      if(xml.getEventType()!=XMLStreamConstants.START_ELEMENT||!xml.getLocalName().equals("Relationship")
+          ||!"http://schemas.openxmlformats.org/package/2006/relationships".equals(xml.getNamespaceURI())) return;
       String type=xml.getAttributeValue(null,"Type"),target=xml.getAttributeValue(null,"Target");
       if(("http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments".equals(type)
           ||"http://purl.oclc.org/ooxml/officeDocument/relationships/comments".equals(type))

@@ -121,6 +121,84 @@ class SubmissionIntegrationTest {
     assertThrows(ApiException.class, () -> service.prepareDownload(actor(student), id, "original"));
   }
 
+  @Test void transientFailureReasonSurvivesRetryClaimUpdatesOnLaterFailureAndClearsOnSuccess() {
+    long id = Long.parseLong(service.upload(actor(student), file("transient.docx", new byte[]{1})).id());
+    Instant now = Instant.now();
+
+    var first = tasks.claim(now).orElseThrow();
+    assertTrue(tasks.fail(first, true, "审核服务暂时不可用", now.plusSeconds(1)));
+    assertEquals("审核服务暂时不可用", submissions.findById(id).orElseThrow().getErrorMessage());
+
+    var second = tasks.claim(now.plusSeconds(901)).orElseThrow();
+    assertEquals("审核服务暂时不可用", submissions.findById(id).orElseThrow().getErrorMessage());
+    assertTrue(tasks.fail(second, true, "审核引擎连接超时", now.plusSeconds(902)));
+    assertEquals("审核引擎连接超时", submissions.findById(id).orElseThrow().getErrorMessage());
+
+    var third = tasks.claim(now.plusSeconds(1803)).orElseThrow();
+    assertEquals("审核引擎连接超时", submissions.findById(id).orElseThrow().getErrorMessage());
+    assertTrue(tasks.succeed(third, 2, now.plusSeconds(1804)));
+    assertNull(submissions.findById(id).orElseThrow().getErrorMessage());
+  }
+
+  @Test void detailViewReturnsFinalFailureReasonAfterRetry() {
+    long id = Long.parseLong(service.upload(actor(student), file("retry.docx", new byte[]{1})).id());
+    Instant now = Instant.now();
+    var first = tasks.claim(now).orElseThrow();
+    assertTrue(tasks.fail(first, true, "temporary audit outage", now.plusSeconds(1)));
+    var second = tasks.claim(now.plusSeconds(901)).orElseThrow();
+    assertTrue(tasks.fail(second, false, "annotation validation failed", now.plusSeconds(902)));
+
+    var failed = service.detail(actor(student), id);
+    assertEquals(SubmissionStatus.FAILED, failed.status());
+    assertEquals("annotation validation failed", failed.errorMessage());
+  }
+
+  @Test void blankFailureMessagesPreserveKnownReasonAndUseGenericWhenNoneExists() {
+    Instant now = Instant.now().plusSeconds(10_000);
+
+    long blankId = Long.parseLong(service.upload(actor(student), file("blank.docx", new byte[]{1})).id());
+    var blankFirst = tasks.claim(now).orElseThrow();
+    assertTrue(tasks.fail(blankFirst, true, "已知失败原因", now.plusSeconds(1)));
+    var blankSecond = tasks.claim(now.plusSeconds(31)).orElseThrow();
+    assertTrue(tasks.fail(blankSecond, false, "   ", now.plusSeconds(32)));
+    assertEquals("已知失败原因", service.detail(actor(student), blankId).errorMessage());
+
+    long nullId = Long.parseLong(service.upload(actor(student), file("null.docx", new byte[]{1})).id());
+    var nullFirst = tasks.claim(now.plusSeconds(40)).orElseThrow();
+    assertTrue(tasks.fail(nullFirst, true, "另一条已知原因", now.plusSeconds(41)));
+    var nullSecond = tasks.claim(now.plusSeconds(71)).orElseThrow();
+    assertTrue(tasks.fail(nullSecond, false, null, now.plusSeconds(72)));
+    assertEquals("另一条已知原因", service.detail(actor(student), nullId).errorMessage());
+
+    long unknownId = Long.parseLong(service.upload(actor(student), file("unknown-reason.docx", new byte[]{1})).id());
+    var unknown = tasks.claim(now.plusSeconds(80)).orElseThrow();
+    assertTrue(tasks.fail(unknown, false, null, now.plusSeconds(81)));
+    assertEquals("审核服务异常，请重新提交或联系管理员",
+        service.detail(actor(student), unknownId).errorMessage());
+  }
+
+  @Test void exhaustedLeasesRetainLastKnownReasonAndUseGenericMessageWithoutOne() {
+    long knownId = Long.parseLong(service.upload(actor(student), file("known.docx", new byte[]{1})).id());
+    Instant now = Instant.now();
+    var first = tasks.claim(now).orElseThrow();
+    assertTrue(tasks.fail(first, true, "审核引擎连接超时", now.plusSeconds(1)));
+    tasks.claim(now.plusSeconds(901)).orElseThrow();
+    tasks.claim(now.plusSeconds(1802)).orElseThrow();
+    assertEquals("审核引擎连接超时", submissions.findById(knownId).orElseThrow().getErrorMessage());
+    assertEquals(1, tasks.recoverExhausted(now.plusSeconds(2703)));
+    assertEquals("审核引擎连接超时", submissions.findById(knownId).orElseThrow().getErrorMessage());
+
+    long unknownId = Long.parseLong(service.upload(actor(student), file("unknown.docx", new byte[]{1})).id());
+    Instant unknownStart = now.plusSeconds(3000);
+    tasks.claim(unknownStart).orElseThrow();
+    tasks.claim(unknownStart.plusSeconds(901)).orElseThrow();
+    tasks.claim(unknownStart.plusSeconds(1802)).orElseThrow();
+    assertNull(submissions.findById(unknownId).orElseThrow().getErrorMessage());
+    assertEquals(1, tasks.recoverExhausted(unknownStart.plusSeconds(2703)));
+    assertEquals("审核服务异常，请重新提交或联系管理员",
+        submissions.findById(unknownId).orElseThrow().getErrorMessage());
+  }
+
   @Test void damagedDocumentIsPermanentFailureAndExpiredFinalLeaseIsRecovered() {
     service.upload(actor(student), file("broken.docx", new byte[]{1}));
     Instant now = Instant.now();

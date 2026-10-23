@@ -14,6 +14,10 @@ import java.util.Map;
  */
 public final class RuleCatalog {
   private static final List<RuleSpec> SCHOOL_V1 = List.of(
+      specs("编号方式", "全文内容编号（含标题、参考文献、列表、图表和公式序号）",
+          "禁止自动编号，使用手动输入的编号；不禁止自动目录、页码和交叉引用",
+          "用户明确要求；有效段落编号设置、样式继承及 SEQ/LISTNUM/AUTONUM 等自动编号域", true,
+          "编号定义缺失或无法识别时标为待确认；仅项目符号不按内容编号判错", ""),
       specs("封面", "封面", "学校名称、论文类型、题目、个人信息和日期字段的字体、字号、字重及对齐",
           "DOCX 段落和运行属性", true, "封面字段的段前、段后和行距未检查", ""),
       specs("摘要", "中文摘要", "中文摘要标题、正文段落字体字号缩进和行距、关键词格式及空行",
@@ -23,7 +27,7 @@ public final class RuleCatalog {
       specs("目录", "目录", "目录标题格式、条目字体字号行距、一级条目顶格、数字页码、编号空格及标题对应关系和顺序；不检查目录首行缩进，不强制二、三级条目整体左缩进",
           "DOCX 段落文本、相邻段落和正文标题", true,
           "目录条目最终页码显示和 Word 字段更新状态不能仅由静态 XML 证明", ""),
-      specs("正文标题", "正文标题", "一级标题居中及一级至三级标题格式、编号空格与三级标题缩进；二、三级标题1.5倍行距；章标题后空行及三级以下标题格式",
+      specs("正文标题", "正文标题", "一级标题居中及一级至三级标题格式、编号空格与三级标题缩进；二、三级标题1.5倍行距；章标题后空行及三级以下标题格式；有目录和字体证据的标题与正文混段",
           "DOCX 段落样式、编号文本和运行属性", true,
           "章节是否实际另起一页无法仅凭 XML 确认", ""),
       specs("正文格式", "正文", "正文段落字体、字号、首行缩进和行距", "DOCX 段落和运行属性", true, ""),
@@ -90,6 +94,7 @@ public final class RuleCatalog {
 
   private static List<String> ruleIds(String module) {
     return switch (module) {
+      case "编号方式" -> List.of("NUMBERING-01");
       case "封面" -> List.of("COVER-01-FONT", "COVER-01-SIZE", "COVER-01-ALIGNMENT",
           "COVER-02-FONT", "COVER-02-SIZE", "COVER-03-FONT", "COVER-03-SIZE", "COVER-03-BOLD",
           "COVER-03-LABEL", "COVER-04-FONT", "COVER-04-SIZE", "COVER-04-BOLD", "COVER-04-CONSISTENCY", "COVER-05");
@@ -106,7 +111,7 @@ public final class RuleCatalog {
           "EN-TOC-01-SIZE", "EN-TOC-01-LINE");
       case "正文标题" -> List.of("HEAD-01-SPACING", "HEAD-01-ALIGNMENT", "HEAD-02-SPACING", "HEAD-03-SPACING", "HEAD-02-BLANK",
           "HEAD-03-INDENT", "HEAD-05-MARKER", "HEAD-05-FONT", "HEAD-05-SIZE", "HEAD-05-LINE", "HEAD-05-INDENT",
-          "HEADING-FONT", "HEADING-SIZE", "HEADING-LINE");
+          "HEADING-FONT", "HEADING-SIZE", "HEADING-LINE", "HEAD-EMBEDDED");
       case "正文格式" -> List.of("BODY-FONT", "BODY-SIZE", "BODY-INDENT", "BODY-LINE", "BODY-SCOPE");
       case "必需章节" -> List.of("SECTION-REQUIRED");
       case "页面与页码" -> List.of("PAGE-01", "PAGE-03", "PAGE-04", "PAGE-05");
