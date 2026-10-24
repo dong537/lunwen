@@ -241,7 +241,7 @@ const listColumns: ColumnsType<Submission> = [
     title: '提交次数',
     dataIndex: 'submissionNumber',
     key: 'submissionNumber',
-    width: 110,
+    width: 76,
     render: (value: number) => `第 ${value} 次`,
   },
   {
@@ -259,21 +259,25 @@ const listColumns: ColumnsType<Submission> = [
     title: '提交时间',
     dataIndex: 'createdAt',
     key: 'createdAt',
-    width: 180,
+    width: 170,
+    responsive: ['sm'],
     render: (value: string) => formatTime(value),
   },
   {
     title: '审核结果',
     dataIndex: 'status',
     key: 'status',
-    width: 150,
+    width: 110,
+    responsive: ['sm'],
     render: (_: unknown, record: Submission) => <StatusTag submission={record} />,
   },
   {
     title: '操作',
     key: 'action',
-    width: 90,
-    render: (_: unknown, record: Submission) => <Link to={`/submissions/${record.id}`}>查看</Link>,
+    width: 48,
+    render: (_: unknown, record: Submission) => (
+      <Link to={`/submissions/${record.id}`}>查看</Link>
+    ),
   },
 ]
 
