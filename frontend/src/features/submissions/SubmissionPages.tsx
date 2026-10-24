@@ -160,7 +160,7 @@ function UploadForm({ compact = false }: { compact?: boolean }) {
       title="提交新版本"
       size="small"
       className={compact ? 'upload-compact' : undefined}
-      style={{ marginBottom: 16 }}
+      style={compact ? { height: '100%' } : { marginBottom: 16 }}
     >
       <Typography.Paragraph type="secondary">
         支持 .docx 文件，最大 50 MB。审核完成后下载批注论文。
@@ -335,7 +335,7 @@ export function StudentSubmissionsPage() {
   return (
     <>
       <PageHeader title="我的论文" description="提交论文后可离开页面，审核仍会继续。" />
-      <Row gutter={16} align="top">
+      <Row gutter={16} align="stretch">
         <Col xs={24} xl={9}>
           <UploadForm compact />
         </Col>
