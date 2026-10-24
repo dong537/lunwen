@@ -336,7 +336,7 @@ export function StudentSubmissionsPage() {
   useDocumentTitle('我的论文')
   return (
     <>
-      <PageHeader title="我的论文" description="提交论文后可离开页面，审核仍会继续。" />
+      <PageHeader title="我的论文" />
       <Row gutter={16} align="stretch">
         <Col xs={24} xl={9}>
           <UploadForm compact />
@@ -428,7 +428,7 @@ export function SubmissionDetailPage() {
           <Descriptions column={1} bordered style={{ marginTop: 16 }}>
             <Descriptions.Item label="提交时间">{formatTime(data.createdAt)}</Descriptions.Item>
             <Descriptions.Item label="文件大小">{formatSize(data.fileSize)}</Descriptions.Item>
-            <Descriptions.Item label="审核完成">{formatTime(data.finishedAt)}</Descriptions.Item>
+            <Descriptions.Item label="审核完成时间">{formatTime(data.finishedAt)}</Descriptions.Item>
           </Descriptions>
           {data.status === 'FAILED' && (
             <Alert
