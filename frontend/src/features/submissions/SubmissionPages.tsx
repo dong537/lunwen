@@ -7,6 +7,7 @@ import {
   Card,
   Col,
   Descriptions,
+  Empty,
   Progress,
   Row,
   Space,
@@ -282,9 +283,11 @@ const listColumns: ColumnsType<Submission> = [
 export function SubmissionList({
   studentId,
   pageSize = 20,
+  fixedHeight = false,
 }: {
   studentId?: string
   pageSize?: number
+  fixedHeight?: boolean
 }) {
   const [page, setPage] = useState(1)
   const list = useQuery({
@@ -298,6 +301,7 @@ export function SubmissionList({
   return (
     <Card
       title="提交记录"
+      style={fixedHeight ? { minHeight: 512 } : undefined}
       extra={
         <Button
           type="text"
@@ -323,9 +327,10 @@ export function SubmissionList({
             pageSize,
             total: list.data.total,
             showTotal: (total) => `共 ${total} 条`,
+            showQuickJumper: true,
             onChange: setPage,
           }}
-          locale={{ emptyText: '还没有提交记录。' }}
+          locale={{ emptyText: <Empty description="还没有提交记录。" /> }}
         />
       )}
     </Card>
@@ -342,7 +347,7 @@ export function StudentSubmissionsPage() {
           <UploadForm compact />
         </Col>
         <Col xs={24} xl={15}>
-          <SubmissionList pageSize={8} />
+          <SubmissionList pageSize={8} fixedHeight />
         </Col>
       </Row>
     </>
@@ -428,7 +433,9 @@ export function SubmissionDetailPage() {
           <Descriptions column={1} bordered style={{ marginTop: 16 }}>
             <Descriptions.Item label="提交时间">{formatTime(data.createdAt)}</Descriptions.Item>
             <Descriptions.Item label="文件大小">{formatSize(data.fileSize)}</Descriptions.Item>
-            <Descriptions.Item label="审核完成时间">{formatTime(data.finishedAt)}</Descriptions.Item>
+            <Descriptions.Item label="审核完成时间">
+              {formatTime(data.finishedAt)}
+            </Descriptions.Item>
           </Descriptions>
           {data.status === 'FAILED' && (
             <Alert

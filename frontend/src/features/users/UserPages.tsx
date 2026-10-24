@@ -248,6 +248,7 @@ export function UsersPage() {
               pageSize: list.data.size,
               total: list.data.total,
               showTotal: (total) => `共 ${total} 条`,
+              showQuickJumper: true,
               onChange: setPage,
             }}
             locale={{

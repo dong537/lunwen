@@ -89,6 +89,7 @@ export function TeacherStudentsPage() {
               pageSize: list.data.size,
               total: list.data.total,
               showTotal: (total) => `共 ${total} 条`,
+              showQuickJumper: true,
               onChange: setPage,
             }}
             locale={{ emptyText: q ? '没有找到符合条件的学生。' : '还没有分配指导学生。' }}
