@@ -177,6 +177,9 @@ function Shell() {
             alignItems: 'center',
             justifyContent: 'flex-end',
             borderTop: `3px solid ${colorPrimaryBorder}`,
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
           }}
         >
           <Dropdown

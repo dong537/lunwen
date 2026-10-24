@@ -128,7 +128,7 @@ export function TeacherStudentDetailPage() {
             title={student.data.name}
             description={`学号 ${student.data.username} · ${student.data.major || '专业未填写'} · 指导教师：${student.data.teacherName || '未分配'}`}
           />
-          <SubmissionList studentId={id} pageSize={10} />
+          <SubmissionList studentId={id} pageSize={10} fixedHeight />
         </>
       )}
       {!student.data && (
