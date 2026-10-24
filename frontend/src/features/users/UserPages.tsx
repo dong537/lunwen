@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Col,
+  Empty,
   Input,
   message,
   Modal,
@@ -197,7 +198,7 @@ export function UsersPage() {
         }
       />
       <ApiAlert error={action.error} />
-      <Card>
+      <Card className="table-card" style={{ minHeight: 1091 }}>
         <Tabs
           activeKey={role}
           onChange={(key) => {
@@ -252,7 +253,13 @@ export function UsersPage() {
               onChange: setPage,
             }}
             locale={{
-              emptyText: q || active ? '没有符合条件的账号。' : '还没有账号，可新建或批量导入。',
+              emptyText: (
+                <Empty
+                  description={
+                    q || active ? '没有符合条件的账号。' : '还没有账号，可新建或批量导入。'
+                  }
+                />
+              ),
             }}
           />
         )}

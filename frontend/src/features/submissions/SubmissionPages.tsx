@@ -199,7 +199,7 @@ function UploadForm({ compact = false }: { compact?: boolean }) {
           <Progress percent={progress} status="active" style={{ marginTop: 12 }} />
         )}
         <ApiAlert error={validation ?? upload.error ?? retry.error} />
-        <Space style={{ marginTop: 16 }}>
+        <Space style={{ marginTop: 16, width: '100%', justifyContent: 'center' }}>
           <Button
             type="primary"
             htmlType="submit"
@@ -301,6 +301,7 @@ export function SubmissionList({
   return (
     <Card
       title="提交记录"
+      className="table-card"
       style={fixedHeight ? { minHeight: 512 } : undefined}
       extra={
         <Button

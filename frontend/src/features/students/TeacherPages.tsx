@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { Button, Card, Input, Table, Typography } from 'antd'
+import { Button, Card, Empty, Input, Table, Typography } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { api, blocksCachedData } from '../../shared/api/http'
@@ -64,7 +64,7 @@ export function TeacherStudentsPage() {
   return (
     <>
       <PageHeader title="我的学生" description="提交次数与最近结果仅统计审核成功的记录。" />
-      <Card>
+      <Card className="table-card" style={{ minHeight: 989 }}>
         <Input.Search
           placeholder="按学号或姓名搜索"
           allowClear
@@ -92,7 +92,11 @@ export function TeacherStudentsPage() {
               showQuickJumper: true,
               onChange: setPage,
             }}
-            locale={{ emptyText: q ? '没有找到符合条件的学生。' : '还没有分配指导学生。' }}
+            locale={{
+              emptyText: (
+                <Empty description={q ? '没有找到符合条件的学生。' : '还没有分配指导学生。'} />
+              ),
+            }}
           />
         )}
       </Card>
