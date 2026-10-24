@@ -59,6 +59,29 @@ body {
   margin-bottom: 24px;
 }
 
+/* 学生端一屏展示：压紧上传区高度 */
+.upload-compact .ant-upload-drag {
+  padding: 12px 16px;
+}
+
+.upload-compact .ant-upload-drag-icon {
+  margin-bottom: 4px;
+}
+
+.upload-compact .ant-upload-drag-icon .anticon {
+  font-size: 24px;
+}
+
+.upload-compact .ant-upload-text {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.upload-compact .ant-upload-hint {
+  margin: 0;
+  font-size: 12px;
+}
+
 .login-brand-title.login-brand-title {
   color: #fff;
   margin-bottom: 4px;

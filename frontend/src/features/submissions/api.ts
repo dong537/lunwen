@@ -74,9 +74,9 @@ function uploadToCos(
 }
 
 export const submissionApi = {
-  list: (page: number, signal?: AbortSignal, studentId?: string) =>
+  list: (page: number, signal?: AbortSignal, studentId?: string, size = 20) =>
     api<Page<Submission>>(
-      `${studentId ? `/teacher/students/${encodeURIComponent(studentId)}` : ''}/submissions?page=${page}&size=20`,
+      `${studentId ? `/teacher/students/${encodeURIComponent(studentId)}` : ''}/submissions?page=${page}&size=${size}`,
       { signal },
     ),
   get: (id: string, signal?: AbortSignal) =>

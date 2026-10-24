@@ -5,11 +5,14 @@ import {
   Alert,
   Button,
   Card,
+  Col,
   Descriptions,
   Progress,
+  Row,
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
   Upload,
   type UploadProps,
@@ -34,7 +37,7 @@ function expiresSoon(value: string): boolean {
   return new Date(value).getTime() - Date.now() < 60_000
 }
 
-function UploadForm() {
+function UploadForm({ compact = false }: { compact?: boolean }) {
   const [file, setFile] = useState<File | null>(null)
   const [validation, setValidation] = useState<string | null>(null)
   const [progress, setProgress] = useState<number | null>(null)
@@ -153,7 +156,12 @@ function UploadForm() {
     upload.mutate(file, { onSuccess: completeSuccess })
   }
   return (
-    <Card title="提交新版本" style={{ marginBottom: 16 }}>
+    <Card
+      title="提交新版本"
+      size="small"
+      className={compact ? 'upload-compact' : undefined}
+      style={{ marginBottom: 16 }}
+    >
       <Typography.Paragraph type="secondary">
         支持 .docx 文件，最大 50 MB。审核完成后下载批注论文。
       </Typography.Paragraph>
@@ -240,7 +248,12 @@ const listColumns: ColumnsType<Submission> = [
     title: '文件名',
     dataIndex: 'originalFilename',
     key: 'originalFilename',
-    ellipsis: true,
+    ellipsis: { showTitle: false },
+    render: (value: string) => (
+      <Tooltip title={value} placement="topLeft" mouseEnterDelay={0.3}>
+        {value}
+      </Tooltip>
+    ),
   },
   {
     title: '提交时间',
@@ -264,11 +277,17 @@ const listColumns: ColumnsType<Submission> = [
   },
 ]
 
-export function SubmissionList({ studentId }: { studentId?: string }) {
+export function SubmissionList({
+  studentId,
+  pageSize = 20,
+}: {
+  studentId?: string
+  pageSize?: number
+}) {
   const [page, setPage] = useState(1)
   const list = useQuery({
-    queryKey: ['submissions', studentId ?? 'mine', page],
-    queryFn: ({ signal }) => submissionApi.list(page, signal, studentId),
+    queryKey: ['submissions', studentId ?? 'mine', page, pageSize],
+    queryFn: ({ signal }) => submissionApi.list(page, signal, studentId, pageSize),
     refetchInterval: (query) =>
       query.state.data?.items.some((item) => needsPolling(item.status)) ? 4000 : false,
   })
@@ -293,12 +312,13 @@ export function SubmissionList({ studentId }: { studentId?: string }) {
       {list.data && (
         <Table<Submission>
           rowKey="id"
+          size="small"
           columns={listColumns}
           dataSource={list.data.items}
           tableLayout="fixed"
           pagination={{
             current: page,
-            pageSize: list.data.size,
+            pageSize,
             total: list.data.total,
             showTotal: (total) => `共 ${total} 条`,
             onChange: setPage,
@@ -315,8 +335,14 @@ export function StudentSubmissionsPage() {
   return (
     <>
       <PageHeader title="我的论文" description="提交论文后可离开页面，审核仍会继续。" />
-      <UploadForm />
-      <SubmissionList />
+      <Row gutter={16} align="top">
+        <Col xs={24} xl={9}>
+          <UploadForm compact />
+        </Col>
+        <Col xs={24} xl={15}>
+          <SubmissionList pageSize={8} />
+        </Col>
+      </Row>
     </>
   )
 }
