@@ -161,7 +161,7 @@ function UploadForm({ compact = false }: { compact?: boolean }) {
       title="提交新版本"
       size="small"
       className={compact ? 'upload-compact' : undefined}
-      style={compact ? { flex: 1 } : { marginBottom: 16 }}
+      style={compact ? { height: '100%' } : { marginBottom: 16 }}
     >
       <Typography.Paragraph type="secondary">
         支持 .docx 文件，最大 50 MB。审核完成后下载批注论文。
@@ -283,9 +283,11 @@ const listColumns: ColumnsType<Submission> = [
 export function SubmissionList({
   studentId,
   pageSize = 20,
+  fixedHeight = false,
 }: {
   studentId?: string
   pageSize?: number
+  fixedHeight?: boolean
 }) {
   const [page, setPage] = useState(1)
   const list = useQuery({
@@ -300,8 +302,7 @@ export function SubmissionList({
     <Card
       title="提交记录"
       className="table-card"
-      styles={{ body: { flex: 1 } }}
-      style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+      style={fixedHeight ? { minHeight: 606 } : undefined}
       extra={
         <Button
           type="text"
@@ -322,7 +323,6 @@ export function SubmissionList({
           columns={listColumns}
           dataSource={list.data.items}
           tableLayout="fixed"
-          scroll={{ y: 390 }}
           pagination={{
             current: page,
             pageSize,
@@ -344,11 +344,11 @@ export function StudentSubmissionsPage() {
     <>
       <PageHeader title="我的论文" />
       <Row gutter={16} align="stretch">
-        <Col xs={24} xl={9} style={{ display: 'flex', flexDirection: 'column' }}>
+        <Col xs={24} xl={9}>
           <UploadForm compact />
         </Col>
-        <Col xs={24} xl={15} style={{ display: 'flex', flexDirection: 'column' }}>
-          <SubmissionList pageSize={10} />
+        <Col xs={24} xl={15}>
+          <SubmissionList pageSize={10} fixedHeight />
         </Col>
       </Row>
     </>

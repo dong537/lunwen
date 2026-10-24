@@ -64,7 +64,7 @@ export function TeacherStudentsPage() {
   return (
     <>
       <PageHeader title="我的学生" description="提交次数与最近结果仅统计审核成功的记录。" />
-      <Card className="table-card">
+      <Card className="table-card" style={{ minHeight: 599 }}>
         <Input.Search
           placeholder="按学号或姓名搜索"
           allowClear
@@ -83,7 +83,7 @@ export function TeacherStudentsPage() {
             size="small"
             columns={studentColumns}
             dataSource={list.data.items}
-            scroll={{ x: 'max-content', y: 390 }}
+            scroll={{ x: 'max-content' }}
             pagination={{
               current: page,
               pageSize: list.data.size,

@@ -198,7 +198,7 @@ export function UsersPage() {
         }
       />
       <ApiAlert error={action.error} />
-      <Card className="table-card">
+      <Card className="table-card" style={{ minHeight: 681 }}>
         <Tabs
           activeKey={role}
           onChange={(key) => {
@@ -243,7 +243,7 @@ export function UsersPage() {
             size="small"
             columns={columns}
             dataSource={list.data.items}
-            scroll={{ x: 'max-content', y: 390 }}
+            scroll={{ x: 'max-content' }}
             pagination={{
               current: page,
               pageSize: list.data.size,
