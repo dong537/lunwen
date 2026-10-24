@@ -207,6 +207,7 @@ export function ImportsPage() {
                 </Button>
               </div>
               <Table<ImportError>
+                size="small"
                 rowKey={(_, index) => `${index}`}
                 columns={errorColumns}
                 dataSource={result.errors}

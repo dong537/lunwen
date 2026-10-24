@@ -80,6 +80,7 @@ export function TeacherStudentsPage() {
         {list.data && (
           <Table<StudentSummary>
             rowKey="id"
+            size="small"
             columns={studentColumns}
             dataSource={list.data.items}
             scroll={{ x: 'max-content' }}

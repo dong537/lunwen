@@ -239,6 +239,7 @@ export function UsersPage() {
         {list.data && (
           <Table<User>
             rowKey="id"
+            size="small"
             columns={columns}
             dataSource={list.data.items}
             scroll={{ x: 'max-content' }}
