@@ -4,13 +4,14 @@ import { Link, Navigate } from 'react-router-dom'
 import { Button, Card, Descriptions, Form, Input, message, Typography } from 'antd'
 import { api } from '../../shared/api/http'
 import type { User } from '../../shared/api/contracts'
-import { ApiAlert, CenterSpin, PageHeader } from '../../shared/ui'
+import { ApiAlert, CenterSpin, PageHeader, useDocumentTitle } from '../../shared/ui'
 import { homeFor, roleNames, useSession } from './session'
 
 export function LoginPage() {
   const { user, loading, error, refresh, setUser } = useSession()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  useDocumentTitle('登录')
   const login = useMutation({
     mutationFn: () =>
       api<User>('/auth/login', { method: 'POST', json: { username: username.trim(), password } }),
@@ -84,6 +85,7 @@ export function LoginPage() {
 
 export function PasswordPage() {
   const { user, setUser } = useSession()
+  useDocumentTitle(user?.mustChangePassword ? '设置新密码' : '修改密码')
   const [form] = Form.useForm()
   const change = useMutation({
     mutationFn: (values: { oldPassword: string; newPassword: string; confirmPassword: string }) =>
@@ -168,6 +170,7 @@ export function PasswordPage() {
 
 export function ProfilePage() {
   const { user } = useSession()
+  useDocumentTitle('个人信息')
   if (!user) return null
   return (
     <div style={{ maxWidth: 720 }}>

@@ -24,7 +24,7 @@ import type { RcFile } from 'antd/es/upload'
 import type { ColumnsType } from 'antd/es/table'
 import type { Submission } from '../../shared/api/contracts'
 import { ApiError, blocksCachedData, download, openDownloadUrl } from '../../shared/api/http'
-import { ApiAlert, CenterSpin, PageHeader } from '../../shared/ui'
+import { ApiAlert, CenterSpin, PageHeader, useDocumentTitle } from '../../shared/ui'
 import { formatSize, formatTime, validateFile } from '../../shared/files'
 import { submissionApi } from './api'
 import { needsPolling, outcomeText } from './submission-state'
@@ -290,6 +290,7 @@ export function SubmissionList({ studentId }: { studentId?: string }) {
           rowKey="id"
           columns={listColumns}
           dataSource={list.data.items}
+          scroll={{ x: 'max-content' }}
           pagination={{
             current: page,
             pageSize: list.data.size,
@@ -305,6 +306,7 @@ export function SubmissionList({ studentId }: { studentId?: string }) {
 }
 
 export function StudentSubmissionsPage() {
+  useDocumentTitle('我的论文')
   return (
     <>
       <PageHeader title="我的论文" description="提交论文后可离开页面，审核仍会继续。" />
@@ -346,6 +348,7 @@ export function SubmissionDetailPage() {
     },
   })
   const data = blocksCachedData(detail.error) ? undefined : detail.data
+  useDocumentTitle(data ? `第 ${data.submissionNumber} 次提交` : '提交详情')
   if (detail.isPending) return <CenterSpin tip="正在读取提交记录…" />
   const back =
     user?.role === 'TEACHER'

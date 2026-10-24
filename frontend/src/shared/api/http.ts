@@ -56,21 +56,50 @@ async function readEnvelope<T>(response: Response): Promise<T> {
   return envelope.data
 }
 
-async function request(path: string, options: Options): Promise<Response> {
+interface CsrfToken {
+  token: string
+  headerName: string
+}
+
+// CSRF 令牌与会话绑定，仅登录/改密/登出时轮换； mutation 级缓存，
+// 403 时视为过期刷新并重试一次，调用方无需关心。
+let cachedCsrf: CsrfToken | null = null
+let csrfInflight: Promise<CsrfToken> | null = null
+
+async function getCsrf(signal?: AbortSignal | null): Promise<CsrfToken> {
+  if (cachedCsrf) return cachedCsrf
+  if (!csrfInflight) {
+    csrfInflight = api<CsrfToken>('/auth/csrf', { signal }).finally(() => {
+      csrfInflight = null
+    })
+  }
+  cachedCsrf = await csrfInflight
+  return cachedCsrf
+}
+
+function isUnsafeMethod(method: string): boolean {
+  return !['GET', 'HEAD'].includes(method.toUpperCase())
+}
+
+async function request(path: string, options: Options, retried = false): Promise<Response> {
   const { json, ...init } = options
   const headers = new Headers(init.headers)
   if (json !== undefined) {
     headers.set('Content-Type', 'application/json')
     init.body = JSON.stringify(json)
   }
-  if (!['GET', 'HEAD'].includes((init.method ?? 'GET').toUpperCase())) {
-    const csrf = await api<{ token: string; headerName: string }>('/auth/csrf', {
-      signal: init.signal,
-    })
+  const unsafe = isUnsafeMethod(init.method ?? 'GET')
+  if (unsafe) {
+    const csrf = await getCsrf(init.signal)
     headers.set(csrf.headerName, csrf.token)
   }
   try {
-    return await fetch(`/api${path}`, { ...init, headers, credentials: 'include' })
+    const response = await fetch(`/api${path}`, { ...init, headers, credentials: 'include' })
+    if (unsafe && !retried && response.status === 403) {
+      cachedCsrf = null
+      return request(path, options, true)
+    }
+    return response
   } catch (error) {
     if (init.signal?.aborted) throw error
     throw new ApiError(0, 'NETWORK_ERROR', '网络连接失败，请检查网络后重试。')

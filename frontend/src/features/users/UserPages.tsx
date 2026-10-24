@@ -19,11 +19,12 @@ import {
 import { ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { AccountRole, User } from '../../shared/api/contracts'
-import { ApiAlert, CenterSpin, PageHeader } from '../../shared/ui'
+import { ApiAlert, CenterSpin, PageHeader, useDocumentTitle } from '../../shared/ui'
 import { userApi } from './api'
 import { UserForm } from './UserForm'
 
 export function AdminDashboardPage() {
+  useDocumentTitle('平台概览')
   const dashboard = useQuery({
     queryKey: ['dashboard'],
     queryFn: ({ signal }) => userApi.dashboard(signal),
@@ -70,6 +71,7 @@ export function AdminDashboardPage() {
 }
 
 export function UsersPage() {
+  useDocumentTitle('账号管理')
   const [role, setRole] = useState<AccountRole>('STUDENT')
   const [q, setQ] = useState('')
   const [active, setActive] = useState('')
@@ -239,6 +241,7 @@ export function UsersPage() {
             rowKey="id"
             columns={columns}
             dataSource={list.data.items}
+            scroll={{ x: 'max-content' }}
             pagination={{
               current: page,
               pageSize: list.data.size,

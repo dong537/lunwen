@@ -115,6 +115,9 @@ function Shell() {
           ]
   return (
     <Layout style={{ minHeight: '100vh' }}>
+      <a className="skip-link" href="#main-content">
+        跳到主要内容
+      </a>
       <Sider
         theme="dark"
         width={220}
@@ -194,8 +197,10 @@ function Shell() {
           </Dropdown>
         </Header>
         <Content style={{ margin: 24 }}>
-          <ApiAlert error={logout.error} />
-          <Outlet />
+          <div id="main-content" tabIndex={-1} style={{ outline: 'none' }}>
+            <ApiAlert error={logout.error} />
+            <Outlet />
+          </div>
         </Content>
       </Layout>
     </Layout>

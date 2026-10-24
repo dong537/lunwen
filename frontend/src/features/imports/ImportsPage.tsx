@@ -7,7 +7,7 @@ import type { UploadProps } from 'antd'
 import type { AccountRole, ImportError, ImportResult } from '../../shared/api/contracts'
 import { api, download, saveBlob } from '../../shared/api/http'
 import { formatSize, validateFile } from '../../shared/files'
-import { ApiAlert, PageHeader } from '../../shared/ui'
+import { ApiAlert, PageHeader, useDocumentTitle } from '../../shared/ui'
 import { importErrorsCsv } from './csv'
 
 function importFile(action: 'preview' | 'execute', file: File, role: AccountRole) {
@@ -30,6 +30,7 @@ const errorColumns: ColumnsType<ImportError> = [
 ]
 
 export function ImportsPage() {
+  useDocumentTitle('批量导入账号')
   const client = useQueryClient()
   const [role, setRole] = useState<AccountRole>('STUDENT')
   const [file, setFile] = useState<File | null>(null)
@@ -210,6 +211,7 @@ export function ImportsPage() {
                 columns={errorColumns}
                 dataSource={result.errors}
                 pagination={false}
+                scroll={{ x: 'max-content' }}
               />
             </>
           )}

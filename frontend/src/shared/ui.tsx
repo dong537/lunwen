@@ -1,6 +1,18 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Alert, Button, Space, Spin, Typography } from 'antd'
 import { ApiError } from './api/http'
+
+const SITE_TITLE = '论文审核平台'
+
+export function useDocumentTitle(title: string) {
+  useEffect(() => {
+    const previous = document.title
+    document.title = `${title} - ${SITE_TITLE}`
+    return () => {
+      document.title = previous
+    }
+  }, [title])
+}
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)

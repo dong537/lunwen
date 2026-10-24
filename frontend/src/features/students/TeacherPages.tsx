@@ -7,7 +7,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { api, blocksCachedData } from '../../shared/api/http'
 import type { Page, StudentSummary, User } from '../../shared/api/contracts'
 import { formatTime } from '../../shared/files'
-import { ApiAlert, CenterSpin, PageHeader } from '../../shared/ui'
+import { ApiAlert, CenterSpin, PageHeader, useDocumentTitle } from '../../shared/ui'
 import { SubmissionList } from '../submissions/SubmissionPages'
 
 const studentColumns: ColumnsType<StudentSummary> = [
@@ -48,6 +48,7 @@ const studentColumns: ColumnsType<StudentSummary> = [
 ]
 
 export function TeacherStudentsPage() {
+  useDocumentTitle('我的学生')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const list = useQuery({
@@ -81,6 +82,7 @@ export function TeacherStudentsPage() {
             rowKey="id"
             columns={studentColumns}
             dataSource={list.data.items}
+            scroll={{ x: 'max-content' }}
             pagination={{
               current: page,
               pageSize: list.data.size,
@@ -102,6 +104,7 @@ export function TeacherStudentDetailPage() {
     queryKey: ['student', id],
     queryFn: ({ signal }) => api<User>(`/teacher/students/${encodeURIComponent(id)}`, { signal }),
   })
+  useDocumentTitle(student.data ? student.data.name : '学生详情')
   if (student.isPending) return <CenterSpin />
   if (blocksCachedData(student.error))
     return <ApiAlert error={student.error} retry={() => void student.refetch()} />
