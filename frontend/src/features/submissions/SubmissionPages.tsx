@@ -1,17 +1,30 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Upload, Download, ArrowLeft } from 'lucide-react'
+import {
+  Alert,
+  Button,
+  Card,
+  Descriptions,
+  Progress,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  Upload,
+  type UploadProps,
+} from 'antd'
+import {
+  ArrowLeftOutlined,
+  DownloadOutlined,
+  InboxOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons'
+import type { RcFile } from 'antd/es/upload'
+import type { ColumnsType } from 'antd/es/table'
 import type { Submission } from '../../shared/api/contracts'
 import { ApiError, blocksCachedData, download, openDownloadUrl } from '../../shared/api/http'
-import {
-  Empty,
-  ErrorNotice,
-  Loading,
-  PageHeading,
-  Pagination,
-  useListParams,
-} from '../../shared/ui'
+import { ApiAlert, CenterSpin, PageHeader } from '../../shared/ui'
 import { formatSize, formatTime, validateFile } from '../../shared/files'
 import { submissionApi } from './api'
 import { needsPolling, outcomeText } from './submission-state'
@@ -22,10 +35,8 @@ function expiresSoon(value: string): boolean {
 }
 
 function UploadForm() {
-  const input = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [validation, setValidation] = useState<string | null>(null)
-  const [dragging, setDragging] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [uploaded, setUploaded] = useState(false)
@@ -109,26 +120,26 @@ function UploadForm() {
     setUploaded(false)
     setSelectedUserId(null)
     setValidation('登录身份已变化，请重新选择文件。')
-    if (input.current) input.current.value = ''
   }, [selectedUserId, user])
   const busy = upload.isPending || retry.isPending
-  function choose(files: FileList | null) {
-    if (busy) return
+  const beforeUpload: UploadProps['beforeUpload'] = (next) => {
+    if (busy) return Upload.LIST_IGNORE
     upload.reset()
     retry.reset()
     setProgress(null)
     setPendingId(null)
     setUploaded(false)
     setValidation(null)
-    if (!files?.length) {
+    const error = validateFile(next as File, 'docx')
+    setValidation(error)
+    if (error) {
       setFile(null)
       setSelectedUserId(null)
-      return
+      return Upload.LIST_IGNORE
     }
-    const error = files.length !== 1 ? '每次只能提交一篇论文。' : validateFile(files[0], 'docx')
-    setValidation(error)
-    setFile(error ? null : files[0])
-    setSelectedUserId(error ? null : (user?.id ?? null))
+    setFile(next as File)
+    setSelectedUserId(user?.id ?? null)
+    return false
   }
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -137,96 +148,119 @@ function UploadForm() {
       setFile(null)
       setSelectedUserId(null)
       setValidation('登录身份已变化，请重新选择文件。')
-      if (input.current) input.current.value = ''
       return
     }
     upload.mutate(file, { onSuccess: completeSuccess })
   }
   return (
-    <form className="panel upload-panel" onSubmit={submit} aria-label="提交论文">
-      <div className="upload-intro">
-        <Upload size={25} aria-hidden="true" />
-        <div>
-          <h2>提交新版本</h2>
-          <p>支持 .docx 文件，最大 50 MB。审核完成后下载批注论文。</p>
-        </div>
-      </div>
-      <div
-        className={`file-drop ${dragging ? 'dragging' : ''}`}
-        onDragOver={(event) => {
-          event.preventDefault()
-          setDragging(true)
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(event) => {
-          event.preventDefault()
-          setDragging(false)
-          choose(event.dataTransfer.files)
-        }}
-      >
-        <label htmlFor="thesis-file">选择论文</label>
-        <input
-          ref={input}
-          id="thesis-file"
-          type="file"
+    <Card title="提交新版本" style={{ marginBottom: 16 }}>
+      <Typography.Paragraph type="secondary">
+        支持 .docx 文件，最大 50 MB。审核完成后下载批注论文。
+      </Typography.Paragraph>
+      <form onSubmit={submit}>
+        <Upload.Dragger
           accept=".docx"
+          multiple={false}
+          maxCount={1}
+          fileList={
+            file
+              ? [
+                  { uid: file.name, name: file.name, size: file.size, status: 'done' } as RcFile & {
+                    status: 'done'
+                  },
+                ]
+              : []
+          }
+          beforeUpload={beforeUpload}
+          onRemove={() => {
+            if (busy) return false
+            setFile(null)
+            setSelectedUserId(null)
+            return true
+          }}
           disabled={busy}
-          onChange={(event) => choose(event.target.files)}
-        />
-        <p className="help">也可以将文件拖放到此处。每次提交都会保留独立的审核记录。</p>
-        {file && (
-          <div className="selected-file">
-            <span>{file.name}</span>
-            <span>{formatSize(file.size)}</span>
-            <button
-              type="button"
-              className="button plain"
-              disabled={busy}
-              onClick={() => {
-                setFile(null)
-                setSelectedUserId(null)
-                if (input.current) input.current.value = ''
-              }}
-            >
-              移除
-            </button>
-          </div>
+        >
+          <p className="ant-upload-drag-icon">
+            <InboxOutlined />
+          </p>
+          <p className="ant-upload-text">点击选择或将论文拖放到此处</p>
+          <p className="ant-upload-hint">每次只能提交一篇论文，每次提交都会保留独立的审核记录。</p>
+        </Upload.Dragger>
+        {progress !== null && upload.isPending && (
+          <Progress percent={progress} status="active" style={{ marginTop: 12 }} />
         )}
-      </div>
-      {progress !== null && upload.isPending && (
-        <p className="help" role="status">
-          正在上传：{progress}%
-        </p>
-      )}
-      {uploaded && pendingId && !busy && upload.isError && (
-        <button type="button" className="button secondary" onClick={() => retry.mutate(pendingId)}>
-          重试完成上传
-        </button>
-      )}
-      <ErrorNotice error={validation ?? upload.error ?? retry.error} />
-      <button className="button primary" disabled={!file || busy || mode.isPending}>
-        {busy
-          ? direct && progress !== null
-            ? `正在上传 ${progress}%`
-            : '正在上传，请稍候…'
-          : '提交审核'}
-      </button>
-    </form>
+        <ApiAlert error={validation ?? upload.error ?? retry.error} />
+        <Space style={{ marginTop: 16 }}>
+          <Button
+            type="primary"
+            htmlType="submit"
+            loading={busy}
+            disabled={!file || busy || mode.isPending}
+          >
+            {busy
+              ? direct && progress !== null
+                ? `正在上传 ${progress}%`
+                : '正在上传，请稍候…'
+              : '提交审核'}
+          </Button>
+          {uploaded && pendingId && !busy && upload.isError && (
+            <Button onClick={() => retry.mutate(pendingId)}>重试完成上传</Button>
+          )}
+        </Space>
+      </form>
+    </Card>
   )
 }
 
-export function StatusBadge({ submission }: { submission: Submission }) {
-  return (
-    <span className={`status-badge ${submission.status.toLowerCase()}`}>
-      {submission.status === 'PENDING' && submission.uploadReserved
-        ? '上传中'
-        : outcomeText(submission.status, submission.problemCount)}
-    </span>
-  )
+export function StatusTag({ submission }: { submission: Submission }) {
+  const color =
+    submission.status === 'SUCCESS'
+      ? 'success'
+      : submission.status === 'FAILED'
+        ? 'error'
+        : submission.status === 'PROCESSING'
+          ? 'processing'
+          : 'default'
+  const text =
+    submission.status === 'PENDING' && submission.uploadReserved
+      ? '上传中'
+      : outcomeText(submission.status, submission.problemCount)
+  return <Tag color={color}>{text}</Tag>
 }
+
+const listColumns: ColumnsType<Submission> = [
+  {
+    title: '提交次数',
+    dataIndex: 'submissionNumber',
+    key: 'submissionNumber',
+    width: 110,
+    render: (value: number) => `第 ${value} 次`,
+  },
+  { title: '文件名', dataIndex: 'originalFilename', key: 'originalFilename', ellipsis: true },
+  {
+    title: '提交时间',
+    dataIndex: 'createdAt',
+    key: 'createdAt',
+    width: 180,
+    render: (value: string) => formatTime(value),
+  },
+  {
+    title: '审核结果',
+    dataIndex: 'status',
+    key: 'status',
+    width: 150,
+    render: (_: unknown, record: Submission) => <StatusTag submission={record} />,
+  },
+  {
+    title: '操作',
+    key: 'action',
+    width: 90,
+    render: (_: unknown, record: Submission) => <Link to={`/submissions/${record.id}`}>查看</Link>,
+  },
+]
 
 export function SubmissionList({ studentId }: { studentId?: string }) {
-  const { page, change } = useListParams()
+  const [page, setPage] = useState(1)
   const list = useQuery({
     queryKey: ['submissions', studentId ?? 'mine', page],
     queryFn: ({ signal }) => submissionApi.list(page, signal, studentId),
@@ -234,80 +268,46 @@ export function SubmissionList({ studentId }: { studentId?: string }) {
       query.state.data?.items.some((item) => needsPolling(item.status)) ? 4000 : false,
   })
   if (blocksCachedData(list.error))
-    return <ErrorNotice error={list.error} retry={() => void list.refetch()} />
+    return <ApiAlert error={list.error} retry={() => void list.refetch()} />
   return (
-    <section className="panel list-panel" aria-label="提交记录">
-      <div className="section-heading">
-        <h2>提交记录</h2>
-        <button
-          type="button"
-          className="button plain"
+    <Card
+      title="提交记录"
+      extra={
+        <Button
+          type="text"
+          icon={<ReloadOutlined />}
+          loading={list.isFetching}
           onClick={() => void list.refetch()}
-          disabled={list.isFetching}
         >
           刷新记录
-        </button>
-      </div>
-      {list.isPending && <Loading />}
-      <ErrorNotice error={list.error} retry={() => void list.refetch()} />
+        </Button>
+      }
+    >
+      {list.isPending && <CenterSpin />}
+      <ApiAlert error={list.error} retry={() => void list.refetch()} />
       {list.data && (
-        <>
-          {list.data.items.length === 0 ? (
-            <Empty>还没有提交记录。</Empty>
-          ) : (
-            <div className="table-scroll">
-              <table>
-                <caption className="sr-only">论文提交记录，按提交时间倒序</caption>
-                <thead>
-                  <tr>
-                    <th>提交次数</th>
-                    <th>文件名</th>
-                    <th>提交时间</th>
-                    <th>审核结果</th>
-                    <th>
-                      <span className="sr-only">操作</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.data.items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="nowrap">第 {item.submissionNumber} 次</td>
-                      <td className="filename">{item.originalFilename}</td>
-                      <td className="nowrap">{formatTime(item.createdAt)}</td>
-                      <td>
-                        <StatusBadge submission={item} />
-                      </td>
-                      <td>
-                        <Link
-                          to={`/submissions/${item.id}`}
-                          aria-label={`查看第 ${item.submissionNumber} 次提交`}
-                        >
-                          查看
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <Pagination
-            page={page}
-            size={list.data.size}
-            total={list.data.total}
-            onChange={(next) => change({ page: next })}
-          />
-        </>
+        <Table<Submission>
+          rowKey="id"
+          columns={listColumns}
+          dataSource={list.data.items}
+          pagination={{
+            current: page,
+            pageSize: list.data.size,
+            total: list.data.total,
+            showTotal: (total) => `共 ${total} 条`,
+            onChange: setPage,
+          }}
+          locale={{ emptyText: '还没有提交记录。' }}
+        />
       )}
-    </section>
+    </Card>
   )
 }
 
 export function StudentSubmissionsPage() {
   return (
     <>
-      <PageHeading title="我的论文" description="提交论文后可离开页面，审核仍会继续。" />
+      <PageHeader title="我的论文" description="提交论文后可离开页面，审核仍会继续。" />
       <UploadForm />
       <SubmissionList />
     </>
@@ -346,7 +346,7 @@ export function SubmissionDetailPage() {
     },
   })
   const data = blocksCachedData(detail.error) ? undefined : detail.data
-  if (detail.isPending) return <Loading>正在读取提交记录…</Loading>
+  if (detail.isPending) return <CenterSpin tip="正在读取提交记录…" />
   const back =
     user?.role === 'TEACHER'
       ? data
@@ -355,93 +355,97 @@ export function SubmissionDetailPage() {
       : '/student/submissions'
   return (
     <>
-      <Link className="back-link" to={back}>
-        <ArrowLeft size={16} aria-hidden="true" />
-        返回提交列表
+      <Link to={back}>
+        <Button type="link" icon={<ArrowLeftOutlined />} style={{ paddingLeft: 0 }}>
+          返回提交列表
+        </Button>
       </Link>
-      <PageHeading
+      <PageHeader
         title={data ? `第 ${data.submissionNumber} 次提交` : '提交详情'}
         description={data?.originalFilename}
-        action={
-          <button
-            className="button secondary"
-            onClick={() => void detail.refetch()}
-            disabled={detail.isFetching}
-          >
+        extra={
+          <Button loading={detail.isFetching} onClick={() => void detail.refetch()}>
             刷新状态
-          </button>
+          </Button>
         }
       />
-      <ErrorNotice error={detail.error} retry={() => void detail.refetch()} />
+      <ApiAlert error={detail.error} retry={() => void detail.refetch()} />
       {detail.isError && data && (
-        <p className="help">刷新未成功，以下为上次获取的状态。任务状态以刷新后的结果为准。</p>
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          title="刷新未成功，以下为上次获取的状态。任务状态以刷新后的结果为准。"
+        />
       )}
       {data && (
-        <section className="panel">
-          <div className="result-heading" aria-live="polite">
-            <StatusBadge submission={data} />
+        <Card>
+          <Space size={16} align="center" wrap>
+            <StatusTag submission={data} />
             {data.uploadReserved && (
-              <span className="muted">文件正在上传，完成后自动进入审核。</span>
+              <Typography.Text type="secondary">文件正在上传，完成后自动进入审核。</Typography.Text>
             )}
             {!data.uploadReserved && needsPolling(data.status) && (
-              <span className="muted">页面会自动更新审核进度。</span>
+              <Typography.Text type="secondary">页面会自动更新审核进度。</Typography.Text>
             )}
-          </div>
-          <dl className="detail-grid">
-            <dt>提交时间</dt>
-            <dd>{formatTime(data.createdAt)}</dd>
-            <dt>文件大小</dt>
-            <dd>{formatSize(data.fileSize)}</dd>
-            <dt>审核完成</dt>
-            <dd>{formatTime(data.finishedAt)}</dd>
-          </dl>
+          </Space>
+          <Descriptions column={1} bordered style={{ marginTop: 16 }}>
+            <Descriptions.Item label="提交时间">{formatTime(data.createdAt)}</Descriptions.Item>
+            <Descriptions.Item label="文件大小">{formatSize(data.fileSize)}</Descriptions.Item>
+            <Descriptions.Item label="审核完成">{formatTime(data.finishedAt)}</Descriptions.Item>
+          </Descriptions>
           {data.status === 'FAILED' && (
-            <ErrorNotice
-              error={data.errorMessage || '本次审核未完成，请重新提交论文或联系管理员。'}
+            <Alert
+              type="error"
+              showIcon
+              style={{ marginTop: 16 }}
+              title={data.errorMessage || '本次审核未完成，请重新提交论文或联系管理员。'}
             />
           )}
           {data.status === 'SUCCESS' && (
-            <>
-              <h2>审核结果</h2>
-              <p>
+            <div style={{ marginTop: 16 }}>
+              <Typography.Title level={5}>审核结果</Typography.Title>
+              <Typography.Paragraph>
                 {data.problemCount === 0
                   ? '本次审核未发现格式问题。'
                   : data.problemCount !== null
                     ? `共发现 ${data.problemCount} 个问题，请下载批注论文查看修改建议。`
                     : '问题统计暂不可用，请刷新后查看。'}
-              </p>
+              </Typography.Paragraph>
               {data.byScope && Object.keys(data.byScope).length > 0 && (
-                <div className="scope-summary">
-                  <h3>各部分问题数</h3>
-                  <dl>
-                    {Object.entries(data.byScope).map(([scope, count]) => (
-                      <div key={scope}>
-                        <dt>{scope}</dt>
-                        <dd>{count}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </div>
+                <Table
+                  size="small"
+                  rowKey="scope"
+                  pagination={false}
+                  dataSource={Object.entries(data.byScope).map(([scope, count]) => ({
+                    scope,
+                    count,
+                  }))}
+                  columns={[
+                    { title: '部分', dataIndex: 'scope', key: 'scope' },
+                    { title: '问题数', dataIndex: 'count', key: 'count', width: 120 },
+                  ]}
+                />
               )}
-            </>
+            </div>
           )}
-          <div className="actions">
+          <Space wrap style={{ marginTop: 16 }}>
             {data.status !== 'FAILED' && data.canDownloadOriginal && (
-              <button
-                className="button secondary"
-                disabled={fileDownload.isPending}
+              <Button
+                icon={<DownloadOutlined />}
+                loading={fileDownload.isPending}
                 onClick={() =>
                   fileDownload.mutate({ kind: 'original', name: data.originalFilename })
                 }
               >
-                <Download size={16} aria-hidden="true" />
                 下载原始论文
-              </button>
+              </Button>
             )}
             {data.status === 'SUCCESS' && data.canDownloadMarked && (
-              <button
-                className="button primary"
-                disabled={fileDownload.isPending}
+              <Button
+                type="primary"
+                icon={<DownloadOutlined />}
+                loading={fileDownload.isPending}
                 onClick={() =>
                   fileDownload.mutate({
                     kind: 'marked',
@@ -449,14 +453,13 @@ export function SubmissionDetailPage() {
                   })
                 }
               >
-                <Download size={16} aria-hidden="true" />
                 下载批注论文
-              </button>
+              </Button>
             )}
             {data.status === 'SUCCESS' && data.canDownloadReport && (
-              <button
-                className="button secondary"
-                disabled={fileDownload.isPending}
+              <Button
+                icon={<DownloadOutlined />}
+                loading={fileDownload.isPending}
                 onClick={() =>
                   fileDownload.mutate({
                     kind: 'report',
@@ -464,13 +467,12 @@ export function SubmissionDetailPage() {
                   })
                 }
               >
-                <Download size={16} aria-hidden="true" />
                 下载检查报告
-              </button>
+              </Button>
             )}
-          </div>
-          <ErrorNotice error={fileDownload.error} />
-        </section>
+          </Space>
+          <ApiAlert error={fileDownload.error} />
+        </Card>
       )}
     </>
   )

@@ -1,120 +1,103 @@
-import { useState, type FormEvent } from 'react'
+import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Link, Navigate } from 'react-router-dom'
+import { Button, Card, Descriptions, Form, Input, message, Typography } from 'antd'
 import { api } from '../../shared/api/http'
 import type { User } from '../../shared/api/contracts'
-import { ErrorNotice, Loading, PageHeading } from '../../shared/ui'
+import { ApiAlert, CenterSpin, PageHeader } from '../../shared/ui'
 import { homeFor, roleNames, useSession } from './session'
 
 export function LoginPage() {
   const { user, loading, error, refresh, setUser } = useSession()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [validation, setValidation] = useState<string | null>(null)
   const login = useMutation({
     mutationFn: () =>
       api<User>('/auth/login', { method: 'POST', json: { username: username.trim(), password } }),
-    onSuccess: setUser,
+    onSuccess: (next) => {
+      void setUser(next)
+      void message.success(`登录成功，欢迎回来，${next.name}`)
+    },
+    onError: (error) => {
+      void message.error(error instanceof Error ? error.message : '登录失败，请重试')
+    },
   })
-  if (loading) return <Loading />
+  if (loading) return <CenterSpin />
   if (user)
     return (
       <Navigate to={user.mustChangePassword ? '/change-password' : homeFor(user.role)} replace />
     )
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    if ([...password].length > 128) {
-      setValidation('密码不能超过 128 个字符。')
-      return
-    }
-    setValidation(null)
-    login.mutate()
-  }
   return (
-    <main className="auth-page">
-      <div className="auth-intro">
-        <div className="brand-mark">论文</div>
-        <p className="eyebrow">山东石油化工学院</p>
-        <h1>论文审核平台</h1>
-        <p>提交论文，查看审核进度，下载批注结果。</p>
-      </div>
-      <section className="panel auth-card" aria-labelledby="login-heading">
-        <h2 id="login-heading">登录账号</h2>
-        <p className="muted">使用管理员分配的学号或工号登录。</p>
-        <ErrorNotice error={error} retry={refresh} />
-        <form className="form-stack" onSubmit={submit}>
-          <label>
-            账号
-            <input
+    <div className="login-page">
+      <Card className="login-card" variant="borderless">
+        <Typography.Title level={4} style={{ textAlign: 'center', marginBottom: 4 }}>
+          论文审核平台
+        </Typography.Title>
+        <Typography.Paragraph type="secondary" style={{ textAlign: 'center' }}>
+          山东石油化工学院
+        </Typography.Paragraph>
+        <Typography.Title level={5}>登录账号</Typography.Title>
+        <Typography.Paragraph type="secondary">
+          使用管理员分配的学号或工号登录。
+        </Typography.Paragraph>
+        <ApiAlert error={error} retry={refresh} />
+        <Form layout="vertical" onFinish={() => login.mutate()}>
+          <Form.Item label="账号" htmlFor="login-username">
+            <Input
+              id="login-username"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              required
               autoComplete="username"
               maxLength={32}
               autoFocus
             />
-          </label>
-          <label>
-            密码
-            <input
-              type="password"
+          </Form.Item>
+          <Form.Item label="密码" htmlFor="login-password">
+            <Input.Password
+              id="login-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              required
               autoComplete="current-password"
               maxLength={256}
             />
-          </label>
-          <ErrorNotice error={validation ?? login.error} />
-          <button
-            className="button primary"
-            disabled={login.isPending || !username.trim() || !password}
-          >
-            {login.isPending ? '正在登录…' : '登录'}
-          </button>
-        </form>
-        <p className="help">忘记密码或账号被停用，请联系管理员。</p>
-      </section>
-    </main>
+          </Form.Item>
+          <ApiAlert error={login.error} />
+          <Form.Item>
+            <Button
+              type="primary"
+              htmlType="submit"
+              block
+              loading={login.isPending}
+              disabled={!username.trim() || !password}
+            >
+              登录
+            </Button>
+          </Form.Item>
+        </Form>
+        <Typography.Paragraph type="secondary">
+          忘记密码或账号被停用，请联系管理员。
+        </Typography.Paragraph>
+      </Card>
+    </div>
   )
 }
 
 export function PasswordPage() {
   const { user, setUser } = useSession()
-  const [oldPassword, setOld] = useState('')
-  const [newPassword, setNew] = useState('')
-  const [confirmPassword, setConfirm] = useState('')
-  const [validation, setValidation] = useState<string | null>(null)
+  const [form] = Form.useForm()
   const change = useMutation({
-    mutationFn: () =>
-      api<User>('/auth/password', {
-        method: 'POST',
-        json: { oldPassword, newPassword, confirmPassword },
-      }),
-    onSuccess: async (updated) => {
-      await setUser(updated)
+    mutationFn: (values: { oldPassword: string; newPassword: string; confirmPassword: string }) =>
+      api<User>('/auth/password', { method: 'POST', json: values }),
+    onSuccess: (updated) => {
+      void setUser(updated)
     },
   })
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    const length = [...newPassword].length
-    const reason =
-      length < 6 || length > 128
-        ? '新密码需为 6–128 个字符。'
-        : newPassword === oldPassword
-          ? '新密码不能与当前密码相同。'
-          : newPassword !== confirmPassword
-            ? '两次输入的新密码不一致。'
-            : null
-    setValidation(reason)
-    if (!reason) change.mutate()
-  }
   if (change.isSuccess && user && !user.mustChangePassword) {
     return <Navigate to={homeFor(user.role)} replace />
   }
   return (
-    <div className="narrow">
-      <PageHeading
+    <div style={{ maxWidth: 640 }}>
+      <PageHeader
         title={user?.mustChangePassword ? '设置新密码' : '修改密码'}
         description={
           user?.mustChangePassword
@@ -122,49 +105,63 @@ export function PasswordPage() {
             : '新密码需为 6–128 个字符，不能与当前密码相同。'
         }
       />
-      <form className="panel form-stack" onSubmit={submit}>
-        <label>
-          当前密码
-          <input
-            type="password"
-            value={oldPassword}
-            onChange={(event) => setOld(event.target.value)}
-            required
-            autoComplete="current-password"
-          />
-        </label>
-        <label>
-          新密码
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(event) => setNew(event.target.value)}
-            required
-            autoComplete="new-password"
-          />
-        </label>
-        <label>
-          再次输入新密码
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(event) => setConfirm(event.target.value)}
-            required
-            autoComplete="new-password"
-          />
-        </label>
-        <ErrorNotice error={validation ?? change.error} />
-        <div className="actions">
-          <button className="button primary" disabled={change.isPending}>
-            {change.isPending ? '正在保存…' : '保存新密码'}
-          </button>
-          {!user?.mustChangePassword && (
-            <Link className="button secondary" to="/profile">
-              取消
-            </Link>
-          )}
-        </div>
-      </form>
+      <Card>
+        <Form form={form} layout="vertical" onFinish={(values) => change.mutate(values)}>
+          <Form.Item
+            label="当前密码"
+            name="oldPassword"
+            htmlFor="password-old"
+            rules={[{ required: true, message: '请填写当前密码' }]}
+          >
+            <Input.Password id="password-old" autoComplete="current-password" />
+          </Form.Item>
+          <Form.Item
+            label="新密码"
+            name="newPassword"
+            htmlFor="password-new"
+            rules={[
+              { required: true, message: '请填写新密码' },
+              { min: 6, max: 128, message: '新密码需为 6–128 个字符' },
+              ({ getFieldValue }) => ({
+                validator(_, value: string) {
+                  if (!value || value !== getFieldValue('oldPassword')) return Promise.resolve()
+                  return Promise.reject(new Error('新密码不能与当前密码相同'))
+                },
+              }),
+            ]}
+          >
+            <Input.Password id="password-new" autoComplete="new-password" />
+          </Form.Item>
+          <Form.Item
+            label="再次输入新密码"
+            name="confirmPassword"
+            htmlFor="password-confirm"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: '请再次填写新密码' },
+              ({ getFieldValue }) => ({
+                validator(_, value: string) {
+                  if (!value || value === getFieldValue('newPassword')) return Promise.resolve()
+                  return Promise.reject(new Error('两次输入的新密码不一致'))
+                },
+              }),
+            ]}
+          >
+            <Input.Password id="password-confirm" autoComplete="new-password" />
+          </Form.Item>
+          <ApiAlert error={change.error} />
+          <Form.Item>
+            <Button type="primary" htmlType="submit" loading={change.isPending}>
+              保存新密码
+            </Button>
+            {!user?.mustChangePassword && (
+              <Link to="/profile" style={{ marginLeft: 12 }}>
+                <Button>取消</Button>
+              </Link>
+            )}
+          </Form.Item>
+        </Form>
+      </Card>
     </div>
   )
 }
@@ -173,31 +170,27 @@ export function ProfilePage() {
   const { user } = useSession()
   if (!user) return null
   return (
-    <div className="narrow">
-      <PageHeading title="个人信息" description="如需更正个人信息，请联系管理员。" />
-      <section className="panel">
-        <dl className="detail-grid">
-          <dt>姓名</dt>
-          <dd>{user.name}</dd>
-          <dt>{user.role === 'STUDENT' ? '学号' : '账号'}</dt>
-          <dd>{user.username}</dd>
-          <dt>身份</dt>
-          <dd>{roleNames[user.role]}</dd>
+    <div style={{ maxWidth: 720 }}>
+      <PageHeader title="个人信息" description="如需更正个人信息，请联系管理员。" />
+      <Card>
+        <Descriptions column={1} bordered>
+          <Descriptions.Item label="姓名">{user.name}</Descriptions.Item>
+          <Descriptions.Item label={user.role === 'STUDENT' ? '学号' : '账号'}>
+            {user.username}
+          </Descriptions.Item>
+          <Descriptions.Item label="身份">{roleNames[user.role]}</Descriptions.Item>
           {user.role === 'STUDENT' && (
             <>
-              <dt>专业</dt>
-              <dd>{user.major || '未填写'}</dd>
-              <dt>指导教师</dt>
-              <dd>{user.teacherName || '未分配'}</dd>
+              <Descriptions.Item label="专业">{user.major || '未填写'}</Descriptions.Item>
+              <Descriptions.Item label="指导教师">{user.teacherName || '未分配'}</Descriptions.Item>
             </>
           )}
-          <dt>账号状态</dt>
-          <dd>{user.active ? '启用' : '停用'}</dd>
-        </dl>
-        <Link className="button secondary" to="/change-password">
-          修改密码
+          <Descriptions.Item label="账号状态">{user.active ? '启用' : '停用'}</Descriptions.Item>
+        </Descriptions>
+        <Link to="/change-password">
+          <Button style={{ marginTop: 16 }}>修改密码</Button>
         </Link>
-      </section>
+      </Card>
     </div>
   )
 }

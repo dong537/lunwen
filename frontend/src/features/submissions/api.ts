@@ -86,10 +86,14 @@ export const submissionApi = {
     body.append('file', file)
     return api<Submission>('/submissions', { method: 'POST', body })
   },
-  transferMode: (signal?: AbortSignal) =>
-    api<{ mode: TransferMode }>('/submissions/transfer-mode', { signal }).then(
+  transferMode: (signal?: AbortSignal) => {
+    // 直连远程后端时浏览器源是 localhost，不在 COS CORS 白名单里，
+    // 强制走服务器中转，避免直传/直下被对象存储拒绝。
+    if (import.meta.env.MODE === 'remote') return Promise.resolve<TransferMode>('proxy')
+    return api<{ mode: TransferMode }>('/submissions/transfer-mode', { signal }).then(
       (value) => value.mode,
-    ),
+    )
+  },
   createUpload: (filename: string, size: number) =>
     api<UploadTicket>('/submissions/uploads', {
       method: 'POST',

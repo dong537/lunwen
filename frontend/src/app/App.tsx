@@ -1,17 +1,19 @@
+import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Link, NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Avatar, Button, Dropdown, Layout, Menu, Space, theme, Typography } from 'antd'
 import {
-  BookOpen,
-  GraduationCap,
-  Import,
-  LayoutDashboard,
-  LogOut,
-  UserRound,
-  Users,
-} from 'lucide-react'
+  DashboardOutlined,
+  DownOutlined,
+  FileTextOutlined,
+  ImportOutlined,
+  LogoutOutlined,
+  TeamOutlined,
+  UserOutlined,
+} from '@ant-design/icons'
 import { api } from '../shared/api/http'
 import type { Role } from '../shared/api/contracts'
-import { ErrorNotice, Loading, PageHeading } from '../shared/ui'
+import { ApiAlert, CenterSpin, PageHeader } from '../shared/ui'
 import { LoginPage, PasswordPage, ProfilePage } from '../features/auth/AuthPages'
 import { homeFor, roleNames, SessionProvider, useSession } from '../features/auth/session'
 import {
@@ -22,135 +24,181 @@ import { TeacherStudentDetailPage, TeacherStudentsPage } from '../features/stude
 import { AdminDashboardPage, UsersPage } from '../features/users/UserPages'
 import { ImportsPage } from '../features/imports/ImportsPage'
 
+const { Header, Sider, Content } = Layout
+
 function RequireSession() {
   const { user, loading, error, refresh } = useSession()
-  if (loading) return <Loading>正在确认登录状态…</Loading>
+  if (loading) return <CenterSpin tip="正在确认登录状态…" />
   if (error)
     return (
-      <div className="auth-error">
-        <ErrorNotice error={error} retry={refresh} />
+      <div style={{ maxWidth: 640, margin: '80px auto', padding: 24 }}>
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <ApiAlert error={error} retry={refresh} />
+        </Space>
       </div>
     )
   return user ? <Outlet /> : <Navigate to="/login" replace />
 }
+
 function RequirePasswordChanged() {
   const { user } = useSession()
   return user?.mustChangePassword ? <Navigate to="/change-password" replace /> : <Outlet />
 }
+
 function RoleGuard({ roles }: { roles: Role[] }) {
   const { user } = useSession()
-  return user && roles.includes(user.role) ? (
-    <Outlet />
-  ) : (
+  if (user && roles.includes(user.role)) return <Outlet />
+  return (
     <>
-      <PageHeading title="无权访问" description="你的账号没有访问此页面的权限。" />
+      <PageHeader title="无权访问" description="你的账号没有访问此页面的权限。" />
       {user && (
-        <Link className="button secondary" to={homeFor(user.role)}>
-          返回工作台
+        <Link to={homeFor(user.role)}>
+          <Button type="link">返回工作台</Button>
         </Link>
       )}
     </>
   )
 }
+
 function Home() {
   const { user } = useSession()
   return <Navigate to={user ? homeFor(user.role) : '/login'} replace />
 }
 
+function selectedKeyFor(role: Role, pathname: string): string {
+  if (role === 'STUDENT') {
+    if (pathname === '/profile') return '/profile'
+    return '/student/submissions'
+  }
+  if (role === 'TEACHER') {
+    if (pathname === '/profile') return '/profile'
+    return '/teacher/students'
+  }
+  if (pathname.startsWith('/admin/users')) return '/admin/users'
+  if (pathname.startsWith('/admin/imports')) return '/admin/imports'
+  if (pathname === '/profile') return '/profile'
+  return '/admin'
+}
+
 function Shell() {
   const { user, setUser } = useSession()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [collapsed, setCollapsed] = useState(false)
+  const {
+    token: { colorPrimaryBorder },
+  } = theme.useToken()
   const logout = useMutation({
     mutationFn: () => api('/auth/logout', { method: 'POST' }),
-    onSuccess: () => setUser(null),
+    onSuccess: () => {
+      void setUser(null)
+      navigate('/login', { replace: true })
+    },
   })
   if (!user) return null
+  const menuItems =
+    user.role === 'STUDENT'
+      ? [
+          { key: '/student/submissions', icon: <FileTextOutlined />, label: '我的论文' },
+          { key: '/profile', icon: <UserOutlined />, label: '个人信息' },
+        ]
+      : user.role === 'TEACHER'
+        ? [
+            { key: '/teacher/students', icon: <TeamOutlined />, label: '我的学生' },
+            { key: '/profile', icon: <UserOutlined />, label: '个人信息' },
+          ]
+        : [
+            { key: '/admin', icon: <DashboardOutlined />, label: '平台概览' },
+            { key: '/admin/users', icon: <TeamOutlined />, label: '账号管理' },
+            { key: '/admin/imports', icon: <ImportOutlined />, label: '批量导入' },
+            { key: '/profile', icon: <UserOutlined />, label: '个人信息' },
+          ]
   return (
-    <div className="app-shell">
-      <a className="skip-link" href="#main-content">
-        跳到主要内容
-      </a>
-      <header className="topbar">
-        <Link className="brand" to={homeFor(user.role)}>
-          <span className="brand-mark" aria-hidden="true">
+    <Layout style={{ minHeight: '100vh' }}>
+      <Sider
+        theme="dark"
+        width={220}
+        breakpoint="md"
+        collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+      >
+        <Link
+          to={homeFor(user.role)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '16px 20px',
+            color: 'inherit',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+          }}
+        >
+          <Avatar style={{ backgroundColor: '#1677ff', verticalAlign: 'middle', flex: 'none' }}>
             论
-          </span>
-          <span>
-            论文审核平台<small>山东石油化工学院</small>
-          </span>
+          </Avatar>
+          {!collapsed && (
+            <span>
+              <Typography.Text strong style={{ color: '#fff' }}>
+                论文审核平台
+              </Typography.Text>
+              <br />
+              <Typography.Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>
+                山东石油化工学院
+              </Typography.Text>
+            </span>
+          )}
         </Link>
-        <div className="account">
-          <span>
-            {user.name}
-            <small>{roleNames[user.role]}</small>
-          </span>
-          <button
-            className="button plain"
-            onClick={() => logout.mutate()}
-            disabled={logout.isPending}
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={[selectedKeyFor(user.role, location.pathname)]}
+          items={menuItems}
+          onClick={({ key }) => navigate(key)}
+        />
+      </Sider>
+      <Layout>
+        <Header
+          style={{
+            background: '#001529',
+            padding: '0 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            borderTop: `3px solid ${colorPrimaryBorder}`,
+          }}
+        >
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'logout',
+                  icon: <LogoutOutlined />,
+                  label: '退出登录',
+                  onClick: () => logout.mutate(),
+                },
+              ],
+            }}
           >
-            <LogOut size={16} aria-hidden="true" />
-            退出登录
-          </button>
-        </div>
-      </header>
-      <div className="workspace-layout">
-        <aside className="sidebar">
-          <nav aria-label="主导航">
-            {!user.mustChangePassword && (
-              <>
-                {user.role === 'STUDENT' && (
-                  <NavLink to="/student/submissions">
-                    <BookOpen size={18} aria-hidden="true" />
-                    我的论文
-                  </NavLink>
-                )}
-                {user.role === 'TEACHER' && (
-                  <NavLink to="/teacher/students">
-                    <GraduationCap size={18} aria-hidden="true" />
-                    我的学生
-                  </NavLink>
-                )}
-                {user.role === 'ADMIN' && (
-                  <>
-                    <NavLink to="/admin" end>
-                      <LayoutDashboard size={18} aria-hidden="true" />
-                      平台概览
-                    </NavLink>
-                    <NavLink to="/admin/users">
-                      <Users size={18} aria-hidden="true" />
-                      账号管理
-                    </NavLink>
-                    <NavLink to="/admin/imports">
-                      <Import size={18} aria-hidden="true" />
-                      批量导入
-                    </NavLink>
-                  </>
-                )}
-                <NavLink to="/profile">
-                  <UserRound size={18} aria-hidden="true" />
-                  个人信息
-                </NavLink>
-              </>
-            )}
-            {user.mustChangePassword && (
-              <NavLink to="/change-password">
-                <UserRound size={18} aria-hidden="true" />
-                设置新密码
-              </NavLink>
-            )}
-          </nav>
-          <p className="sidebar-note">
-            论文版本与审核记录
-            <br />
-            在这里统一管理
-          </p>
-        </aside>
-        <main id="main-content" className="workspace" tabIndex={-1}>
-          <ErrorNotice error={logout.error} />
+            <Button type="text" style={{ color: '#fff' }}>
+              <Space>
+                <Avatar size="small" icon={<UserOutlined />} />
+                {user.name}
+                <Typography.Text style={{ color: 'rgba(255,255,255,0.65)' }}>
+                  {roleNames[user.role]}
+                </Typography.Text>
+                <DownOutlined style={{ fontSize: 12 }} />
+              </Space>
+            </Button>
+          </Dropdown>
+        </Header>
+        <Content style={{ margin: 24 }}>
+          <ApiAlert error={logout.error} />
           <Outlet />
-        </main>
-      </div>
-    </div>
+        </Content>
+      </Layout>
+    </Layout>
   )
 }
 
@@ -184,7 +232,7 @@ export function App() {
                 path="*"
                 element={
                   <>
-                    <PageHeading title="页面不存在" />
+                    <PageHeader title="页面不存在" />
                     <Link to="/">返回工作台</Link>
                   </>
                 }
