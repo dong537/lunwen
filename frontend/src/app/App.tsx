@@ -14,7 +14,7 @@ import {
 import { api } from '../shared/api/http'
 import type { Role } from '../shared/api/contracts'
 import { ApiAlert, CenterSpin, PageHeader } from '../shared/ui'
-import { LoginPage, PasswordPage, ProfilePage } from '../features/auth/AuthPages'
+import { LoginPage, PasswordModal, ProfilePage } from '../features/auth/AuthPages'
 import { homeFor, roleNames, SessionProvider, useSession } from '../features/auth/session'
 import {
   StudentSubmissionsPage,
@@ -40,11 +40,6 @@ function RequireSession() {
   return user ? <Outlet /> : <Navigate to="/login" replace />
 }
 
-function RequirePasswordChanged() {
-  const { user } = useSession()
-  return user?.mustChangePassword ? <Navigate to="/change-password" replace /> : <Outlet />
-}
-
 function RoleGuard({ roles }: { roles: Role[] }) {
   const { user } = useSession()
   if (user && roles.includes(user.role)) return <Outlet />
@@ -63,6 +58,12 @@ function RoleGuard({ roles }: { roles: Role[] }) {
 function Home() {
   const { user } = useSession()
   return <Navigate to={user ? homeFor(user.role) : '/login'} replace />
+}
+
+function ForcePasswordModal() {
+  const { user } = useSession()
+  if (!user?.mustChangePassword) return null
+  return <PasswordModal open mandatory onClose={() => {}} />
 }
 
 function selectedKeyFor(role: Role, pathname: string): string {
@@ -203,6 +204,7 @@ function Shell() {
           </div>
         </Content>
       </Layout>
+      <ForcePasswordModal />
     </Layout>
   )
 }
@@ -214,35 +216,32 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route element={<RequireSession />}>
           <Route element={<Shell />}>
-            <Route path="/change-password" element={<PasswordPage />} />
-            <Route element={<RequirePasswordChanged />}>
-              <Route index element={<Home />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route element={<RoleGuard roles={['STUDENT']} />}>
-                <Route path="/student/submissions" element={<StudentSubmissionsPage />} />
-              </Route>
-              <Route element={<RoleGuard roles={['STUDENT', 'TEACHER']} />}>
-                <Route path="/submissions/:id" element={<SubmissionDetailPage />} />
-              </Route>
-              <Route element={<RoleGuard roles={['TEACHER']} />}>
-                <Route path="/teacher/students" element={<TeacherStudentsPage />} />
-                <Route path="/teacher/students/:id" element={<TeacherStudentDetailPage />} />
-              </Route>
-              <Route element={<RoleGuard roles={['ADMIN']} />}>
-                <Route path="/admin" element={<AdminDashboardPage />} />
-                <Route path="/admin/users" element={<UsersPage />} />
-                <Route path="/admin/imports" element={<ImportsPage />} />
-              </Route>
-              <Route
-                path="*"
-                element={
-                  <>
-                    <PageHeader title="页面不存在" />
-                    <Link to="/">返回工作台</Link>
-                  </>
-                }
-              />
+            <Route index element={<Home />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route element={<RoleGuard roles={['STUDENT']} />}>
+              <Route path="/student/submissions" element={<StudentSubmissionsPage />} />
             </Route>
+            <Route element={<RoleGuard roles={['STUDENT', 'TEACHER']} />}>
+              <Route path="/submissions/:id" element={<SubmissionDetailPage />} />
+            </Route>
+            <Route element={<RoleGuard roles={['TEACHER']} />}>
+              <Route path="/teacher/students" element={<TeacherStudentsPage />} />
+              <Route path="/teacher/students/:id" element={<TeacherStudentDetailPage />} />
+            </Route>
+            <Route element={<RoleGuard roles={['ADMIN']} />}>
+              <Route path="/admin" element={<AdminDashboardPage />} />
+              <Route path="/admin/users" element={<UsersPage />} />
+              <Route path="/admin/imports" element={<ImportsPage />} />
+            </Route>
+            <Route
+              path="*"
+              element={
+                <>
+                  <PageHeader title="页面不存在" />
+                  <Link to="/">返回工作台</Link>
+                </>
+              }
+            />
           </Route>
         </Route>
       </Routes>

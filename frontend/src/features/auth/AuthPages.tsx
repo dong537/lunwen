@@ -1,8 +1,21 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Link, Navigate } from 'react-router-dom'
-import { Avatar, Button, Card, Descriptions, Form, Input, message, Typography } from 'antd'
-import { CheckCircleOutlined } from '@ant-design/icons'
+import { Navigate } from 'react-router-dom'
+import {
+  Alert,
+  Avatar,
+  Button,
+  Card,
+  Descriptions,
+  Form,
+  Input,
+  message,
+  Modal,
+  Space,
+  Tag,
+  Typography,
+} from 'antd'
+import { CheckCircleOutlined, UserOutlined } from '@ant-design/icons'
 import { api } from '../../shared/api/http'
 import type { User } from '../../shared/api/contracts'
 import { ApiAlert, CenterSpin, PageHeader, useDocumentTitle } from '../../shared/ui'
@@ -10,9 +23,9 @@ import { homeFor, roleNames, useSession } from './session'
 
 export function LoginPage() {
   const { user, loading, error, refresh, setUser } = useSession()
+  useDocumentTitle('登录')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  useDocumentTitle('登录')
   const login = useMutation({
     mutationFn: () =>
       api<User>('/auth/login', { method: 'POST', json: { username: username.trim(), password } }),
@@ -25,10 +38,7 @@ export function LoginPage() {
     },
   })
   if (loading) return <CenterSpin />
-  if (user)
-    return (
-      <Navigate to={user.mustChangePassword ? '/change-password' : homeFor(user.role)} replace />
-    )
+  if (user) return <Navigate to={homeFor(user.role)} replace />
   return (
     <div className="login-page">
       <div className="login-wrap">
@@ -103,117 +113,144 @@ export function LoginPage() {
   )
 }
 
-export function PasswordPage() {
-  const { user, setUser } = useSession()
-  useDocumentTitle(user?.mustChangePassword ? '设置新密码' : '修改密码')
+export function PasswordModal({
+  open,
+  mandatory,
+  onClose,
+}: {
+  open: boolean
+  mandatory?: boolean
+  onClose: () => void
+}) {
+  const { setUser } = useSession()
   const [form] = Form.useForm()
   const change = useMutation({
     mutationFn: (values: { oldPassword: string; newPassword: string; confirmPassword: string }) =>
       api<User>('/auth/password', { method: 'POST', json: values }),
     onSuccess: (updated) => {
       void setUser(updated)
+      void message.success('密码已更新')
+      form.resetFields()
+      if (!mandatory) onClose()
     },
   })
-  if (change.isSuccess && user && !user.mustChangePassword) {
-    return <Navigate to={homeFor(user.role)} replace />
-  }
   return (
-    <div style={{ maxWidth: 640 }}>
-      <PageHeader
-        title={user?.mustChangePassword ? '设置新密码' : '修改密码'}
-        description={
-          user?.mustChangePassword
-            ? '首次登录或密码重置后，请先设置自己的密码。'
-            : '新密码需为 6–128 个字符，不能与当前密码相同。'
-        }
-      />
-      <Card>
-        <Form form={form} layout="vertical" onFinish={(values) => change.mutate(values)}>
-          <Form.Item
-            label="当前密码"
-            name="oldPassword"
-            htmlFor="password-old"
-            rules={[{ required: true, message: '请填写当前密码' }]}
-          >
-            <Input.Password id="password-old" autoComplete="current-password" />
-          </Form.Item>
-          <Form.Item
-            label="新密码"
-            name="newPassword"
-            htmlFor="password-new"
-            rules={[
-              { required: true, message: '请填写新密码' },
-              { min: 6, max: 128, message: '新密码需为 6–128 个字符' },
-              ({ getFieldValue }) => ({
-                validator(_, value: string) {
-                  if (!value || value !== getFieldValue('oldPassword')) return Promise.resolve()
-                  return Promise.reject(new Error('新密码不能与当前密码相同'))
-                },
-              }),
-            ]}
-          >
-            <Input.Password id="password-new" autoComplete="new-password" />
-          </Form.Item>
-          <Form.Item
-            label="再次输入新密码"
-            name="confirmPassword"
-            htmlFor="password-confirm"
-            dependencies={['newPassword']}
-            rules={[
-              { required: true, message: '请再次填写新密码' },
-              ({ getFieldValue }) => ({
-                validator(_, value: string) {
-                  if (!value || value === getFieldValue('newPassword')) return Promise.resolve()
-                  return Promise.reject(new Error('两次输入的新密码不一致'))
-                },
-              }),
-            ]}
-          >
-            <Input.Password id="password-confirm" autoComplete="new-password" />
-          </Form.Item>
-          <ApiAlert error={change.error} />
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={change.isPending}>
-              保存新密码
-            </Button>
-            {!user?.mustChangePassword && (
-              <Link to="/profile" style={{ marginLeft: 12 }}>
-                <Button>取消</Button>
-              </Link>
-            )}
-          </Form.Item>
-        </Form>
-      </Card>
-    </div>
+    <Modal
+      title={mandatory ? '设置新密码' : '修改密码'}
+      open={open}
+      onOk={() => form.submit()}
+      onCancel={mandatory ? undefined : onClose}
+      closable={!mandatory}
+      maskClosable={!mandatory}
+      keyboard={!mandatory}
+      okText="保存新密码"
+      cancelText="取消"
+      cancelButtonProps={mandatory ? { hidden: true } : undefined}
+      confirmLoading={change.isPending}
+      destroyOnClose
+    >
+      {mandatory && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="首次登录或密码重置后，请先设置自己的密码。"
+        />
+      )}
+      <Form
+        form={form}
+        layout="vertical"
+        preserve={false}
+        onFinish={(values) => change.mutate(values)}
+      >
+        <Form.Item
+          label="当前密码"
+          name="oldPassword"
+          htmlFor="password-old"
+          rules={[{ required: true, message: '请填写当前密码' }]}
+        >
+          <Input.Password id="password-old" autoComplete="current-password" />
+        </Form.Item>
+        <Form.Item
+          label="新密码"
+          name="newPassword"
+          htmlFor="password-new"
+          rules={[
+            { required: true, message: '请填写新密码' },
+            { min: 6, max: 128, message: '新密码需为 6–128 个字符' },
+            ({ getFieldValue }) => ({
+              validator(_, value: string) {
+                if (!value || value !== getFieldValue('oldPassword')) return Promise.resolve()
+                return Promise.reject(new Error('新密码不能与当前密码相同'))
+              },
+            }),
+          ]}
+        >
+          <Input.Password id="password-new" autoComplete="new-password" />
+        </Form.Item>
+        <Form.Item
+          label="再次输入新密码"
+          name="confirmPassword"
+          htmlFor="password-confirm"
+          dependencies={['newPassword']}
+          rules={[
+            { required: true, message: '请再次填写新密码' },
+            ({ getFieldValue }) => ({
+              validator(_, value: string) {
+                if (!value || value === getFieldValue('newPassword')) return Promise.resolve()
+                return Promise.reject(new Error('两次输入的新密码不一致'))
+              },
+            }),
+          ]}
+        >
+          <Input.Password id="password-confirm" autoComplete="new-password" />
+        </Form.Item>
+        <ApiAlert error={change.error} />
+      </Form>
+    </Modal>
   )
 }
 
 export function ProfilePage() {
   const { user } = useSession()
   useDocumentTitle('个人信息')
+  const [pwdOpen, setPwdOpen] = useState(false)
   if (!user) return null
   return (
-    <div style={{ maxWidth: 720 }}>
+    <>
       <PageHeader title="个人信息" description="如需更正个人信息，请联系管理员。" />
-      <Card>
-        <Descriptions column={1} bordered>
+      <Card style={{ marginBottom: 16 }}>
+        <Space size={16} align="center" wrap>
+          <Avatar size={64} icon={<UserOutlined />} style={{ backgroundColor: '#1677ff' }} />
+          <div>
+            <Typography.Title level={4} style={{ margin: 0 }}>
+              {user.name}
+            </Typography.Title>
+            <Space style={{ marginTop: 8 }} wrap>
+              <Tag color="blue">{roleNames[user.role]}</Tag>
+              <Tag color={user.active ? 'success' : 'default'}>{user.active ? '启用' : '停用'}</Tag>
+              {user.mustChangePassword && <Tag color="warning">需重设密码</Tag>}
+            </Space>
+          </div>
+        </Space>
+      </Card>
+      <Card title="账号详情" extra={<Button onClick={() => setPwdOpen(true)}>修改密码</Button>}>
+        <Descriptions column={{ xs: 1, sm: 2 }} bordered>
           <Descriptions.Item label="姓名">{user.name}</Descriptions.Item>
           <Descriptions.Item label={user.role === 'STUDENT' ? '学号' : '账号'}>
             {user.username}
           </Descriptions.Item>
           <Descriptions.Item label="身份">{roleNames[user.role]}</Descriptions.Item>
+          <Descriptions.Item label="账号状态">{user.active ? '启用' : '停用'}</Descriptions.Item>
           {user.role === 'STUDENT' && (
             <>
               <Descriptions.Item label="专业">{user.major || '未填写'}</Descriptions.Item>
               <Descriptions.Item label="指导教师">{user.teacherName || '未分配'}</Descriptions.Item>
             </>
           )}
-          <Descriptions.Item label="账号状态">{user.active ? '启用' : '停用'}</Descriptions.Item>
         </Descriptions>
-        <Link to="/change-password">
-          <Button style={{ marginTop: 16 }}>修改密码</Button>
-        </Link>
       </Card>
-    </div>
+      <PasswordModal open={pwdOpen} onClose={() => setPwdOpen(false)} />
+    </>
   )
 }
