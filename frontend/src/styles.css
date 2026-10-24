@@ -53,11 +53,9 @@ body {
 }
 
 .login-brand-mark {
+  display: block;
   width: 52px;
   height: 52px;
-  font-size: 24px;
-  font-weight: 700;
-  background-color: #1677ff;
   margin-bottom: 24px;
 }
 
@@ -118,7 +116,6 @@ body {
   .login-brand-mark {
     width: 40px;
     height: 40px;
-    font-size: 18px;
     margin-bottom: 12px;
   }
 

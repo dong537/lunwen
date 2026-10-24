@@ -139,9 +139,13 @@ function Shell() {
             overflow: 'hidden',
           }}
         >
-          <Avatar style={{ backgroundColor: '#1677ff', verticalAlign: 'middle', flex: 'none' }}>
-            论
-          </Avatar>
+          <img
+            src="/brand-cap.svg"
+            alt=""
+            width={36}
+            height={36}
+            style={{ verticalAlign: 'middle', flex: 'none' }}
+          />
           {!collapsed && (
             <span>
               <Typography.Text strong style={{ color: '#fff' }}>

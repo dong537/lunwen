@@ -43,7 +43,7 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-wrap">
         <aside className="login-brand" aria-label="平台介绍">
-          <Avatar className="login-brand-mark">论</Avatar>
+          <img className="login-brand-mark" src="/brand-cap.svg" alt="" />
           <Typography.Title level={3} className="login-brand-title">
             论文审核平台
           </Typography.Title>
