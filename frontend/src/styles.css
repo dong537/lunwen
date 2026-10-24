@@ -48,8 +48,8 @@ body {
 
 .login-brand {
   padding: 48px 40px;
-  background: linear-gradient(165deg, #d6e9ff 0%, #e8f3ff 55%, #f5faff 100%);
-  color: #1d2129;
+  background: linear-gradient(165deg, #001529 0%, #00264d 60%, #003a8c 100%);
+  color: #fff;
 }
 
 .login-brand-mark {
@@ -62,12 +62,12 @@ body {
 }
 
 .login-brand-title.login-brand-title {
-  color: #0958d9;
+  color: #fff;
   margin-bottom: 4px;
 }
 
 .login-brand-school.login-brand-school {
-  color: #3860a8;
+  color: rgba(255, 255, 255, 0.75);
   font-size: 15px;
   margin-bottom: 32px;
 }
@@ -76,11 +76,11 @@ body {
   list-style: none;
   margin: 0;
   padding: 24px 0 0;
-  border-top: 1px solid #bcd6f5;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
   display: grid;
   gap: 16px;
   font-size: 14px;
-  color: #2f4d7a;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .login-brand-points li {
@@ -91,7 +91,7 @@ body {
 }
 
 .login-brand-points .anticon {
-  color: #1677ff;
+  color: #69b1ff;
   font-size: 16px;
   margin-top: 3px;
 }
