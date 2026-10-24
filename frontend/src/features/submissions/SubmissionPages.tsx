@@ -236,7 +236,12 @@ const listColumns: ColumnsType<Submission> = [
     width: 110,
     render: (value: number) => `第 ${value} 次`,
   },
-  { title: '文件名', dataIndex: 'originalFilename', key: 'originalFilename', ellipsis: true },
+  {
+    title: '文件名',
+    dataIndex: 'originalFilename',
+    key: 'originalFilename',
+    ellipsis: true,
+  },
   {
     title: '提交时间',
     dataIndex: 'createdAt',
@@ -290,7 +295,7 @@ export function SubmissionList({ studentId }: { studentId?: string }) {
           rowKey="id"
           columns={listColumns}
           dataSource={list.data.items}
-          scroll={{ x: 'max-content' }}
+          tableLayout="fixed"
           pagination={{
             current: page,
             pageSize: list.data.size,

@@ -67,9 +67,6 @@ export function LoginPage() {
         </aside>
         <div className="login-form">
           <Typography.Title level={5}>登录账号</Typography.Title>
-          <Typography.Paragraph type="secondary">
-            使用管理员分配的学号或工号登录。
-          </Typography.Paragraph>
           <ApiAlert error={error} retry={refresh} />
           <Form layout="vertical" onFinish={() => login.mutate()}>
             <Form.Item label="账号" htmlFor="login-username">
@@ -104,9 +101,6 @@ export function LoginPage() {
               </Button>
             </Form.Item>
           </Form>
-          <Typography.Paragraph type="secondary">
-            忘记密码或账号被停用，请联系管理员。
-          </Typography.Paragraph>
         </div>
       </div>
     </div>
@@ -235,7 +229,7 @@ export function ProfilePage() {
         </Space>
       </Card>
       <Card title="账号详情" extra={<Button onClick={() => setPwdOpen(true)}>修改密码</Button>}>
-        <Descriptions column={{ xs: 1, sm: 2 }} bordered>
+        <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} layout="vertical" bordered>
           <Descriptions.Item label="姓名">{user.name}</Descriptions.Item>
           <Descriptions.Item label={user.role === 'STUDENT' ? '学号' : '账号'}>
             {user.username}
