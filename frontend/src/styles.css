@@ -22,21 +22,115 @@ body {
   top: 0;
   color: #fff;
 }
-
 .login-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 32px 16px;
   background:
-    radial-gradient(circle at 20% 20%, #e8f3ff 0, transparent 40%),
-    radial-gradient(circle at 80% 80%, #e6f4ff 0, transparent 40%), #f0f2f5;
+    radial-gradient(circle at 15% 15%, #d6e9ff 0, transparent 45%),
+    radial-gradient(circle at 85% 85%, #e6f4ff 0, transparent 45%),
+    linear-gradient(180deg, #f5faff 0%, #eef4fc 100%);
 }
 
-.login-card {
-  width: min(440px, 100%);
+.login-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  width: min(960px, 100%);
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
   box-shadow:
     0 1px 2px rgba(16, 24, 40, 0.06),
-    0 8px 32px rgba(16, 24, 40, 0.12);
+    0 12px 40px rgba(22, 119, 255, 0.12);
+}
+
+.login-brand {
+  padding: 48px 40px;
+  background: linear-gradient(165deg, #d6e9ff 0%, #e8f3ff 55%, #f5faff 100%);
+  color: #1d2129;
+}
+
+.login-brand-mark {
+  width: 52px;
+  height: 52px;
+  font-size: 24px;
+  font-weight: 700;
+  background-color: #1677ff;
+  margin-bottom: 24px;
+}
+
+.login-brand-title.login-brand-title {
+  color: #0958d9;
+  margin-bottom: 4px;
+}
+
+.login-brand-school.login-brand-school {
+  color: #3860a8;
+  font-size: 15px;
+  margin-bottom: 32px;
+}
+
+.login-brand-points {
+  list-style: none;
+  margin: 0;
+  padding: 24px 0 0;
+  border-top: 1px solid #bcd6f5;
+  display: grid;
+  gap: 16px;
+  font-size: 14px;
+  color: #2f4d7a;
+}
+
+.login-brand-points li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.6;
+}
+
+.login-brand-points .anticon {
+  color: #1677ff;
+  font-size: 16px;
+  margin-top: 3px;
+}
+
+.login-form {
+  padding: 48px 44px;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .login-page {
+    padding: 16px;
+    align-items: flex-start;
+  }
+
+  .login-wrap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .login-brand {
+    padding: 28px 24px;
+  }
+
+  .login-brand-mark {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+
+  .login-brand-school.login-brand-school {
+    margin-bottom: 0;
+  }
+
+  .login-brand-points {
+    display: none;
+  }
+
+  .login-form {
+    padding: 28px 24px;
+  }
 }

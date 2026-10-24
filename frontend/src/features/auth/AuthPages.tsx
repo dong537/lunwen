@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Link, Navigate } from 'react-router-dom'
-import { Button, Card, Descriptions, Form, Input, message, Typography } from 'antd'
+import { Avatar, Button, Card, Descriptions, Form, Input, message, Typography } from 'antd'
+import { CheckCircleOutlined } from '@ant-design/icons'
 import { api } from '../../shared/api/http'
 import type { User } from '../../shared/api/contracts'
 import { ApiAlert, CenterSpin, PageHeader, useDocumentTitle } from '../../shared/ui'
@@ -30,55 +31,74 @@ export function LoginPage() {
     )
   return (
     <div className="login-page">
-      <Card className="login-card" variant="borderless">
-        <Typography.Title level={4} style={{ textAlign: 'center', marginBottom: 4 }}>
-          论文审核平台
-        </Typography.Title>
-        <Typography.Paragraph type="secondary" style={{ textAlign: 'center' }}>
-          山东石油化工学院
-        </Typography.Paragraph>
-        <Typography.Title level={5}>登录账号</Typography.Title>
-        <Typography.Paragraph type="secondary">
-          使用管理员分配的学号或工号登录。
-        </Typography.Paragraph>
-        <ApiAlert error={error} retry={refresh} />
-        <Form layout="vertical" onFinish={() => login.mutate()}>
-          <Form.Item label="账号" htmlFor="login-username">
-            <Input
-              id="login-username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              autoComplete="username"
-              maxLength={32}
-              autoFocus
-            />
-          </Form.Item>
-          <Form.Item label="密码" htmlFor="login-password">
-            <Input.Password
-              id="login-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-              maxLength={256}
-            />
-          </Form.Item>
-          <ApiAlert error={login.error} />
-          <Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              block
-              loading={login.isPending}
-              disabled={!username.trim() || !password}
-            >
-              登录
-            </Button>
-          </Form.Item>
-        </Form>
-        <Typography.Paragraph type="secondary">
-          忘记密码或账号被停用，请联系管理员。
-        </Typography.Paragraph>
-      </Card>
+      <div className="login-wrap">
+        <aside className="login-brand" aria-label="平台介绍">
+          <Avatar className="login-brand-mark">论</Avatar>
+          <Typography.Title level={3} className="login-brand-title">
+            论文审核平台
+          </Typography.Title>
+          <Typography.Paragraph className="login-brand-school">
+            山东石油化工学院
+          </Typography.Paragraph>
+          <ul className="login-brand-points">
+            <li>
+              <CheckCircleOutlined aria-hidden="true" />
+              在线提交论文，版本自动留存
+            </li>
+            <li>
+              <CheckCircleOutlined aria-hidden="true" />
+              实时跟踪审核进度与问题统计
+            </li>
+            <li>
+              <CheckCircleOutlined aria-hidden="true" />
+              下载批注稿与 Word 检查报告
+            </li>
+          </ul>
+        </aside>
+        <div className="login-form">
+          <Typography.Title level={5}>登录账号</Typography.Title>
+          <Typography.Paragraph type="secondary">
+            使用管理员分配的学号或工号登录。
+          </Typography.Paragraph>
+          <ApiAlert error={error} retry={refresh} />
+          <Form layout="vertical" onFinish={() => login.mutate()}>
+            <Form.Item label="账号" htmlFor="login-username">
+              <Input
+                id="login-username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                autoComplete="username"
+                maxLength={32}
+                autoFocus
+              />
+            </Form.Item>
+            <Form.Item label="密码" htmlFor="login-password">
+              <Input.Password
+                id="login-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+                maxLength={256}
+              />
+            </Form.Item>
+            <ApiAlert error={login.error} />
+            <Form.Item>
+              <Button
+                type="primary"
+                htmlType="submit"
+                block
+                loading={login.isPending}
+                disabled={!username.trim() || !password}
+              >
+                登录
+              </Button>
+            </Form.Item>
+          </Form>
+          <Typography.Paragraph type="secondary">
+            忘记密码或账号被停用，请联系管理员。
+          </Typography.Paragraph>
+        </div>
+      </div>
     </div>
   )
 }
