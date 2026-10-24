@@ -275,9 +275,7 @@ const listColumns: ColumnsType<Submission> = [
     title: '操作',
     key: 'action',
     width: 48,
-    render: (_: unknown, record: Submission) => (
-      <Link to={`/submissions/${record.id}`}>查看</Link>
-    ),
+    render: (_: unknown, record: Submission) => <Link to={`/submissions/${record.id}`}>查看</Link>,
   },
 ]
 
