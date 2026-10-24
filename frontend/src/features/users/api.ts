@@ -5,7 +5,7 @@ export const userApi = {
   dashboard: (signal?: AbortSignal) => api<Dashboard>('/admin/dashboard', { signal }),
   list: (role: AccountRole, q: string, active: string, page: number, signal?: AbortSignal) =>
     api<Page<User>>(
-      `/admin/users?role=${role}&q=${encodeURIComponent(q)}${active ? `&active=${active}` : ''}&page=${page}&size=20`,
+      `/admin/users?role=${role}&q=${encodeURIComponent(q)}${active ? `&active=${active}` : ''}&page=${page}&size=10`,
       { signal },
     ),
   teachers: (q: string, signal?: AbortSignal) =>

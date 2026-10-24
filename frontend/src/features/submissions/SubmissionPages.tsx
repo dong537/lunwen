@@ -302,7 +302,7 @@ export function SubmissionList({
     <Card
       title="提交记录"
       className="table-card"
-      style={fixedHeight ? { minHeight: 512 } : undefined}
+      style={fixedHeight ? { minHeight: 606 } : undefined}
       extra={
         <Button
           type="text"
@@ -348,7 +348,7 @@ export function StudentSubmissionsPage() {
           <UploadForm compact />
         </Col>
         <Col xs={24} xl={15}>
-          <SubmissionList pageSize={8} fixedHeight />
+          <SubmissionList pageSize={10} fixedHeight />
         </Col>
       </Row>
     </>

@@ -55,7 +55,7 @@ export function TeacherStudentsPage() {
     queryKey: ['students', q, page],
     queryFn: ({ signal }) =>
       api<Page<StudentSummary>>(
-        `/teacher/students?q=${encodeURIComponent(q)}&page=${page}&size=20`,
+        `/teacher/students?q=${encodeURIComponent(q)}&page=${page}&size=10`,
         { signal },
       ),
   })
@@ -64,7 +64,7 @@ export function TeacherStudentsPage() {
   return (
     <>
       <PageHeader title="我的学生" description="提交次数与最近结果仅统计审核成功的记录。" />
-      <Card className="table-card" style={{ minHeight: 989 }}>
+      <Card className="table-card" style={{ minHeight: 599 }}>
         <Input.Search
           placeholder="按学号或姓名搜索"
           allowClear
@@ -128,7 +128,7 @@ export function TeacherStudentDetailPage() {
             title={student.data.name}
             description={`学号 ${student.data.username} · ${student.data.major || '专业未填写'} · 指导教师：${student.data.teacherName || '未分配'}`}
           />
-          <SubmissionList studentId={id} />
+          <SubmissionList studentId={id} pageSize={10} />
         </>
       )}
       {!student.data && (
