@@ -1,6 +1,6 @@
 import { createContext, Fragment, useContext, useEffect, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, ApiError } from '../../shared/api/http'
+import { api, ApiError, clearCsrfCache } from '../../shared/api/http'
 import type { User, Role } from '../../shared/api/contracts'
 
 export const roleNames: Record<Role, string> = { STUDENT: '学生', TEACHER: '教师', ADMIN: '管理员' }
@@ -44,6 +44,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     staleTime: 30_000,
   })
   async function setUser(user: User | null) {
+    clearCsrfCache()
     await client.cancelQueries({ queryKey: ['session'], exact: true })
     await clearBusinessData()
     client.setQueryData(['session'], user)

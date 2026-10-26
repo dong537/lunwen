@@ -42,7 +42,8 @@ function RequireSession() {
 
 function RoleGuard({ roles }: { roles: Role[] }) {
   const { user } = useSession()
-  if (user && roles.includes(user.role)) return <Outlet />
+  if (!user) return <Navigate to="/login" replace />
+  if (roles.includes(user.role)) return <Outlet />
   return (
     <>
       <PageHeader title="无权访问" description="你的账号没有访问此页面的权限。" />
@@ -92,6 +93,10 @@ function Shell() {
   const logout = useMutation({
     mutationFn: () => api('/auth/logout', { method: 'POST' }),
     onSuccess: () => {
+      void setUser(null)
+      navigate('/login', { replace: true })
+    },
+    onError: () => {
       void setUser(null)
       navigate('/login', { replace: true })
     },

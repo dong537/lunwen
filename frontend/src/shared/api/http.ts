@@ -61,20 +61,36 @@ interface CsrfToken {
   headerName: string
 }
 
-// CSRF 令牌与会话绑定，仅登录/改密/登出时轮换； mutation 级缓存，
-// 403 时视为过期刷新并重试一次，调用方无需关心。
+// CSRF 令牌与会话绑定，仅登录/改密/登出时轮换； mutation 级缓存。
+// 403 时先强制刷新一次令牌：只有令牌真的变了才重试，否则视为真实无权限，直接返回原响应，避免非幂等操作被发两遍。
 let cachedCsrf: CsrfToken | null = null
 let csrfInflight: Promise<CsrfToken> | null = null
 
-async function getCsrf(signal?: AbortSignal | null): Promise<CsrfToken> {
+export function clearCsrfCache(): void {
+  cachedCsrf = null
+  csrfInflight = null
+}
+
+async function getCsrf(): Promise<CsrfToken> {
   if (cachedCsrf) return cachedCsrf
   if (!csrfInflight) {
-    csrfInflight = api<CsrfToken>('/auth/csrf', { signal }).finally(() => {
+    // 不复用业务请求的 abort signal，避免组件卸载连带 abort 共享的 csrf 请求。
+    csrfInflight = api<CsrfToken>('/auth/csrf', {}).finally(() => {
       csrfInflight = null
     })
   }
   cachedCsrf = await csrfInflight
   return cachedCsrf
+}
+
+async function refreshCsrfForce(): Promise<CsrfToken | null> {
+  cachedCsrf = null
+  csrfInflight = null
+  try {
+    return await getCsrf()
+  } catch {
+    return null
+  }
 }
 
 function isUnsafeMethod(method: string): boolean {
@@ -89,14 +105,24 @@ async function request(path: string, options: Options, retried = false): Promise
     init.body = JSON.stringify(json)
   }
   const unsafe = isUnsafeMethod(init.method ?? 'GET')
+  let usedCsrf: CsrfToken | null = null
   if (unsafe) {
-    const csrf = await getCsrf(init.signal)
+    const csrf = await getCsrf()
+    usedCsrf = csrf
     headers.set(csrf.headerName, csrf.token)
   }
   try {
     const response = await fetch(`/api${path}`, { ...init, headers, credentials: 'include' })
     if (unsafe && !retried && response.status === 403) {
-      cachedCsrf = null
+      const fresh = await refreshCsrfForce()
+      if (
+        !fresh ||
+        (usedCsrf &&
+          fresh.token === usedCsrf.token &&
+          fresh.headerName === usedCsrf.headerName)
+      ) {
+        return response
+      }
       return request(path, options, true)
     }
     return response
@@ -127,6 +153,7 @@ export async function download(path: string, fallbackName: string): Promise<void
 export function openDownloadUrl(url: string): void {
   const anchor = document.createElement('a')
   anchor.href = url
+  anchor.target = '_blank'
   anchor.rel = 'noopener'
   anchor.style.display = 'none'
   document.body.append(anchor)

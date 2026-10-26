@@ -88,7 +88,6 @@ export function LoginPage() {
                 maxLength={256}
               />
             </Form.Item>
-            <ApiAlert error={login.error} />
             <Form.Item>
               <Button
                 type="primary"
@@ -123,7 +122,11 @@ export function PasswordModal({
       api<User>('/auth/password', { method: 'POST', json: values }),
     onSuccess: (updated) => {
       void setUser(updated)
-      void message.success('密码已更新')
+      if (mandatory && updated.mustChangePassword) {
+        void message.warning('密码已更新，但账号仍需重设密码，请再次设置。')
+      } else {
+        void message.success('密码已更新')
+      }
       form.resetFields()
       if (!mandatory) onClose()
     },

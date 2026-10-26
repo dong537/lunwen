@@ -154,7 +154,7 @@ function UploadForm({ compact = false }: { compact?: boolean }) {
       setValidation('登录身份已变化，请重新选择文件。')
       return
     }
-    upload.mutate(file, { onSuccess: completeSuccess })
+    upload.mutate(file)
   }
   return (
     <Card
@@ -212,8 +212,18 @@ function UploadForm({ compact = false }: { compact?: boolean }) {
                 : '正在上传，请稍候…'
               : '提交审核'}
           </Button>
-          {uploaded && pendingId && !busy && upload.isError && (
-            <Button onClick={() => retry.mutate(pendingId)}>重试完成上传</Button>
+          {pendingId && !busy && upload.isError && (
+            <Button
+              onClick={() => {
+                if (uploaded) {
+                  retry.mutate(pendingId)
+                } else if (file) {
+                  upload.mutate(file)
+                }
+              }}
+            >
+              {uploaded ? '重试完成上传' : '重新上传'}
+            </Button>
           )}
         </Space>
       </form>

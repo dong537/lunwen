@@ -21,7 +21,6 @@ function errorText(error: unknown): string {
 export function ApiAlert({ error, retry }: { error: unknown; retry?: () => void }) {
   if (!error) return null
   const fieldErrors = error instanceof ApiError ? Object.entries(error.fieldErrors) : []
-  const requestId = error instanceof ApiError ? error.requestId : undefined
   return (
     <div>
       <Alert
@@ -29,16 +28,13 @@ export function ApiAlert({ error, retry }: { error: unknown; retry?: () => void 
         showIcon
         title={errorText(error)}
         description={
-          fieldErrors.length > 0 || requestId ? (
+          fieldErrors.length > 0 ? (
             <Space direction="vertical" size={4}>
-              {fieldErrors.length > 0 && (
-                <ul style={{ margin: 0, paddingInlineStart: 20 }}>
-                  {fieldErrors.map(([field, message]) => (
-                    <li key={field}>{message}</li>
-                  ))}
-                </ul>
-              )}
-              {requestId && <span>联系管理员时可提供编号：{requestId}</span>}
+              <ul style={{ margin: 0, paddingInlineStart: 20 }}>
+                {fieldErrors.map(([field, message]) => (
+                  <li key={field}>{message}</li>
+                ))}
+              </ul>
             </Space>
           ) : undefined
         }
