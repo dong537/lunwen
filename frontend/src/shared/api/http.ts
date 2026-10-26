@@ -117,9 +117,7 @@ async function request(path: string, options: Options, retried = false): Promise
       const fresh = await refreshCsrfForce()
       if (
         !fresh ||
-        (usedCsrf &&
-          fresh.token === usedCsrf.token &&
-          fresh.headerName === usedCsrf.headerName)
+        (usedCsrf && fresh.token === usedCsrf.token && fresh.headerName === usedCsrf.headerName)
       ) {
         return response
       }
