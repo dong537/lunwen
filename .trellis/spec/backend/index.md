@@ -4,6 +4,10 @@
 
 跨模块变更还须阅读 [平台权限与任务可靠性](platform-reliability.md)。
 
+论文表格拆分及重复批注遵守 [拆表证据与重复批注契约](table-fragments-and-comment-refresh.md)。
+封面页眉识别及批注文案遵守 [封面页眉证据契约](cover-header-evidence.md)。
+空白分节与组合图批注遵守 [空白分节与组合图锚点契约](empty-section-and-composite-figure-anchors.md)。
+
 - 后端：审核引擎保持在 backend；账号、提交、COS与队列属于 platform-backend。JPA负责查询，Flyway负责schema，不混写到controller。
 - 前端：React TypeScript Vite，路由负责组合，API与Query集中处理服务状态。沿用CSS体系，不引入第二套UI框架。
 - 数据：PostgreSQL两张业务表、UTC时间、字符串ID，未知统计为null。不得把失败或未审核显示为零问题通过。
