@@ -34,6 +34,200 @@ class CommentWriterTest {
   @TempDir Path tempDir;
 
   @Test
+  void writesAllFourMarginsInEachTextlessSectionWithoutBorrowingAnotherSection() throws Exception {
+    var document = new StringBuilder("<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body>");
+    for (int section = 0; section < 5; section++)
+      document.append("<w:p><w:pPr><w:sectPr><w:pgMar w:top='1400' w:bottom='1400' w:left='1400' w:right='1400'/></w:sectPr></w:pPr></w:p>");
+    document.append("<w:p><w:r><w:t>下一节正文</w:t></w:r></w:p></w:body></w:document>");
+    Path source = packageWithDocument(document.toString());
+    Path target = tempDir.resolve("five-empty-section-margins.docx");
+    List<CheckResult> findings = new ArrayList<>();
+    for (int section = 0; section < 5; section++)
+      for (String side : List.of("top", "bottom", "left", "right"))
+        findings.add(new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+            Judgement.FAIL, "1474", "1400", "MARGIN_MISMATCH_" + side,
+            new SourceAddress("word/document.xml", List.of(0, section), 0, 0)));
+
+    AnnotationReport report = new CommentWriter().writeCopy(source, target, findings);
+
+    assertTrue(report.outputWritten(), report.items().toString());
+    assertEquals(20, report.items().stream().filter(item -> item.status() == AnnotationStatus.WRITTEN).count(),
+        report.items().toString());
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      var factory = DocumentBuilderFactory.newInstance();
+      factory.setNamespaceAware(true);
+      var parsed = factory.newDocumentBuilder().parse(zip.getInputStream(zip.getEntry("word/document.xml")));
+      var paragraphs = parsed.getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main", "p");
+      for (int section = 0; section < 5; section++) {
+        var paragraph = (org.w3c.dom.Element) paragraphs.item(section);
+        assertEquals(1, paragraph.getElementsByTagNameNS(paragraph.getNamespaceURI(), "commentRangeStart").getLength());
+        assertEquals(1, paragraph.getElementsByTagNameNS(paragraph.getNamespaceURI(), "commentReference").getLength());
+        assertEquals(1, paragraph.getElementsByTagNameNS(paragraph.getNamespaceURI(), "sectPr").getLength());
+        assertEquals(0, paragraph.getElementsByTagNameNS(paragraph.getNamespaceURI(), "t").getLength());
+      }
+      var nextSection = (org.w3c.dom.Element) paragraphs.item(5);
+      assertEquals(0, nextSection.getElementsByTagNameNS(nextSection.getNamespaceURI(), "commentRangeStart").getLength());
+    }
+  }
+
+  @Test
+  void anchorsTextlessTerminalSectionMarginOnItsOwnEmptyParagraph() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body>"
+        + "<w:p><w:pPr><w:sectPr/></w:pPr><w:r><w:t>上一节正文</w:t></w:r></w:p>"
+        + "<w:p/><w:sectPr><w:pgMar w:right='1400'/></w:sectPr></w:body></w:document>");
+    Path target = tempDir.resolve("terminal-textless-section-margin.docx");
+    var finding = new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "1474", "1400", "MARGIN_MISMATCH",
+        new SourceAddress("word/document.xml", List.of(0, 2), 0, 0));
+
+    AnnotationReport report = new CommentWriter().writeCopy(source, target, List.of(finding));
+
+    assertTrue(report.outputWritten(), report.items().toString());
+    assertEquals(AnnotationStatus.WRITTEN, report.items().getFirst().status(), report.items().toString());
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      var factory = DocumentBuilderFactory.newInstance();
+      factory.setNamespaceAware(true);
+      var parsed = factory.newDocumentBuilder().parse(zip.getInputStream(zip.getEntry("word/document.xml")));
+      var paragraphs = parsed.getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main", "p");
+      var previous = (org.w3c.dom.Element) paragraphs.item(0);
+      var terminal = (org.w3c.dom.Element) paragraphs.item(1);
+      assertEquals(0, previous.getElementsByTagNameNS(previous.getNamespaceURI(), "commentRangeStart").getLength());
+      assertEquals(1, terminal.getElementsByTagNameNS(terminal.getNamespaceURI(), "commentRangeStart").getLength());
+    }
+  }
+
+  @Test
+  void retainsTextlessMiddleSectionBetweenPopulatedSections() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body>"
+        + "<w:p><w:pPr><w:sectPr/></w:pPr><w:r><w:t>上一节正文</w:t></w:r></w:p>"
+        + "<w:p/><w:p><w:pPr><w:sectPr><w:pgMar w:right='1400'/></w:sectPr></w:pPr></w:p>"
+        + "<w:p><w:r><w:t>下一节正文</w:t></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("textless-middle-section-margin.docx");
+    var finding = new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "1474", "1400", "MARGIN_MISMATCH",
+        new SourceAddress("word/document.xml", List.of(0, 2), 0, 0));
+
+    AnnotationReport report = new CommentWriter().writeCopy(source, target, List.of(finding));
+
+    assertTrue(report.outputWritten(), report.items().toString());
+    assertEquals(AnnotationStatus.WRITTEN, report.items().getFirst().status());
+    assertEquals(List.of(0, 1), report.items().getFirst().anchorSource().elementPath());
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      var factory = DocumentBuilderFactory.newInstance();
+      factory.setNamespaceAware(true);
+      var parsed = factory.newDocumentBuilder().parse(zip.getInputStream(zip.getEntry("word/document.xml")));
+      var paragraphs = parsed.getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main", "p");
+      for (int index : List.of(0, 3)) {
+        var paragraph = (org.w3c.dom.Element) paragraphs.item(index);
+        assertEquals(0, paragraph.getElementsByTagNameNS(paragraph.getNamespaceURI(), "commentRangeStart").getLength());
+      }
+    }
+  }
+
+  @Test
+  void writesStrictXmlMarginsOnAnActuallyTextlessSection() throws Exception {
+    String strict = "http://purl.oclc.org/ooxml/wordprocessingml/main";
+    Path source = packageWithDocument("<w:document xmlns:w='" + strict + "'><w:body>"
+        + "<w:p><w:pPr><w:sectPr/></w:pPr><w:r><w:t>上一节正文</w:t></w:r></w:p>"
+        + "<w:p/><w:p><w:pPr><w:sectPr><w:pgMar w:top='1400' w:bottom='1400' w:left='1400' w:right='1400'/></w:sectPr></w:pPr></w:p>"
+        + "<w:p><w:r><w:t>下一节正文</w:t></w:r></w:p></w:body></w:document>");
+    Path target = tempDir.resolve("strict-textless-section-margins.docx");
+    List<CheckResult> findings = new ArrayList<>();
+    for (String side : List.of("top", "bottom", "left", "right"))
+      findings.add(new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+          Judgement.FAIL, "1474", "1400", "MARGIN_MISMATCH_" + side,
+          new SourceAddress("word/document.xml", List.of(0, 2), 0, 0)));
+
+    AnnotationReport report = new CommentWriter().writeCopy(source, target, findings);
+
+    assertTrue(report.outputWritten(), report.items().toString());
+    assertEquals(4, report.items().stream().filter(item -> item.status() == AnnotationStatus.WRITTEN).count());
+    try (ZipFile zip = new ZipFile(target.toFile())) {
+      var factory = DocumentBuilderFactory.newInstance();
+      factory.setNamespaceAware(true);
+      var parsed = factory.newDocumentBuilder().parse(zip.getInputStream(zip.getEntry("word/document.xml")));
+      var paragraphs = parsed.getElementsByTagNameNS(strict, "p");
+      for (int index : List.of(0, 3))
+        assertEquals(0, ((org.w3c.dom.Element) paragraphs.item(index))
+            .getElementsByTagNameNS(strict, "commentRangeStart").getLength());
+      var emptySection = (org.w3c.dom.Element) paragraphs.item(1);
+      assertEquals(1, emptySection.getElementsByTagNameNS(strict, "commentRangeStart").getLength());
+      assertEquals(1, emptySection.getElementsByTagNameNS(strict, "commentReference").getLength());
+      assertEquals(0, emptySection.getElementsByTagNameNS(strict, "t").getLength());
+    }
+  }
+
+  @Test
+  void strictXmlTextboxTextDoesNotBecomeTheSectionMarginTextAnchor() throws Exception {
+    String strict = "http://purl.oclc.org/ooxml/wordprocessingml/main";
+    Path source = packageWithDocument("<w:document xmlns:w='" + strict + "'><w:body>"
+        + "<w:p><w:pPr><w:sectPr/></w:pPr><w:r><w:t>上一节正文</w:t></w:r></w:p>"
+        + "<w:p><w:r><w:drawing><w:txbxContent><w:p><w:r><w:t>图内标签</w:t></w:r></w:p>"
+        + "</w:txbxContent></w:drawing></w:r></w:p>"
+        + "<w:p><w:pPr><w:sectPr><w:pgMar w:right='1400'/></w:sectPr></w:pPr></w:p>"
+        + "<w:p><w:r><w:t>下一节正文</w:t></w:r></w:p></w:body></w:document>");
+    var finding = new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "1474", "1400", "MARGIN_MISMATCH",
+        new SourceAddress("word/document.xml", List.of(0, 2), 0, 0));
+
+    AnnotationReport report = new CommentWriter().writeCopy(source,
+        tempDir.resolve("strict-textbox-only-section.docx"), List.of(finding));
+
+    assertTrue(report.outputWritten(), report.items().toString());
+    assertEquals(AnnotationStatus.WRITTEN, report.items().getFirst().status());
+    try (ZipFile zip = new ZipFile(tempDir.resolve("strict-textbox-only-section.docx").toFile())) {
+      var factory = DocumentBuilderFactory.newInstance();
+      factory.setNamespaceAware(true);
+      var parsed = factory.newDocumentBuilder().parse(zip.getInputStream(zip.getEntry("word/document.xml")));
+      var paragraphs = parsed.getElementsByTagNameNS(strict, "p");
+      var outerParagraph = (org.w3c.dom.Element) paragraphs.item(1);
+      var direct = new ArrayList<org.w3c.dom.Element>();
+      for (Node node = outerParagraph.getFirstChild(); node != null; node = node.getNextSibling())
+        if (node instanceof org.w3c.dom.Element element) direct.add(element);
+      int start = -1;
+      int end = -1;
+      for (int index = 0; index < direct.size(); index++) {
+        if ("commentRangeStart".equals(direct.get(index).getLocalName())) start = index;
+        if ("commentRangeEnd".equals(direct.get(index).getLocalName())) end = index;
+      }
+      assertEquals(start + 1, end, "文本框图片不应被圈作页边距错误文字");
+      assertEquals(0, ((org.w3c.dom.Element) paragraphs.item(0))
+          .getElementsByTagNameNS(strict, "commentRangeStart").getLength());
+    }
+  }
+
+  @Test
+  void strictXmlOrdinaryBlankParagraphIsNotASectionMarginAnchor() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+        + "<w:body><w:p/></w:body></w:document>");
+    var finding = new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "1474", "1400", "MARGIN_MISMATCH",
+        new SourceAddress("word/document.xml", List.of(0, 0), 0, 0));
+
+    AnnotationReport report = new CommentWriter().writeCopy(source,
+        tempDir.resolve("strict-ordinary-blank.docx"), List.of(finding));
+
+    assertFalse(report.outputWritten());
+    assertEquals(AnnotationStatus.UNSUPPORTED_ANCHOR, report.items().getFirst().status());
+    assertEquals("EMPTY_ANCHOR", report.items().getFirst().reason());
+  }
+
+  @Test
+  void doesNotTreatAnOrdinaryBlankParagraphAsAnEmptySectionMarginAnchor() throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body><w:p/></w:body></w:document>");
+    Path target = tempDir.resolve("ordinary-blank-paragraph-margin.docx");
+    var finding = new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "1474", "1400", "MARGIN_MISMATCH",
+        new SourceAddress("word/document.xml", List.of(0, 0), 0, 0));
+
+    AnnotationReport report = new CommentWriter().writeCopy(source, target, List.of(finding));
+
+    assertFalse(report.outputWritten());
+    assertEquals(AnnotationStatus.UNSUPPORTED_ANCHOR, report.items().getFirst().status());
+    assertEquals("EMPTY_ANCHOR", report.items().getFirst().reason());
+  }
+
+  @Test
   void marginOnBlankSectionEndStaysBeforeTheNextSection() throws Exception {
     Path source = packageWithDocument("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
         + "<w:p><w:r><w:t>前节正文</w:t></w:r></w:p>"

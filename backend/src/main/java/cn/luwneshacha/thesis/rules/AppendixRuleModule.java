@@ -10,6 +10,7 @@ import cn.luwneshacha.thesis.document.TableModel;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -100,6 +101,7 @@ final class AppendixRuleModule implements RuleModule {
 
   private void checkAppendixObjects(List<CheckResult> findings, ParsedDocument document) {
     Map<String, BigInteger> nextByTypeAndAppendix = new HashMap<>();
+    var uncertainFigureAppendices = new HashSet<String>();
     for (TableModel table : document.tables()) {
       if (table.fragmentEvidence() != null) continue;
       String appendix = regions.appendixLetterAt(document,
@@ -114,9 +116,19 @@ final class AppendixRuleModule implements RuleModule {
       String appendix = regions.appendixLetterAt(document, image.source());
       if (appendix == null) continue;
       SourceAddress source = image.captionSource() == null ? image.source() : image.captionSource();
+      if (image.captionNumberAmbiguous()) {
+        uncertainFigureAppendices.add(appendix);
+        findings.add(result("APP-01", "可确认的附录图号", image.captionText(),
+            "APPENDIX_FIGURE_NUMBER_AMBIGUOUS", Judgement.REVIEW, source));
+        continue;
+      }
       findings.add(checkAppendixObjectNumber("图", appendix, image.captionText(), source));
-      checkAppendixObjectSequence(findings, nextByTypeAndAppendix,
-          "图", appendix, image.captionText(), source);
+      if (uncertainFigureAppendices.contains(appendix))
+        findings.add(result("APP-01", "附录图号连续", image.captionText(),
+            "APPENDIX_FIGURE_SEQUENCE_UNRESOLVED_AFTER_AMBIGUOUS_CAPTION", Judgement.REVIEW, source));
+      else
+        checkAppendixObjectSequence(findings, nextByTypeAndAppendix,
+            "图", appendix, image.captionText(), source);
     }
     for (EquationModel equation : document.equations()) {
       if (!equation.standalone()) continue;

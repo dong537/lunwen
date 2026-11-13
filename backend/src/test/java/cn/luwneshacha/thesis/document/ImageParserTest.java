@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ImageParserTest {
   @Test
@@ -226,6 +228,119 @@ class ImageParserTest {
     assertEquals(1, images.size());
     assertEquals("图1-1 旧式图片", images.get(0).captionText());
     assertTrue(images.get(0).placementNeedsReview());
+  }
+
+  @Test
+  void doesNotJoinGroupedTextBoxesIntoOneCaptionOrCountTheirEmptyVmlShapesAsPictures() {
+    String xml = """
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <w:body>
+            <w:p><w:r><w:drawing><wp:anchor><pic:pic/></wp:anchor></w:drawing></w:r></w:p>
+            <w:p>
+              <w:r><w:pict><v:shape><v:imagedata o:title=""/>
+                <v:textbox><w:txbxContent><w:p><w:r><w:t>图4-1</w:t></w:r></w:p></w:txbxContent></v:textbox>
+              </v:shape></w:pict></w:r>
+              <w:r><w:pict><v:shape><v:imagedata o:title=""/>
+                <v:textbox><w:txbxContent><w:p><w:r><w:t>标签 20% 资料来源及题名</w:t></w:r></w:p></w:txbxContent></v:textbox>
+              </v:shape></w:pict></w:r>
+            </w:p>
+          </w:body>
+        </w:document>
+        """;
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    var image = images.get(0);
+    assertEquals("图4-1", image.captionText());
+    assertTrue(image.captionFragment());
+    assertEquals(4, image.captionSource().end());
+    assertTrue(image.captionSource().elementPath().size() > image.source().elementPath().size());
+    assertFalse(image.captionSource().elementPath().equals(java.util.List.of(0, 1)));
+  }
+
+  @Test
+  void preservesAnIndependentCompleteCaptionInsideOneTextBox() {
+    String xml = """
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:v="urn:schemas-microsoft-com:vml"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <w:body>
+            <w:p><w:r><w:drawing><wp:anchor><pic:pic/></wp:anchor></w:drawing></w:r></w:p>
+            <w:p><w:r><w:pict><v:shape><v:textbox><w:txbxContent>
+              <w:p><w:r><w:t>图4-1 完整图题</w:t></w:r></w:p>
+            </w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>
+          </w:body>
+        </w:document>
+        """;
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    assertEquals("图4-1 完整图题", images.get(0).captionText());
+    assertFalse(images.get(0).captionFragment());
+    assertEquals("图4-1 完整图题".length(), images.get(0).captionSource().end());
+  }
+
+  @Test
+  void keepsAnInternalAnchorButDoesNotChooseBetweenMultipleTextBoxCaptions() {
+    String xml = """
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:v="urn:schemas-microsoft-com:vml"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <w:body>
+            <w:p><w:r><w:drawing><wp:anchor><pic:pic/></wp:anchor></w:drawing></w:r></w:p>
+            <w:p><w:r><w:pict><v:shape><v:textbox><w:txbxContent>
+              <w:p><w:r><w:t>图4-1 第一候选</w:t></w:r></w:p>
+              <w:p><w:r><w:t>图5-1 第二候选</w:t></w:r></w:p>
+            </w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>
+          </w:body>
+        </w:document>
+        """;
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    assertEquals("图4-1 第一候选", images.get(0).captionText());
+    assertTrue(images.get(0).captionFragment());
+    assertTrue(images.get(0).captionNumberAmbiguous());
+    assertEquals(java.util.List.of("4", "5"), images.get(0).ambiguousCaptionChapters());
+    assertEquals("图4-1 第一候选".length(), images.get(0).captionSource().end());
+    assertTrue(images.get(0).captionSource().elementPath().size() > images.get(0).source().elementPath().size());
+  }
+
+  @Test
+  void recognizesVmlImagesWithAlternativeMediaReferences() {
+    for (String mediaReference : java.util.List.of("o:relid=\"rId5\"", "src=\"image.png\"")) {
+      String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+          + "xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\">"
+          + "<w:body><w:p><w:r><w:pict><v:shape><v:imagedata " + mediaReference
+          + "/></v:shape></w:pict></w:r></w:p></w:body></w:document>";
+      assertEquals(1, new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8)).size(), mediaReference);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"\u200B", "\u200C", "\u200D", "\u2060", "\uFEFF"})
+  void invisibleSpacingAfterASeparatedFigureNumberDoesNotCreateAHardCaptionError(String separator) {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:v=\"urn:schemas-microsoft-com:vml\" "
+        + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body>"
+        + "<w:p><w:r><w:drawing><wp:anchor><pic:pic/></wp:anchor></w:drawing></w:r></w:p>"
+        + "<w:p><w:r><w:pict><v:shape><v:textbox><w:txbxContent><w:p><w:r><w:t>图4-1"
+        + separator + "</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>"
+        + "</w:body></w:document>";
+
+    var image = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8)).get(0);
+
+    assertEquals("图4-1" + separator, image.captionText());
+    assertTrue(image.captionFragment());
   }
 
   @Test

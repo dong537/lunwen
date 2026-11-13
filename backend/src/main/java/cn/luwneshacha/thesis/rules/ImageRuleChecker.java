@@ -38,7 +38,10 @@ final class ImageRuleChecker implements RuleModule {
         results.add(result("FIG-03", "图下方有图号和图题", "未找到图题", "FIGURE_CAPTION_MISSING",
             Judgement.FAIL, image.source()));
       } else {
-        if (!FIGURE_CAPTION_FORMAT.matcher(image.captionText()).matches())
+        if (image.captionFragment())
+          results.add(review("FIG-03", "图号与完整图题位于同一可辨认题注", "FIGURE_CAPTION_FRAGMENTED",
+              image.captionSource()));
+        else if (!FIGURE_CAPTION_FORMAT.matcher(image.captionText()).matches())
           results.add(result("FIG-03", "图章号-序号 + 1 空格 + 图题", image.captionText(),
               "FIGURE_CAPTION_NUMBER_FORMAT", Judgement.FAIL, image.captionSource()));
         else
@@ -46,8 +49,11 @@ final class ImageRuleChecker implements RuleModule {
               Judgement.PASS, image.captionSource()));
         Matcher figureNumber = FIGURE_NUMBER.matcher(image.captionText());
         if (regions.appendixLetterAt(document, image.source()) == null) {
-          if (!figureNumber.find())
-            results.add(review("FIG-01", "body reference to figure", "FIGURE_NUMBER_UNKNOWN", image.source()));
+          if (image.captionNumberAmbiguous())
+            results.add(review("FIG-01", "正文引用可确认的图号", "FIGURE_NUMBER_AMBIGUOUS",
+                image.captionSource()));
+          else if (!figureNumber.find())
+            results.add(review("FIG-01", "body reference to figure", "FIGURE_NUMBER_UNKNOWN", image.captionSource()));
           else if (regions.isFigureReferencedInBody(document, figureNumber.group(1), image.captionSource(), FIGURE_REFERENCE))
             results.add(result("FIG-01", "body reference to figure " + figureNumber.group(1), figureNumber.group(1), "",
                 Judgement.PASS, image.captionSource()));
@@ -60,9 +66,19 @@ final class ImageRuleChecker implements RuleModule {
                 "FIGURE_NOT_CITED_IN_BODY", Judgement.FAIL, image.captionSource()));
         }
       }
-      captionParagraph(document, image.captionSource()).ifPresent(paragraph -> addCaptionResults(results, paragraph, rules));
+      if (image.captionNumberAmbiguous()) {
+        results.add(review("CAPTION-FONT", "宋体/Times New Roman",
+            "FIGURE_CAPTION_TYPOGRAPHY_UNRESOLVED", image.captionSource()));
+        results.add(review("CAPTION-SIZE", "21",
+            "FIGURE_CAPTION_TYPOGRAPHY_UNRESOLVED", image.captionSource()));
+      } else {
+        captionParagraph(document, image.captionSource()).ifPresent(paragraph -> addCaptionResults(results, paragraph, rules));
+      }
       if (image.captionText() != null) {
-        if (Boolean.FALSE.equals(image.captionCentered()))
+        if (image.captionFragment())
+          results.add(review("FIG-02", "图题位于图下方并居中", "FIGURE_CAPTION_LAYOUT_UNRESOLVED",
+              image.captionSource()));
+        else if (Boolean.FALSE.equals(image.captionCentered()))
           results.add(result("FIG-02", "caption below image and centered", "caption is not centered",
               "FIGURE_NOT_CENTERED", Judgement.FAIL, image.captionSource()));
         else if (!image.inline())
@@ -83,13 +99,27 @@ final class ImageRuleChecker implements RuleModule {
   private void checkFigureNumberSequences(List<CheckResult> results, ParsedDocument document) {
     Map<String, BigInteger> next = new java.util.HashMap<>();
     Set<SourceAddress> seenCaptions = new LinkedHashSet<>();
+    Set<String> uncertainChapters = new HashSet<>();
+    boolean unknownChapterAmbiguity = false;
     for (ImageModel image : document.images()) {
       if (regions.isBeforeMainBody(document, image.source())
           || regions.appendixLetterAt(document, image.source()) != null) continue;
       SourceAddress captionSource = image.captionSource() == null ? image.source() : image.captionSource();
       if (!seenCaptions.add(captionSource)) continue;
       Matcher matcher = FIGURE_SEQUENCE.matcher(image.captionText() == null ? "" : image.captionText());
+      if (image.captionNumberAmbiguous()) {
+        if (!image.ambiguousCaptionChapters().isEmpty())
+          uncertainChapters.addAll(image.ambiguousCaptionChapters());
+        else if (matcher.find()) uncertainChapters.add(matcher.group(1));
+        else unknownChapterAmbiguity = true;
+        continue;
+      }
       if (!matcher.find()) continue;
+      if (unknownChapterAmbiguity || uncertainChapters.contains(matcher.group(1))) {
+        results.add(review("FIG-05", "同章图号连续", "FIGURE_SEQUENCE_UNRESOLVED_AFTER_AMBIGUOUS_CAPTION",
+            captionSource));
+        continue;
+      }
       checkNumberSequence(results, next, matcher.group(1), matcher.group(2), image.captionText(), captionSource);
     }
   }

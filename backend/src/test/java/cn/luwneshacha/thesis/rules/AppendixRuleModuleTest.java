@@ -178,6 +178,55 @@ class AppendixRuleModuleTest {
   }
 
   @Test
+  void ambiguousTextBoxFigureNumbersAreNotHardFailuresInAnAppendix() {
+    var appendix = paragraph("附录 A 源代码", List.of(0, 1));
+    var imageParagraph = paragraph("", List.of(0, 2));
+    var candidate = paragraph("图A1 第一候选", List.of(0, 3, 0, 0));
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 2), 0, 0),
+        candidate.source(), "图A1 第一候选", 100, 200, false, null, true,
+        0, 0, false, false, true, true);
+    var document = new ParsedDocument("sha", List.of(appendix, imageParagraph, candidate), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(image));
+
+    var findings = new AppendixRuleModule().check(document, RuleSet.schoolV1());
+
+    assertTrue(findings.stream().anyMatch(finding ->
+        "APPENDIX_FIGURE_NUMBER_AMBIGUOUS".equals(finding.reasonCode())
+            && finding.judgement() == Judgement.REVIEW
+            && finding.source().equals(candidate.source())), findings.toString());
+    assertFalse(findings.stream().anyMatch(finding -> finding.judgement() == Judgement.FAIL), findings.toString());
+  }
+
+  @Test
+  void appendixFigureSequenceAfterAnAmbiguousCaptionIsReviewedOnlyInThatAppendix() {
+    var appendixA = paragraph("附录 A 源代码", List.of(0, 1));
+    var ambiguousCaption = paragraph("图A1 第一候选", List.of(0, 3, 0, 0));
+    var laterCaption = paragraph("图A2 后续图", List.of(0, 5));
+    var appendixB = paragraph("附录 B 数据", List.of(0, 6));
+    var unaffectedCaption = paragraph("图B2 跳号图", List.of(0, 8));
+    var ambiguous = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 2), 0, 0),
+        ambiguousCaption.source(), "图A1 第一候选", 100, 200, false, null, true,
+        0, 0, false, false, true, true);
+    var later = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 4), 0, 0),
+        laterCaption.source(), "图A2 后续图", 100, 200, true, true, true);
+    var unaffected = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 7), 0, 0),
+        unaffectedCaption.source(), "图B2 跳号图", 100, 200, true, true, true);
+    var document = new ParsedDocument("sha", List.of(appendixA, paragraph("", List.of(0, 2)),
+        ambiguousCaption, paragraph("", List.of(0, 4)), laterCaption, appendixB,
+        paragraph("", List.of(0, 7)), unaffectedCaption), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(ambiguous, later, unaffected));
+
+    var findings = new AppendixRuleModule().check(document, RuleSet.schoolV1());
+
+    assertTrue(findings.stream().anyMatch(finding -> finding.source().equals(laterCaption.source())
+        && "APPENDIX_FIGURE_SEQUENCE_UNRESOLVED_AFTER_AMBIGUOUS_CAPTION".equals(finding.reasonCode())
+        && finding.judgement() == Judgement.REVIEW), findings.toString());
+    assertTrue(findings.stream().anyMatch(finding -> finding.source().equals(unaffectedCaption.source())
+        && "APPENDIX_OBJECT_SEQUENCE_MISMATCH".equals(finding.reasonCode())
+        && finding.judgement() == Judgement.FAIL), findings.toString());
+  }
+
+  @Test
   void checksFigureSequenceWhenAppendixLetterIsSeparatedByASpace() {
     var appendix = paragraph("附录 A 源代码", List.of(0, 1));
     var firstFigureCaption = paragraph("图 A1 系统流程", List.of(0, 2));

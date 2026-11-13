@@ -15,8 +15,15 @@ public final class ImageParser {
   private static final String CHART = "http://schemas.openxmlformats.org/drawingml/2006/chart";
   private static final String VML = "urn:schemas-microsoft-com:vml";
   private static final String OFFICE = "urn:schemas-microsoft-com:office:office";
+  private static final String RELATIONSHIPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  private static final String CAPTION_SPACE = "[\\s\\p{Zs}\\u200B\\u200C\\u200D\\u2060\\uFEFF]";
   private static final Pattern CAPTION = Pattern.compile(
-      "^[\\s\\p{Zs}\\u200B\\u200C\\u200D\\u2060\\uFEFF]*图(?=[0-9A-Z\\s\\p{Zs}])");
+      "^" + CAPTION_SPACE + "*图(?=[0-9A-Z]|" + CAPTION_SPACE + ")");
+  private static final Pattern CAPTION_NUMBER_ONLY = Pattern.compile(
+      "^" + CAPTION_SPACE + "*图" + CAPTION_SPACE
+          + "*(?:\\d+[-－]\\d+|[A-Z]\\d+)" + CAPTION_SPACE + "*$");
+  private static final Pattern CAPTION_CHAPTER = Pattern.compile(
+      "^" + CAPTION_SPACE + "*图" + CAPTION_SPACE + "*(\\d+)[-－]\\d+");
 
   public List<ImageModel> parse(byte[] xml) {
     return parse(xml, null);
@@ -41,12 +48,12 @@ public final class ImageParser {
     boolean drawingChart = XmlPartSupport.W.equals(element.getNamespaceURI())
         && "drawing".equals(element.getLocalName()) && first(element, CHART, "chart") != null;
     boolean vmlPicture = XmlPartSupport.W.equals(element.getNamespaceURI()) && "pict".equals(element.getLocalName())
-        && element.getElementsByTagNameNS(VML, "imagedata").getLength() > 0;
+        && hasVmlImageMediaReference(element);
     // Visio may place its VML preview directly inside w:object. Wrapped
     // previews are collected from their pict/drawing node to avoid duplicates.
     boolean directVmlObject = XmlPartSupport.W.equals(element.getNamespaceURI())
         && "object".equals(element.getLocalName())
-        && element.getElementsByTagNameNS(VML, "imagedata").getLength() > 0
+        && hasVmlImageMediaReference(element)
         && element.getElementsByTagNameNS(XmlPartSupport.W, "pict").getLength() == 0
         && element.getElementsByTagNameNS(XmlPartSupport.W, "drawing").getLength() == 0;
     if ((drawingPicture || drawingChart || vmlPicture || directVmlObject) && !isEquationPreview(element)) {
@@ -66,7 +73,9 @@ public final class ImageParser {
             centered(paragraph, styles), caption == null ? null : centered(caption.paragraph(), styles),
             transformWidthValue.value(), transformHeightValue.value(),
             widthValue.invalid() || heightValue.invalid(),
-            transformWidthValue.invalid() || transformHeightValue.invalid()));
+            transformWidthValue.invalid() || transformHeightValue.invalid(),
+            caption != null && caption.fragment(), caption != null && caption.numberAmbiguous(),
+            caption == null ? List.of() : caption.candidateChapters()));
       }
     }
     int index = 0;
@@ -87,10 +96,73 @@ public final class ImageParser {
       Element next = siblings.get(i);
       if (isIgnorableBetween(next)) continue;
       if (!XmlPartSupport.W.equals(next.getNamespaceURI()) || !"p".equals(next.getLocalName())) return null;
-      String text = XmlPartSupport.text(next);
-      return CAPTION.matcher(text).find() ? new Caption(text, pathOf(next), next) : null;
+      String text = paragraphOwnText(next);
+      if (CAPTION.matcher(text).find())
+        return new Caption(text, pathOf(next), next,
+            hasTextBoxes(next) && CAPTION_NUMBER_ONLY.matcher(text).matches(), false, List.of());
+      if (!XmlPartSupport.isBlankText(text)) return null;
+      return textBoxCaption(next);
     }
     return null;
+  }
+
+  private static Caption textBoxCaption(Element outerParagraph) {
+    Caption candidate = null;
+    boolean ambiguous = false;
+    var chapters = new ArrayList<String>();
+    var boxes = outerParagraph.getElementsByTagNameNS(XmlPartSupport.W, "txbxContent");
+    for (int boxIndex = 0; boxIndex < boxes.getLength(); boxIndex++) {
+      var paragraphs = ((Element) boxes.item(boxIndex)).getElementsByTagNameNS(XmlPartSupport.W, "p");
+      for (int paragraphIndex = 0; paragraphIndex < paragraphs.getLength(); paragraphIndex++) {
+        Element innerParagraph = (Element) paragraphs.item(paragraphIndex);
+        String text = paragraphOwnText(innerParagraph);
+        if (!CAPTION.matcher(text).find()) continue;
+        var chapter = CAPTION_CHAPTER.matcher(text);
+        if (chapter.find() && !chapters.contains(chapter.group(1))) chapters.add(chapter.group(1));
+        if (candidate != null) {
+          ambiguous = true;
+          continue;
+        }
+        candidate = new Caption(text, pathOf(innerParagraph), innerParagraph,
+            CAPTION_NUMBER_ONLY.matcher(text).matches(), false, List.of());
+      }
+    }
+    return candidate == null || !ambiguous ? candidate
+        : new Caption(candidate.text(), candidate.path(), candidate.paragraph(), true, true, chapters);
+  }
+
+  private static boolean hasTextBoxes(Element paragraph) {
+    return paragraph.getElementsByTagNameNS(XmlPartSupport.W, "txbxContent").getLength() > 0;
+  }
+
+  private static String paragraphOwnText(Element paragraph) {
+    StringBuilder text = new StringBuilder();
+    appendOwnText(paragraph, paragraph, text);
+    return text.toString();
+  }
+
+  private static void appendOwnText(Element root, Element element, StringBuilder text) {
+    if (element != root && XmlPartSupport.W.equals(element.getNamespaceURI())) {
+      String local = element.getLocalName();
+      if ("p".equals(local) || "pict".equals(local) || "drawing".equals(local)
+          || "object".equals(local) || "txbxContent".equals(local)) return;
+      if ("t".equals(local)) {
+        text.append(element.getTextContent());
+        return;
+      }
+    }
+    for (Element child : XmlPartSupport.children(element)) appendOwnText(root, child, text);
+  }
+
+  private static boolean hasVmlImageMediaReference(Element element) {
+    var images = element.getElementsByTagNameNS(VML, "imagedata");
+    for (int index = 0; index < images.getLength(); index++) {
+      Element image = (Element) images.item(index);
+      if (!image.getAttributeNS(RELATIONSHIPS, "id").isBlank()
+          || !image.getAttributeNS(OFFICE, "relid").isBlank()
+          || !image.getAttribute("src").isBlank()) return true;
+    }
+    return false;
   }
 
   private static boolean isIgnorableBetween(Element element) {
@@ -249,5 +321,6 @@ public final class ImageParser {
     return List.copyOf(reversed);
   }
 
-  private record Caption(String text, List<Integer> path, Element paragraph) {}
+  private record Caption(String text, List<Integer> path, Element paragraph,
+      boolean fragment, boolean numberAmbiguous, List<String> candidateChapters) {}
 }
