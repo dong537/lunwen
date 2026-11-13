@@ -65,19 +65,21 @@ public final class TableParser {
       int currentTableIndex = tableIndex[0]++;
       ConditionalStyleBorders conditional = currentTableIndex < conditionalBorders.size()
           ? conditionalBorders.get(currentTableIndex) : ConditionalStyleBorders.empty();
+      var rows = tableRows(element);
+      int columns = rows.stream().mapToInt(row -> rowCells(row).size()).max().orElse(0);
+      Caption inTableCaption = findInTableCaption(rows, gridColumnCount(element, rows));
       var caption = findCaption(element);
+      if (caption == null) caption = inTableCaption;
       boolean captionBefore = caption != null;
       if (caption == null) caption = findFollowingCaption(element);
       Element unitParagraph = findSharedUnitParagraph(element);
       String sharedUnitText = unitParagraph == null ? null : XmlPartSupport.text(unitParagraph).trim();
       boolean sharedUnitRightAligned = unitParagraph != null && isRightAligned(unitParagraph, styles);
-      var rows = tableRows(element);
       var repeatingHeaderRowIndexes = new ArrayList<Integer>();
       for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
         if (repeatsAsHeader(rows.get(rowIndex))) repeatingHeaderRowIndexes.add(rowIndex);
       }
-      int columns = rows.stream().mapToInt(row -> rowCells(row).size()).max().orElse(0);
-      int headerRowIndex = findHeaderRowIndex(rows, columns);
+      int headerRowIndex = findHeaderRowIndex(rows, columns, inTableCaption == null ? 0 : 1);
       boolean xmlNumericValuesValid = tableNumericValuesValid(element) && tableGeometryFitsInt(rows);
       var columnWidths = XmlPartSupport.children(element).stream()
           .filter(e -> XmlPartSupport.W.equals(e.getNamespaceURI()) && "tblGrid".equals(e.getLocalName()))
@@ -135,8 +137,8 @@ public final class TableParser {
     }
   }
 
-  private static int findHeaderRowIndex(List<Element> rows, int columns) {
-    for (int index = 0; index < rows.size(); index++) {
+  private static int findHeaderRowIndex(List<Element> rows, int columns, int firstCandidate) {
+    for (int index = firstCandidate; index < rows.size(); index++) {
       Element row = rows.get(index);
       List<Element> cells = rowCells(row);
       String text = cells.stream().map(XmlPartSupport::text).reduce("", String::concat).strip();
@@ -339,6 +341,21 @@ public final class TableParser {
       return CAPTION.matcher(text).find() ? new Caption(text, pathOf(previous)) : null;
     }
     return null;
+  }
+
+  private static Caption findInTableCaption(List<Element> rows, int columns) {
+    if (rows.isEmpty() || columns == 0) return null;
+    List<Element> cells = rowCells(rows.get(0));
+    if (cells.size() != 1 || cellGridSpan(cells.get(0)) != columns) return null;
+    List<Element> paragraphs = XmlPartSupport.children(cells.get(0)).stream()
+        .filter(child -> XmlPartSupport.W.equals(child.getNamespaceURI())
+            && "p".equals(child.getLocalName()))
+        .filter(paragraph -> !XmlPartSupport.isBlankText(XmlPartSupport.text(paragraph)))
+        .toList();
+    if (paragraphs.size() != 1) return null;
+    Element paragraph = paragraphs.get(0);
+    String text = XmlPartSupport.text(paragraph);
+    return CAPTION.matcher(text).find() ? new Caption(text, pathOf(paragraph)) : null;
   }
 
   private Caption findFollowingCaption(Element table) {
