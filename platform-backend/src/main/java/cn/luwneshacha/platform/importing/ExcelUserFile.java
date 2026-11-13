@@ -27,7 +27,12 @@ public final class ExcelUserFile {
   private static final int MAX_ROWS = 2000;
 
   public List<RowInput> read(MultipartFile file, Role role) {
-    String[] columns = columns(role);
+    return read(file, columns(role));
+  }
+  public List<RowInput> readTeacherStudents(MultipartFile file) {
+    return read(file, new String[] {"学号", "姓名", "专业"});
+  }
+  private List<RowInput> read(MultipartFile file, String[] columns) {
     if (file.isEmpty()) throw invalid("IMPORT_EMPTY", "请选择有内容的 Excel 文件");
     if (file.getSize() > MAX_BYTES) throw oversized();
     if (file.getOriginalFilename() == null || !file.getOriginalFilename().toLowerCase(Locale.ROOT).endsWith(".xlsx"))
@@ -45,6 +50,10 @@ public final class ExcelUserFile {
         for (int i = 0; i < columns.length; i++) {
           if (!columns[i].equals(formatter.formatCellValue(header.getCell(i)).trim()))
             throw invalid("IMPORT_HEADER", "第 " + (i + 1) + " 列应为“" + columns[i] + "”，请使用下载的模板");
+        }
+        for (var cell : header) {
+          if (cell.getColumnIndex() >= columns.length && !formatter.formatCellValue(cell).isBlank())
+            throw invalid("IMPORT_HEADER", "有模板以外的表头，请只保留下载模板中的列");
         }
         var result = new ArrayList<RowInput>();
         for (var row : sheet) {
@@ -66,7 +75,7 @@ public final class ExcelUserFile {
           if (!nonempty) continue;
           if (result.size() == MAX_ROWS) throw invalid("IMPORT_ROW_LIMIT", "每次最多导入 2000 行，请拆分文件");
           result.add(new RowInput(row.getRowNum() + 1, values[0], values[1],
-              role == Role.STUDENT ? values[2] : "", role == Role.STUDENT ? values[3] : "", error));
+              columns.length >= 3 ? values[2] : "", columns.length >= 4 ? values[3] : "", error));
         }
         if (result.isEmpty()) throw invalid("IMPORT_EMPTY", "表格中没有账号数据，请在表头下填写名单");
         return List.copyOf(result);
@@ -77,9 +86,14 @@ public final class ExcelUserFile {
   }
 
   public byte[] template(Role role) {
-    String[] columns = columns(role);
+    return template(columns(role), role == Role.STUDENT ? "学生账号" : "教师账号");
+  }
+  public byte[] teacherStudentTemplate() {
+    return template(new String[] {"学号", "姓名", "专业"}, "学生账号");
+  }
+  private byte[] template(String[] columns, String sheetName) {
     try (var book = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
-      var sheet = book.createSheet(role == Role.STUDENT ? "学生账号" : "教师账号");
+      var sheet = book.createSheet(sheetName);
       var text = book.createCellStyle(); text.setDataFormat(book.createDataFormat().getFormat("@"));
       var header = sheet.createRow(0);
       for (int i = 0; i < columns.length; i++) {

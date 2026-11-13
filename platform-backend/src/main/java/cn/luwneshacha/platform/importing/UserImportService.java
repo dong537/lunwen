@@ -3,10 +3,12 @@ package cn.luwneshacha.platform.importing;
 import cn.luwneshacha.platform.account.Role;
 import cn.luwneshacha.platform.account.UserRepository;
 import cn.luwneshacha.platform.account.UserService;
+import cn.luwneshacha.platform.auth.CurrentUser;
 import cn.luwneshacha.platform.common.ApiException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -24,7 +26,27 @@ public class UserImportService {
 
   // No outer transaction: each UserService.create commits independently so invalid rows cannot undo valid ones.
   public ImportResult process(MultipartFile file, Role role, boolean execute) {
-    var rows = files.read(file, role);
+    return processRows(files.read(file, role), execute, row -> {
+      String teacherId = null;
+      if (!row.teacherUsername().isEmpty()) {
+        var teacher = users.findByUsername(row.teacherUsername()).orElseThrow(() ->
+            new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TEACHER", "指导教师工号不存在"));
+        teacherId = teacher.getId().toString();
+      }
+      var request = new UserService.CreateUser(row.username(), row.name(), role, row.major(), teacherId);
+      if (execute) accounts.create(request); else accounts.validateNewUser(request);
+    });
+  }
+
+  public ImportResult processTeacherStudents(CurrentUser current, MultipartFile file, boolean execute) {
+    accounts.validateTeacher(current);
+    return processRows(files.readTeacherStudents(file), execute, row -> {
+      var request = new UserService.CreateStudent(row.username(), row.name(), row.major());
+      if (execute) accounts.createStudent(current, request); else accounts.validateStudent(current, request);
+    });
+  }
+
+  private ImportResult processRows(List<ExcelUserFile.RowInput> rows, boolean execute, Consumer<ExcelUserFile.RowInput> action) {
     var counts = rows.stream().map(ExcelUserFile.RowInput::username).collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
     var errors = new ArrayList<RowError>();
     int valid = 0, success = 0, skipped = 0;
@@ -35,14 +57,8 @@ public class UserImportService {
       }
       if (users.existsByUsername(row.username())) { skipped++; continue; }
       try {
-        String teacherId = null;
-        if (!row.teacherUsername().isEmpty()) {
-          var teacher = users.findByUsername(row.teacherUsername()).orElseThrow(() ->
-              new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TEACHER", "指导教师工号不存在"));
-          teacherId = teacher.getId().toString();
-        }
-        var request = new UserService.CreateUser(row.username(), row.name(), role, row.major(), teacherId);
-        if (execute) { accounts.create(request); success++; } else accounts.validateNewUser(request);
+        action.accept(row);
+        if (execute) success++;
         valid++;
       } catch (ApiException e) {
         if (e.code().equals("USERNAME_EXISTS")) skipped++;

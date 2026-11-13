@@ -1,6 +1,7 @@
 package cn.luwneshacha.platform.account;
 
 import cn.luwneshacha.platform.auth.PasswordHasher;
+import cn.luwneshacha.platform.auth.CurrentUser;
 import cn.luwneshacha.platform.common.ApiException;
 import cn.luwneshacha.platform.common.PageParameters;
 import cn.luwneshacha.platform.common.PageResponse;
@@ -43,14 +44,50 @@ public class UserService {
 
   @Transactional
   public UserView create(@Valid CreateUser request) {
+    return createAccount(request);
+  }
+
+  private UserView createAccount(CreateUser request) {
     validate(request);
     managedRole(request.role());
     String username = request.username();
     if (users.existsByUsername(username)) throw new ApiException(HttpStatus.CONFLICT, "USERNAME_EXISTS", "账号已存在");
     Long teacher = validateProfile(request.role(), request.major(), request.teacherId());
-    var user = users.saveAndFlush(new User(username, passwords.encode("123456"), request.role(), request.name().trim(),
-        nullable(request.major()), teacher, true));
+    var user = new User(username, passwords.encode("123456"), request.role(), request.name().trim(),
+        nullable(request.major()), teacher, true);
+    users.saveAndFlush(user);
     return view(user);
+  }
+
+  @Transactional
+  public UserView createStudent(CurrentUser current, CreateStudent request) {
+    User teacher = requireTeacher(current, true);
+    validate(request);
+    return createAccount(studentRequest(teacher, request));
+  }
+
+  @Transactional(readOnly = true)
+  public void validateStudent(CurrentUser current, CreateStudent request) {
+    User teacher = requireTeacher(current, false);
+    validate(request);
+    validateNewUser(studentRequest(teacher, request));
+  }
+
+  @Transactional(readOnly = true)
+  public void validateTeacher(CurrentUser current) { requireTeacher(current, false); }
+
+  private User requireTeacher(CurrentUser current, boolean lock) {
+    if (current == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "请先登录");
+    User teacher = (lock ? users.findByIdForUpdate(current.id()) : users.findById(current.id()))
+        .orElseThrow(UserService::teacherForbidden);
+    if (teacher.getRole() != Role.TEACHER || !teacher.isActive() || teacher.isMustChangePassword()) throw teacherForbidden();
+    return teacher;
+  }
+  private static ApiException teacherForbidden() {
+    return new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "无权管理该学生");
+  }
+  private static CreateUser studentRequest(User teacher, CreateStudent request) {
+    return new CreateUser(request.username(), request.name(), Role.STUDENT, request.major(), teacher.getId().toString());
   }
 
   @Transactional
@@ -152,4 +189,8 @@ public class UserService {
       @Size(max = 64, message = "专业不能超过64个字符") String major,
       @Pattern(regexp = "[1-9][0-9]*", message = "指导教师编号不正确") String teacherId) {}
   public record ActiveResult(UserView user, long assignedStudents, String message) {}
+  public record CreateStudent(
+      @NotNull(message = "请填写学号") @Pattern(regexp = "[A-Za-z0-9_]{3,32}", message = "学号须为3至32位字母、数字或下划线") String username,
+      @NotBlank(message = "请填写姓名") @Size(max = 64, message = "姓名不能超过64个字符") String name,
+      @Size(max = 64, message = "专业不能超过64个字符") String major) {}
 }
