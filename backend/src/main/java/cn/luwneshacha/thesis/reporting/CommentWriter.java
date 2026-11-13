@@ -1176,9 +1176,19 @@ public final class CommentWriter {
   private static String placementNote(CheckResult result, PageStartAnchorResolver.Placement placement) {
     if (placement == null) return "";
     if (result.ruleId().startsWith("HEADER-")) {
-      return "PLACED_AT_PAGE_START".equals(placement.reason())
+      boolean pageStart = "PLACED_AT_PAGE_START".equals(placement.reason());
+      if ("HEADER-01-MISSING".equals(result.ruleId())) {
+        return pageStart ? "本节缺少相应的页眉设置，批注放在本节适用页面的页首。"
+            : "本节缺少相应的页眉设置，批注标在本节对应位置。";
+      }
+      if ("HEADER-01-TEXT".equals(result.ruleId())
+          && result.actual() != null && result.actual().isBlank()) {
+        return pageStart ? "本节页眉内容为空，批注放在本节适用页面的页首；共用此页眉的页面也需一并修改。"
+            : "本节页眉内容为空，批注标在对应页眉位置。";
+      }
+      return pageStart
           ? "页眉问题，批注放在本节适用页面的页首；共用此页眉的页面也需一并修改。"
-          : "此批注对应本节的空白页眉。";
+          : "此批注对应本节的页眉问题。";
     }
     return "PLACED_AT_PAGE_START".equals(placement.reason())
         ? "问题原位置没有可圈定的文字，批注放在本页页首。"

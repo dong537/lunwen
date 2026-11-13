@@ -14,6 +14,10 @@ final class CoverHeaderScope {
   private static final Pattern FIELD_LABEL = Pattern.compile(
       "^(学生姓名|学号|院系|学院|专业年级|指导教师|指导老师)(?:[:：]|$).*");
   private static final Pattern TITLE_LABEL = Pattern.compile("^(?:论文)?题目(?:[:：]|$).*");
+  private static final Pattern FILLED_COVER_FIELD = Pattern.compile(
+      "^((?:论文)?题目|学生姓名|学号)[:：](.+)$");
+  private static final Pattern TYPE_HEADING_WORDS = Pattern.compile(
+      "^(?:本科生?|毕业生?|设计|论文|学士|学位|[（()）])+$");
   private static final Pattern DATE = Pattern.compile(
       "^(?:19|20)\\d{2}(?:年\\d{1,2}月(?:\\d{1,2}日)?|[-/.]\\d{1,2}(?:[-/.]\\d{1,2})?)$");
   private static final Set<String> FRONT_MATTER = Set.of("摘要", "ABSTRACT", "目录", "CONTENTS",
@@ -60,6 +64,8 @@ final class CoverHeaderScope {
       if (DATE.matcher(text).matches()) lastDate = index;
     }
     boolean recognized = typeHeading || schoolName && fields.size() >= 2;
+    boolean metadataCover = !recognized && initialMetadataCover(document, boundary);
+    recognized |= metadataCover;
     if (!recognized && firstContent == null) {
       SourceAddress imageCover = initialImageCoverSource(document, boundary);
       if (imageCover != null) {
@@ -74,7 +80,7 @@ final class CoverHeaderScope {
     // A standalone cover date also ends the cover when a following declaration or
     // malformed abstract heading is not otherwise identifiable. Blank paragraphs
     // before the next content still belong to the cover's trailing space.
-    int start = lastDate < 0 ? boundary : lastDate + 1;
+    int start = metadataCover || lastDate < 0 ? boundary : lastDate + 1;
     if (boundary == document.paragraphs().size() && lastDate < 0) {
       // Without a structural boundary or a closing cover date, an arbitrary
       // paragraph after a cover heading is not evidence that the whole file is
@@ -90,6 +96,44 @@ final class CoverHeaderScope {
       }
     }
     return new CoverHeaderScope(document, true, firstContent, required);
+  }
+
+  /**
+   * Filled metadata can identify a cover despite a nonstandard type heading.
+   * All evidence must be inside the initial isolated section, immediately before
+   * a recognized front/body boundary; fields elsewhere cannot complete a cover.
+   */
+  private static boolean initialMetadataCover(ParsedDocument document, int boundary) {
+    if (boundary <= 0 || boundary >= document.paragraphs().size() || document.sections().size() < 2)
+      return false;
+    SourceAddress nextSource = document.paragraphs().get(boundary).source();
+    SourceAddress firstSectionEnd = document.sections().getFirst().source();
+    SourceAddress secondSectionEnd = document.sections().get(1).source();
+    if (document.sections().getFirst().terminal() || !isBodyParagraph(nextSource)
+        || !isBodyParagraph(firstSectionEnd) || !isBodyParagraph(secondSectionEnd)
+        || !before(firstSectionEnd, nextSource) || before(secondSectionEnd, nextSource)) return false;
+    Set<String> filledFields = new HashSet<>();
+    boolean date = false;
+    boolean typeEvidence = false;
+    boolean metadataStarted = false;
+    for (int index = 0; index < boundary; index++) {
+      ParagraphModel paragraph = document.paragraphs().get(index);
+      String text = compact(DocumentRegionClassifier.paragraphText(paragraph));
+      if (text.isEmpty()) continue;
+      if (before(firstSectionEnd, paragraph.source())) return false;
+      if (paragraph.insideTextBox() || !isBodyParagraph(paragraph.source())) continue;
+      if (!metadataStarted && text.contains("毕业") && (text.contains("设计") || text.contains("论文"))
+          && TYPE_HEADING_WORDS.matcher(text).matches()) typeEvidence = true;
+      metadataStarted |= FIELD_LABEL.matcher(text).matches() || TITLE_LABEL.matcher(text).matches()
+          || DATE.matcher(text).matches();
+      var field = FILLED_COVER_FIELD.matcher(text);
+      if (field.matches()) {
+        String label = field.group(1);
+        filledFields.add(label.equals("论文题目") ? "题目" : label);
+      }
+      date |= DATE.matcher(text).matches();
+    }
+    return typeEvidence && date && filledFields.containsAll(Set.of("题目", "学生姓名", "学号"));
   }
 
   /**
