@@ -1,6 +1,8 @@
 package cn.luwneshacha.thesis.document;
 
 import static org.junit.jupiter.api.Assertions.*;
+import cn.luwneshacha.thesis.rules.RuleEngine;
+import cn.luwneshacha.thesis.rules.RuleSet;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -565,6 +567,96 @@ class TableParserTest {
     assertNull(tables.get(0).captionText());
     assertEquals("续表4-3", tables.get(1).captionText());
     assertTrue(tables.get(1).captionBefore());
+  }
+
+  @Test
+  void readsCaptionInsideMergedFirstRowAndActualRepeatedHeader() {
+    List<String> expected = List.of("因素名称", "年级", "N", "平均值", "标准差", "F", "P");
+    for (boolean headerMarker : List.of(true, false)) {
+      var tables = new TableParser().parse(
+          inTableCaptionFixture(headerMarker, "P").getBytes(StandardCharsets.UTF_8));
+
+      assertEquals(2, tables.size());
+      assertEquals("表3-4 不同年级专业认同感差异分析", tables.get(0).captionText());
+      assertNotNull(tables.get(0).captionSource());
+      assertTrue(tables.get(0).captionBefore());
+      assertEquals(expected, tables.get(0).headerTexts());
+      assertEquals("续表3-4", tables.get(1).captionText());
+      assertEquals(expected, tables.get(1).headerTexts());
+    }
+  }
+
+  @Test
+  void readsInTableCaptionWhenHeaderAlsoContainsMergedCells() {
+    String grid = "<w:tblGrid>" + "<w:gridCol w:w=\"1200\"/>".repeat(7) + "</w:tblGrid>";
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+        + "<w:tbl>" + grid
+        + "<w:tr><w:tc><w:tcPr><w:gridSpan w:val=\"7\"/></w:tcPr>"
+        + "<w:p><w:r><w:t>表3-7 合并列表头统计</w:t></w:r></w:p></w:tc></w:tr>"
+        + "<w:tr><w:tc><w:tcPr><w:gridSpan w:val=\"2\"/></w:tcPr>"
+        + "<w:p><w:r><w:t>分类</w:t></w:r></w:p></w:tc>"
+        + xmlCell("年级") + xmlCell("N") + xmlCell("平均值")
+        + xmlCell("F") + xmlCell("P") + "</w:tr>"
+        + "</w:tbl></w:body></w:document>";
+
+    var table = new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8)).get(0);
+
+    assertEquals("表3-7 合并列表头统计", table.captionText());
+    assertEquals(List.of("分类", "年级", "N", "平均值", "F", "P"), table.headerTexts());
+  }
+
+  @Test
+  void preservesActualDifferenceInRepeatedHeaderAfterSkippingCaptionRow() {
+    var tables = new TableParser().parse(
+        inTableCaptionFixture(false, "显著性").getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(List.of("因素名称", "年级", "N", "平均值", "标准差", "F", "P"),
+        tables.get(0).headerTexts());
+    assertEquals(List.of("因素名称", "年级", "N", "平均值", "标准差", "F", "显著性"),
+        tables.get(1).headerTexts());
+  }
+
+  @Test
+  void comparesRealContinuationHeadersThroughParserAndRuleEngine() {
+    for (boolean headerMarker : List.of(true, false)) {
+      assertEquals(List.of(), continuationHeaderIssues(inTableCaptionFixture(headerMarker, "P")));
+      assertEquals(List.of("TABLE_CONTINUATION_HEADER_MISMATCH"),
+          continuationHeaderIssues(inTableCaptionFixture(headerMarker, "显著性")));
+    }
+  }
+
+  private static List<String> continuationHeaderIssues(String xml) {
+    var tables = new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+    var document = new ParsedDocument("source", List.of(), List.of(), List.of(),
+        tables, List.of(), List.of(), List.of());
+    return new RuleEngine().check(document, RuleSet.schoolV1()).stream()
+        .filter(result -> "TAB-08".equals(result.ruleId()))
+        .map(result -> result.reasonCode())
+        .toList();
+  }
+
+  private static String inTableCaptionFixture(boolean headerMarker, String continuationLastHeading) {
+    String grid = "<w:tblGrid>" + "<w:gridCol w:w=\"1200\"/>".repeat(7) + "</w:tblGrid>";
+    String captionRow = "<w:tr><w:tc><w:tcPr><w:gridSpan w:val=\"7\"/></w:tcPr>"
+        + "<w:p><w:r><w:t>表3-4 不同年级专业认同感差异分析</w:t></w:r></w:p></w:tc></w:tr>";
+    return "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+        + "<w:tbl>" + grid + captionRow + headerRow(headerMarker, "P")
+        + "<w:tr>" + xmlCell("专业认知") + "</w:tr></w:tbl>"
+        + "<w:p><w:r><w:t>续表3-4</w:t></w:r></w:p>"
+        + "<w:tbl>" + grid + headerRow(headerMarker, continuationLastHeading)
+        + "<w:tr>" + xmlCell("专业适切") + "</w:tr></w:tbl></w:body></w:document>";
+  }
+
+  private static String headerRow(boolean headerMarker, String lastHeading) {
+    StringBuilder row = new StringBuilder("<w:tr>");
+    if (headerMarker) row.append("<w:trPr><w:tblHeader/></w:trPr>");
+    for (String heading : List.of("因素名称", "年级", "N", "平均值", "标准差", "F", lastHeading))
+      row.append(xmlCell(heading));
+    return row.append("</w:tr>").toString();
+  }
+
+  private static String xmlCell(String text) {
+    return "<w:tc><w:p><w:r><w:t>" + text + "</w:t></w:r></w:p></w:tc>";
   }
 
   @Test
