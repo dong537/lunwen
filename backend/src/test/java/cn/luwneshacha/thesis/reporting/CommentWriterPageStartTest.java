@@ -25,13 +25,17 @@ class CommentWriterPageStartTest {
         + "<w:p><w:r><w:t>摘要内容</w:t></w:r></w:p>"
         + "<w:sectPr><w:headerReference w:type=\"default\" r:id=\"h1\"/></w:sectPr>");
     Path output = directory.resolve("output.docx");
-    var result = new CommentWriter().writeCopy(input, output, List.of(finding("HEADER-01-TEXT", "word/header1.xml", List.of(0))));
+    var finding = new CheckResult("HEADER-01-TEXT", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "规定的页眉", "", "HEADER_TEXT_MISMATCH",
+        new SourceAddress("word/header1.xml", List.of(0), 0, 0));
+    var result = new CommentWriter().writeCopy(input, output, List.of(finding));
 
     assertWritten(result);
     Document document = read(output, "word/document.xml");
     assertEquals("摘要", anchorParagraph(document).getTextContent());
     assertEquals(0, document.getElementsByTagNameNS(W, "highlight").getLength());
     assertEquals(0, read(output, "word/header1.xml").getElementsByTagNameNS(W, "commentRangeStart").getLength());
+    assertTrue(read(output, "word/comments.xml").getDocumentElement().getTextContent().contains("页眉内容为空"));
     assertPreserved(input, output);
   }
 
@@ -182,11 +186,100 @@ class CommentWriterPageStartTest {
     Path input = create("<w:p><w:pPr><w:sectPr/></w:pPr><w:r><w:t>致谢正文</w:t></w:r></w:p>"
         + "<w:sectPr><w:headerReference w:type=\"default\" r:id=\"h1\"/></w:sectPr>");
     Path output = directory.resolve("output.docx");
-    var result = new CommentWriter().writeCopy(input, output, List.of(finding("HEADER-01-TEXT", "word/header1.xml", List.of(0))));
+    var finding = new CheckResult("HEADER-01-TEXT", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "规定的页眉", "", "HEADER_TEXT_MISMATCH",
+        new SourceAddress("word/header1.xml", List.of(0), 0, 0));
+    var result = new CommentWriter().writeCopy(input, output, List.of(finding));
 
     assertWritten(result);
     assertEquals(0, read(output, "word/document.xml").getElementsByTagNameNS(W, "commentRangeStart").getLength());
     assertEquals("", anchorParagraph(read(output, "word/header1.xml")).getTextContent());
+    assertTrue(read(output, "word/comments.xml").getDocumentElement().getTextContent().contains("页眉内容为空"));
+    assertPreserved(input, output);
+  }
+
+  @Test
+  void missingHeaderCommentDoesNotDescribeAnEmptyHeaderPart() throws Exception {
+    Path input = create("<w:p><w:r><w:t>摘要</w:t></w:r></w:p>"
+        + "<w:p><w:r><w:t>摘要正文</w:t></w:r></w:p>"
+        + "<w:p><w:pPr><w:sectPr/></w:pPr></w:p>");
+    Path output = directory.resolve("missing-header.docx");
+    var finding = new CheckResult("HEADER-01-MISSING", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "规定的页眉", "未设置 default 页眉", "HEADER_MISSING",
+        new SourceAddress("word/document.xml", List.of(0, 2), 0, 0));
+
+    var result = new CommentWriter().writeCopy(input, output, List.of(finding));
+
+    assertWritten(result);
+    String comment = read(output, "word/comments.xml").getDocumentElement().getTextContent();
+    assertTrue(comment.contains("缺少相应的页眉设置"), comment);
+    assertFalse(comment.contains("空白页眉"), comment);
+    assertFalse(comment.contains("共用此页眉"), comment);
+    assertEquals("", anchorParagraph(read(output, "word/document.xml")).getTextContent());
+    assertEquals("PLACED_AT_SOURCE_POINT", result.items().getFirst().reason());
+    assertPreserved(input, output);
+  }
+
+  @Test
+  void missingHeaderAtPageStartDoesNotClaimAHeaderPartIsShared() throws Exception {
+    Path input = create("<w:p><w:r><w:t>摘要</w:t></w:r></w:p>"
+        + "<w:p><w:pPr><w:sectPr/></w:pPr></w:p>");
+    Path output = directory.resolve("missing-header-page-start.docx");
+    var finding = new CheckResult("HEADER-01-MISSING", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "规定的页眉", "未设置 default 页眉", "HEADER_MISSING",
+        new SourceAddress("word/document.xml", List.of(0, 1), 0, 0));
+
+    var result = new CommentWriter().writeCopy(input, output, List.of(finding));
+
+    assertWritten(result);
+    String comment = read(output, "word/comments.xml").getDocumentElement().getTextContent();
+    assertTrue(comment.contains("缺少相应的页眉设置"), comment);
+    assertTrue(comment.contains("页首"), comment);
+    assertFalse(comment.contains("空白页眉"), comment);
+    assertFalse(comment.contains("共用此页眉"), comment);
+    assertEquals("摘要", anchorParagraph(read(output, "word/document.xml")).getTextContent());
+    assertEquals("PLACED_AT_PAGE_START", result.items().getFirst().reason());
+    assertPreserved(input, output);
+  }
+
+  @Test
+  void emptyAnchorDoesNotMeanEntireHeaderContentIsEmpty() throws Exception {
+    for (String rule : List.of("HEADER-01-TEXT", "HEADER-01-ALIGNMENT")) {
+      Path input = create("<w:p><w:pPr><w:sectPr/></w:pPr><w:r><w:t>致谢正文</w:t></w:r></w:p>"
+          + "<w:sectPr><w:headerReference w:type=\"default\" r:id=\"h1\"/></w:sectPr>", null,
+          "<w:p/><w:p><w:r><w:t>其他页眉文字</w:t></w:r></w:p>");
+      var finding = new CheckResult(rule, Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+          Judgement.FAIL, "规定的页眉", "其他页眉文字", "HEADER_TEXT_MISMATCH",
+          new SourceAddress("word/header1.xml", List.of(0), 0, 0));
+      Path output = directory.resolve(rule + ".docx");
+
+      var result = new CommentWriter().writeCopy(input, output, List.of(finding));
+
+      assertWritten(result);
+      String comment = read(output, "word/comments.xml").getDocumentElement().getTextContent();
+      assertTrue(comment.contains("页眉问题"), comment);
+      assertFalse(comment.contains("空白页眉"), comment);
+      assertFalse(comment.contains("页眉内容为空"), comment);
+      assertEquals("", anchorParagraph(read(output, "word/header1.xml")).getTextContent());
+      assertPreserved(input, output);
+    }
+  }
+
+  @Test
+  void unknownHeaderTextDoesNotClaimEmptyContent() throws Exception {
+    Path input = create("<w:p><w:pPr><w:sectPr/></w:pPr><w:r><w:t>致谢正文</w:t></w:r></w:p>"
+        + "<w:sectPr><w:headerReference w:type=\"default\" r:id=\"h1\"/></w:sectPr>");
+    var finding = new CheckResult("HEADER-01-TEXT", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "规定的页眉", null, "HEADER_TEXT_MISMATCH",
+        new SourceAddress("word/header1.xml", List.of(0), 0, 0));
+    Path output = directory.resolve("unknown-header.docx");
+
+    var result = new CommentWriter().writeCopy(input, output, List.of(finding));
+
+    assertWritten(result);
+    String comment = read(output, "word/comments.xml").getDocumentElement().getTextContent();
+    assertTrue(comment.contains("页眉问题"), comment);
+    assertFalse(comment.contains("页眉内容为空"), comment);
     assertPreserved(input, output);
   }
 
@@ -226,11 +319,15 @@ class CommentWriterPageStartTest {
   }
 
   private Path create(String body, String styles) throws Exception {
+    return create(body, styles, "<w:p/>");
+  }
+
+  private Path create(String body, String styles, String headerBody) throws Exception {
     Path path = directory.resolve("input.docx");
     try (var zip = new ZipOutputStream(Files.newOutputStream(path))) {
       put(zip, "[Content_Types].xml", "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Override PartName=\"/word/document.xml\" ContentType=\"application/xml\"/></Types>");
       put(zip, "word/document.xml", "<w:document xmlns:w=\"" + W + "\" xmlns:r=\"" + R + "\"><w:body>" + body + "</w:body></w:document>");
-      put(zip, "word/header1.xml", "<w:hdr xmlns:w=\"" + W + "\"><w:p/></w:hdr>");
+      put(zip, "word/header1.xml", "<w:hdr xmlns:w=\"" + W + "\">" + headerBody + "</w:hdr>");
       if (styles != null) put(zip, "word/styles.xml", styles);
       put(zip, "word/_rels/document.xml.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"h1\" Type=\"" + R + "/header\" Target=\"header1.xml\"/></Relationships>");
     }
