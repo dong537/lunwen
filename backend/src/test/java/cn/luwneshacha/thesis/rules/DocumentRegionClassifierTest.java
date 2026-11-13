@@ -81,6 +81,35 @@ class DocumentRegionClassifierTest {
         Pattern.compile("(?:如|见|参见)图(?!\\s*\\d)(?:所示|如下)?|下图所示")));
   }
 
+  @Test
+  void figureLabelsInsideAnotherTextBoxAreNotBodyCitationsWithoutChangingTableCitationSemantics() {
+    var chapter = paragraph("第一章 引言", List.of(0, 0), 0);
+    var groupOuter = paragraph("", List.of(0, 2, 0, 0));
+    var figureCaption = textBoxParagraph("图1-1 图题", List.of(0, 2, 0, 0, 1, 0));
+    var otherBox = textBoxParagraph("如图1-1、表1-1所示", List.of(0, 2, 0, 0, 2, 0));
+    var document = new ParsedDocument("source", List.of(chapter, groupOuter, figureCaption, otherBox),
+        List.of(), List.of());
+
+    assertFalse(classifier.isFigureReferencedInBody(document, "1-1", figureCaption.source(),
+        Pattern.compile("图\\s*(\\d+-\\d+)")));
+    assertTrue(classifier.isLabelReferencedInBody(document, "1-1", null,
+        Pattern.compile("表\\s*(\\d+-\\d+)")));
+  }
+
+  @Test
+  void anIndependentBodyTextBoxStillCountsAsAFigureCitation() {
+    var chapter = paragraph("第一章 引言", List.of(0, 0), 0);
+    var groupOuter = paragraph("", List.of(0, 2));
+    var figureCaption = textBoxParagraph("图1-1 图题", List.of(0, 2, 0, 0));
+    var independentOuter = paragraph("", List.of(0, 4));
+    var reference = textBoxParagraph("如图1-1所示", List.of(0, 4, 0, 0));
+    var document = new ParsedDocument("source",
+        List.of(chapter, groupOuter, figureCaption, independentOuter, reference), List.of(), List.of());
+
+    assertTrue(classifier.isFigureReferencedInBody(document, "1-1", figureCaption.source(),
+        Pattern.compile("图\\s*(\\d+-\\d+)")));
+  }
+
   private static ParsedDocument document() {
     return new ParsedDocument("source", List.of(
         paragraph("封面信息", List.of(0, 0)),
@@ -97,6 +126,14 @@ class DocumentRegionClassifierTest {
     SourceAddress source = paragraphSource(path, 0, text.length());
     return new ParagraphModel(List.of(new RunModel(text, null, null, null, null, null, null, null, source)),
         null, null, null, null, null, null, source, null, outlineLevel, null);
+  }
+
+  private static ParagraphModel textBoxParagraph(String text, List<Integer> path) {
+    SourceAddress source = paragraphSource(path, 0, text.length());
+    return new ParagraphModel(List.of(new RunModel(text, null, null, null, null, null, null, null, source)),
+        null, null, null, null, null, null, source, null, null, null,
+        null, null, null, false, null, null, false, false, false, false,
+        null, null, null, false, true, null);
   }
 
   private static ParagraphModel paragraph(String text, List<Integer> path, Integer outlineLevel,

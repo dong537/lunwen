@@ -130,7 +130,22 @@ public final class CommentWriter {
         });
         String key;
         try {
-          Element anchor = resolveAnchor(partDocument, result.source());
+          Element sourceElement = resolve(partDocument, result.source());
+          boolean sectionMargin = "PAGE-01".equals(result.ruleId())
+              && "word/document.xml".equals(partName) && isSectionPropertiesSource(sourceElement);
+          Element anchor = resolveAnchor(partDocument, result.source(), sectionMargin);
+          if (sectionMargin && isBlankParagraph(anchor)) {
+            // Prefer text within the same section, as before. Only a truly textless
+            // section uses a zero-width point on its own empty paragraph.
+            try {
+              nearestNonEmptyParagraph(partDocument, anchor);
+            } catch (AnchorException error) {
+              if (!"EMPTY_ANCHOR".equals(error.getMessage())) throw error;
+              var placement = pageStarts.resolve(partName, anchor, result.contextSource());
+              pointPlacements.put(result, placement);
+              anchor = placement.paragraph();
+            }
+          }
           if (supportsEmptyPoint(result) && isBlankParagraph(anchor)) {
             var placement = pageStarts.resolve(partName, anchor, result.contextSource());
             pointPlacements.put(result, placement);
@@ -145,7 +160,7 @@ public final class CommentWriter {
               ? pointPlacements.get(result).anchorSource().partName() : partName;
           key = anchorPart + "|anchor:" + anchorId + (pointPlacements.containsKey(result) ? "|point" : "");
           initialAnchors.putIfAbsent(key, anchor);
-          sourceElements.put(result, resolve(partDocument, result.source()));
+          sourceElements.put(result, sourceElement);
         } catch (AnchorException error) {
           key = partName + "|path:" + result.source().elementPath();
           initialAnchorErrors.putIfAbsent(key, error.getMessage());
@@ -350,7 +365,8 @@ public final class CommentWriter {
     return current;
   }
 
-  private static Element resolveAnchor(Document document, SourceAddress address) throws AnchorException {
+  private static Element resolveAnchor(Document document, SourceAddress address,
+      boolean allowTextlessSection) throws AnchorException {
     Element resolved = resolve(document, address);
     if ("p".equals(resolved.getLocalName())) return resolved;
     Element ancestor = resolved;
@@ -358,12 +374,26 @@ public final class CommentWriter {
     if (ancestor != null) return ancestor;
     Element descendantParagraph = firstParagraphWithMainStoryContent(resolved);
     if (descendantParagraph != null) return descendantParagraph;
-    if ("sectPr".equals(resolved.getLocalName())) return nearestNonEmptyParagraphBefore(document, resolved);
+    if ("sectPr".equals(resolved.getLocalName()))
+      return nearestNonEmptyParagraphBefore(document, resolved, allowTextlessSection);
     throw new AnchorException("ANCHOR_NOT_PARAGRAPH");
   }
 
   private static boolean isBlankParagraph(Element paragraph) {
     return paragraph == null || !isInsideTextBox(paragraph) && !hasMainStoryContent(paragraph);
+  }
+
+  private static boolean isSectionPropertiesSource(Element sourceElement) {
+    for (Element current = sourceElement; current != null; current = parentElement(current)) {
+      if (!isWordNamespace(current.getNamespaceURI())) continue;
+      if ("sectPr".equals(current.getLocalName())) return true;
+      if ("p".equals(current.getLocalName())) return hasDirectSectionProperties(current);
+    }
+    return false;
+  }
+
+  private static boolean isWordNamespace(String namespace) {
+    return W.equals(namespace) || STRICT_W.equals(namespace);
   }
 
   private static Element firstParagraphWithMainStoryContent(Element root) {
@@ -376,10 +406,12 @@ public final class CommentWriter {
     return null;
   }
 
-  private static Element nearestNonEmptyParagraphBefore(Document document, Element sectionProperties)
+  private static Element nearestNonEmptyParagraphBefore(Document document, Element sectionProperties,
+      boolean allowTextlessSection)
       throws AnchorException {
     String namespace = document.getDocumentElement().getNamespaceURI();
     var paragraphs = document.getDocumentElement().getElementsByTagNameNS(namespace, "p");
+    Element blankInSection = null;
     for (int index = paragraphs.getLength() - 1; index >= 0; index--) {
       Element paragraph = (Element) paragraphs.item(index);
       if ((paragraph.compareDocumentPosition(sectionProperties) & Node.DOCUMENT_POSITION_FOLLOWING) == 0)
@@ -387,7 +419,9 @@ public final class CommentWriter {
       if (isInsideTextBox(paragraph)) continue;
       if (hasDirectSectionProperties(paragraph)) break;
       if (hasMainStoryContent(paragraph)) return paragraph;
+      if (blankInSection == null) blankInSection = paragraph;
     }
+    if (allowTextlessSection && blankInSection != null) return blankInSection;
     throw new AnchorException("EMPTY_ANCHOR");
   }
 
@@ -420,8 +454,10 @@ public final class CommentWriter {
   }
 
   private static boolean hasDirectSectionProperties(Element paragraph) {
-    Element paragraphProperties = directChild(paragraph, W, "pPr");
-    return directChild(paragraphProperties, W, "sectPr") != null;
+    String namespace = paragraph.getNamespaceURI();
+    if (!isWordNamespace(namespace)) return false;
+    Element paragraphProperties = directChild(paragraph, namespace, "pPr");
+    return directChild(paragraphProperties, namespace, "sectPr") != null;
   }
 
   private static Element directChild(Element parent, String namespace, String localName) {
@@ -436,7 +472,7 @@ public final class CommentWriter {
   private static boolean isInsideTextBox(Element element) {
     Node current = element;
     while (current instanceof Element currentElement) {
-      if (W.equals(currentElement.getNamespaceURI()) && "txbxContent".equals(currentElement.getLocalName()))
+      if (isWordNamespace(currentElement.getNamespaceURI()) && "txbxContent".equals(currentElement.getLocalName()))
         return true;
       current = current.getParentNode();
     }
@@ -445,12 +481,12 @@ public final class CommentWriter {
 
   private static boolean hasMainStoryContent(Element element) {
     return hasVisibleTextOutsideTextBoxes(element)
-        || element.getElementsByTagNameNS(W, "txbxContent").getLength() == 0
+        || element.getElementsByTagNameNS(element.getNamespaceURI(), "txbxContent").getLength() == 0
             && hasDrawingOutsideTextBoxes(element);
   }
 
   private static boolean hasVisibleTextOutsideTextBoxes(Node node) {
-    if (node instanceof Element element && W.equals(element.getNamespaceURI())
+    if (node instanceof Element element && isWordNamespace(element.getNamespaceURI())
         && "txbxContent".equals(element.getLocalName())) return false;
     if (node.getNodeType() == Node.TEXT_NODE && !node.getNodeValue().isBlank()) return true;
     for (Node child = node.getFirstChild(); child != null; child = child.getNextSibling()) {
@@ -460,7 +496,7 @@ public final class CommentWriter {
   }
 
   private static boolean hasDrawingOutsideTextBoxes(Node node) {
-    if (node instanceof Element element && W.equals(element.getNamespaceURI())) {
+    if (node instanceof Element element && isWordNamespace(element.getNamespaceURI())) {
       if ("txbxContent".equals(element.getLocalName())) return false;
       if ("drawing".equals(element.getLocalName())) return true;
     }
