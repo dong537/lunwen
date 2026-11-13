@@ -34,7 +34,8 @@ final class TableRuleChecker {
     List<String> headers = headerOwner.headerTexts();
     List<List<String>> rows = table.fragmentEvidence() != null
         && table.fragmentEvidence().kind() == TableFragmentEvidence.Kind.DATA_ROW
-        ? List.of(table.headerTexts()) : table.dataRowTexts();
+        ? java.util.stream.Stream.concat(java.util.stream.Stream.of(table.headerTexts()),
+            table.dataRowTexts().stream()).toList() : table.dataRowTexts();
     boolean repeatedHeader = table.fragmentEvidence() != null
         && table.fragmentEvidence().kind() == TableFragmentEvidence.Kind.REPEATED_HEADER;
     if (!repeatedHeader && table.columns() > 0 && isQuantitativeTable(headerOwner)) {
@@ -94,6 +95,7 @@ final class TableRuleChecker {
     TableModel original = adjacent;
     TableModel repeatedHeader = null;
     if (adjacent.fragmentEvidence() != null
+        && adjacent.fragmentEvidence().continuationSource() != null
         && adjacent.fragmentEvidence().continuationSource().equals(continuation.source())) {
       original = tables.stream().filter(candidate ->
           candidate.source().equals(adjacent.fragmentEvidence().originalSource()))

@@ -223,6 +223,80 @@ class SplitTableEvidenceTest {
         document.tables().get(1).source().equals(item.source())), "fragment is not an independent appendix object");
   }
 
+  @Test
+  void joinsTwoAdjacentFloatingFragmentsByExactColumnEdges() {
+    var document = floatingPair("", 1592, 2909, false, false, true, "13", "3 cm");
+    var first = document.tables().get(0);
+    var tail = document.tables().get(1);
+    assertEquals(List.of(2921, 3018, 3025), first.columnWidthsTwips());
+    assertEquals(List.of(2909, 3018, 3025), tail.columnWidthsTwips());
+    assertFalse(first.bottomBorder());
+    assertFalse(tail.topBorder());
+    assertTrue(tail.bottomBorder());
+    assertNotNull(tail.fragmentEvidence());
+    assertEquals(TableFragmentEvidence.Kind.DATA_ROW, tail.fragmentEvidence().kind());
+    assertEquals(first.source(), tail.fragmentEvidence().originalSource());
+    assertNull(tail.fragmentEvidence().continuationSource());
+    var findings = findings(document);
+    assertFalse(findings.stream().anyMatch(item -> item.ruleId().equals("TAB-02")
+        || item.reasonCode().equals("TABLE_CAPTION_MISSING")), findings.toString());
+  }
+
+  @Test
+  void reportsMissingBottomOnSecondFloatingFragment() {
+    var document = floatingPair("", 1592, 2909, false, false, false, "13", "3 cm");
+    var borders = findings(document).stream().filter(item -> item.ruleId().equals("TAB-02")).toList();
+    assertNotNull(document.tables().get(1).fragmentEvidence());
+    assertEquals(1, borders.size(), borders.toString());
+    assertEquals("底线", borders.get(0).expected());
+    assertEquals(document.tables().get(1).source(), borders.get(0).source());
+  }
+
+  @Test
+  void keepsEveryFloatingTailRowInUnitChecks() {
+    var document = floatingPair("", 1592, 2909, false, false, true, "13", "3");
+    assertNotNull(document.tables().get(1).fragmentEvidence());
+    assertTrue(findings(document).stream().anyMatch(item -> item.ruleId().equals("TAB-04")
+        && item.source().equals(document.tables().get(1).source())), findings(document).toString());
+  }
+
+  @Test
+  void leavesIndependentFloatingTablesUnlinked() {
+    for (var document : List.of(
+        floatingPair("", 1592, 2909, true, false, true, "13", "3 cm"),
+        floatingPair("", 1593, 2909, false, false, true, "13", "3 cm"),
+        floatingPair("", 1592, 2908, false, false, true, "13", "3 cm"),
+        floatingPair("", 1592, 2909, false, true, true, "13", "3 cm"),
+        floatingPair("", 1592, 2909, false, false, true, "14", "3 cm"),
+        floatingPair(paragraph("中间正文"), 1592, 2909, false, false, true, "13", "3 cm"),
+        floatingPair(paragraph("表2-2 独立表题"), 1592, 2909, false, false, true, "13", "3 cm"),
+        floatingPair("<w:p><w:r><w:drawing/></w:r></w:p>", 1592, 2909, false, false, true, "13", "3 cm"))) {
+      assertNull(document.tables().get(1).fragmentEvidence(), document.tables().toString());
+    }
+  }
+
+  @Test
+  void doesNotBorrowAnUnnumberedFloatingTailForAnUnrelatedContinuation() {
+    String original = floatingTable("13", 1580, 2921,
+        floatingRow("身份编码", "长度", "年级", true, true)
+            + floatingRow("L3", "1 cm", "大二", false, false));
+    String tail = floatingTable("13", 1592, 2909,
+        floatingRow("L4", "2 cm", "大二", false, false)
+            + floatingRow("L5", "3 cm", "大三", false, true));
+    String unrelatedContinuation = floatingTable("13", 1580, 2921,
+        floatingRow("身份编码", "长度", "年级", true, true)
+            + floatingRow("L6", "4 cm", "大四", false, true));
+    String styles = "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+        + "<w:style w:type=\"table\" w:styleId=\"13\"/></w:styles>";
+    var document = parsed(paragraph("表2-1 受访者基本信息") + original + tail
+        + paragraph("中间正文") + paragraph("续表2-1") + unrelatedContinuation, styles);
+    assertNotNull(document.tables().get(1).fragmentEvidence());
+    assertNull(document.tables().get(1).fragmentEvidence().continuationSource());
+    assertTrue(findings(document).stream().anyMatch(item ->
+        "TABLE_CONTINUATION_ORIGINAL_MISSING".equals(item.reasonCode())
+            && item.source().equals(document.tables().get(2).captionSource())));
+  }
+
   private static ParagraphModel heading(String text, SourceAddress source) {
     var run = new RunModel(text, "Times New Roman", "Times New Roman", "黑体", null,
         32, null, false, null, source);
@@ -254,15 +328,58 @@ class SplitTableEvidenceTest {
   }
 
   private static ParsedDocument parsed(String body) {
+    return parsed(body, null);
+  }
+
+  private static ParsedDocument parsed(String body, String stylesXml) {
     String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
         + paragraph("第一章  测试") + body + "</w:body></w:document>";
-    var tables = new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+    var tables = new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8),
+        stylesXml == null ? null : stylesXml.getBytes(StandardCharsets.UTF_8));
     var source = new SourceAddress("word/document.xml", List.of(0, 0), 0, 7);
     var run = new RunModel("第一章  测试", "Times New Roman", "Times New Roman", "黑体", null,
         32, null, false, null, source);
     var chapter = new ParagraphModel(List.of(run), null, null, null, 360, "auto", source,
         null, null, "center");
     return new ParsedDocument("source", List.of(chapter), List.of(), List.of(), tables, List.of(), List.of());
+  }
+
+  private static ParsedDocument floatingPair(String between, int tailX, int tailFirstWidth,
+      boolean originalBottom, boolean tailTop, boolean tailBottom, String tailStyle, String lastValue) {
+    String original = floatingTable("13", 1580, 2921,
+        floatingRow("身份编码", "长度", "年级", true, true)
+            + floatingRow("L3", "1 cm", "大二", false, originalBottom));
+    String tail = floatingTable(tailStyle, tailX, tailFirstWidth,
+        floatingRow("L4", "2 cm", "大二", tailTop, false)
+            + floatingRow("L5", lastValue, "大三", false, tailBottom));
+    String styles = "<w:styles xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+        + "<w:style w:type=\"table\" w:styleId=\"13\"/>"
+        + "<w:style w:type=\"table\" w:styleId=\"14\"/></w:styles>";
+    return parsed(paragraph("表2-1 受访者基本信息") + original + between + tail, styles);
+  }
+
+  private static String floatingTable(String style, int x, int firstWidth, String rows) {
+    return "<w:tbl><w:tblPr><w:tblStyle w:val=\"" + style + "\"/>"
+        + "<w:tblpPr w:leftFromText=\"180\" w:rightFromText=\"180\""
+        + " w:vertAnchor=\"text\" w:horzAnchor=\"page\" w:tblpX=\"" + x
+        + "\" w:tblpY=\"63\"/>"
+        + "<w:tblOverlap w:val=\"never\"/>"
+        + "<w:tblW w:w=\"" + (firstWidth + 3018 + 3025) + "\" w:type=\"dxa\"/>"
+        + "<w:tblInd w:w=\"0\" w:type=\"dxa\"/>"
+        + "<w:tblLayout w:type=\"fixed\"/></w:tblPr>"
+        + "<w:tblGrid><w:gridCol w:w=\"" + firstWidth + "\"/>"
+        + "<w:gridCol w:w=\"3018\"/><w:gridCol w:w=\"3025\"/></w:tblGrid>"
+        + rows + "</w:tbl>";
+  }
+
+  private static String floatingRow(String first, String second, String third, boolean top, boolean bottom) {
+    return "<w:tr>" + floatingCell(first, top, bottom) + floatingCell(second, top, bottom)
+        + floatingCell(third, top, bottom) + "</w:tr>";
+  }
+
+  private static String floatingCell(String text, boolean top, boolean bottom) {
+    return "<w:tc><w:tcPr><w:tcBorders>" + border("top", top) + border("bottom", bottom)
+        + "</w:tcBorders></w:tcPr>" + paragraph(text) + "</w:tc>";
   }
 
   private static String table(String gridWidth, boolean top, boolean middle, boolean bottom, String rows) {

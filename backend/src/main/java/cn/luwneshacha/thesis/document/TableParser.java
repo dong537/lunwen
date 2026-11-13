@@ -53,6 +53,7 @@ public final class TableParser {
           ? List.of() : resolveConditionalStyleBorders(pkg, countTables(root));
       collect(root, List.of(), result, tableElements, styles, conditionalBorders, pkg != null, new int[] {0});
       linkSplitFragments(result, tableElements);
+      linkAdjacentFloatingDataFragments(result, tableElements);
       return List.copyOf(result);
     } catch (Exception e) { throw new IllegalArgumentException("unable to parse tables", e); }
   }
@@ -705,6 +706,102 @@ public final class TableParser {
           continuation.source(), repeatedHeader ? TableFragmentEvidence.Kind.REPEATED_HEADER
               : TableFragmentEvidence.Kind.DATA_ROW)));
     }
+  }
+
+  /** A floating table can be serialized as two adjacent physical tables without a 续表 label. */
+  private static void linkAdjacentFloatingDataFragments(List<TableModel> tables, List<Element> elements) {
+    for (int index = 1; index < tables.size(); index++) {
+      TableModel original = tables.get(index - 1);
+      TableModel tail = tables.get(index);
+      Element originalXml = elements.get(index - 1);
+      Element tailXml = elements.get(index);
+      if (original.fragmentEvidence() != null || tail.fragmentEvidence() != null
+          || original.captionText() == null || !original.captionBefore()
+          || original.rows() < 2 || original.headerTexts().isEmpty()
+          || tail.captionText() != null || tail.rows() < 1
+          || original.headerTexts().equals(tail.headerTexts())
+          || original.bottomBorder() || tail.topBorder() || tail.middleBorder()
+          || !original.tableStyleBorderEvidenceResolved() || !tail.tableStyleBorderEvidenceResolved()
+          || original.mergedCells() || tail.mergedCells()
+          || countTables(originalXml) != 1 || countTables(tailXml) != 1
+          || tableRows(originalXml).stream().anyMatch(TableParser::hasGridOmissions)
+          || tableRows(tailXml).stream().anyMatch(TableParser::hasGridOmissions)
+          || !adjacentForSplit(originalXml, tailXml, null)
+          || !sameFloatingColumnEdges(original, tail, originalXml, tailXml)) continue;
+      tables.set(index, tail.withFragmentEvidence(new TableFragmentEvidence(
+          original.source(), null, TableFragmentEvidence.Kind.DATA_ROW)));
+    }
+  }
+
+  private static boolean hasGridOmissions(Element row) {
+    Element properties = direct(row, "trPr");
+    return direct(properties, "gridBefore") != null || direct(properties, "gridAfter") != null;
+  }
+
+  private static boolean sameFloatingColumnEdges(TableModel original, TableModel tail,
+      Element originalXml, Element tailXml) {
+    if (!original.xmlNumericValuesValid() || !tail.xmlNumericValuesValid()
+        || original.columns() < 2 || original.columns() != tail.columns()
+        || original.columnWidthsTwips().size() != original.columns()
+        || tail.columnWidthsTwips().size() != tail.columns()
+        || original.columnWidthsTwips().stream().anyMatch(width -> width <= 0)
+        || tail.columnWidthsTwips().stream().anyMatch(width -> width <= 0)) return false;
+    Element originalPr = direct(originalXml, "tblPr");
+    Element tailPr = direct(tailXml, "tblPr");
+    Element originalPosition = direct(originalPr, "tblpPr");
+    Element tailPosition = direct(tailPr, "tblpPr");
+    Integer originalX = integerAttribute(originalPosition, "tblpX");
+    Integer tailX = integerAttribute(tailPosition, "tblpX");
+    if (originalX == null || tailX == null
+        || attribute(originalPosition, "tblpXSpec") != null
+        || attribute(tailPosition, "tblpXSpec") != null
+        || !sameFloatingPositionExceptX(originalPosition, tailPosition)
+        || !java.util.Objects.equals(attribute(direct(originalPr, "tblStyle"), "val"),
+            attribute(direct(tailPr, "tblStyle"), "val"))
+        || !sameProperty(originalPr, tailPr, "tblLayout")
+        || !sameProperty(originalPr, tailPr, "tblOverlap")
+        || !sameProperty(originalPr, tailPr, "tblInd")
+        || !sameProperty(originalPr, tailPr, "tblCellMar")
+        || !sameProperty(originalPr, tailPr, "tblBorders")
+        || !tableWidthMatchesGrid(originalPr, original.columnWidthsTwips())
+        || !tableWidthMatchesGrid(tailPr, tail.columnWidthsTwips())) return false;
+    long originalBoundary = originalX;
+    long tailBoundary = tailX;
+    for (int column = 0; column < original.columns(); column++) {
+      originalBoundary += original.columnWidthsTwips().get(column);
+      tailBoundary += tail.columnWidthsTwips().get(column);
+      if (originalBoundary != tailBoundary) return false;
+    }
+    return true;
+  }
+
+  private static boolean tableWidthMatchesGrid(Element properties, List<Integer> grid) {
+    Element width = direct(properties, "tblW");
+    Integer value = integerAttribute(width, "w");
+    return value != null && "dxa".equals(attribute(width, "type"))
+        && grid.stream().mapToLong(Integer::longValue).sum() == value.longValue();
+  }
+
+  private static boolean sameProperty(Element left, Element right, String name) {
+    Element leftChild = direct(left, name);
+    Element rightChild = direct(right, name);
+    return leftChild == null ? rightChild == null : leftChild.isEqualNode(rightChild);
+  }
+
+  private static boolean sameFloatingPositionExceptX(Element left, Element right) {
+    if (left == null || right == null || attribute(left, "tblpY") == null
+        || attribute(left, "horzAnchor") == null || attribute(left, "vertAnchor") == null)
+      return false;
+    org.w3c.dom.NamedNodeMap leftAttributes = left.getAttributes();
+    org.w3c.dom.NamedNodeMap rightAttributes = right.getAttributes();
+    if (leftAttributes.getLength() != rightAttributes.getLength()) return false;
+    for (int index = 0; index < leftAttributes.getLength(); index++) {
+      Node attribute = leftAttributes.item(index);
+      if ("tblpX".equals(attribute.getLocalName())) continue;
+      Node other = rightAttributes.getNamedItemNS(attribute.getNamespaceURI(), attribute.getLocalName());
+      if (other == null || !attribute.getNodeValue().equals(other.getNodeValue())) return false;
+    }
+    return true;
   }
 
   private static boolean sameGeometry(TableModel left, TableModel right) {
