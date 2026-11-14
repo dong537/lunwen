@@ -75,7 +75,8 @@ public class SubmissionService {
     Instant now = Instant.now();
     Instant reservedUntil = now.plus(UPLOAD_RESERVATION);
     Submission item = transaction.execute(status -> {
-      var pending = new Submission(actor.getId(), name, size, directory, now);
+      User student = actor(current, true); requireRole(student, Role.STUDENT);
+      var pending = new Submission(student.getId(), name, size, directory, now);
       pending.reserveUploadUntil(reservedUntil);
       return submissions.saveAndFlush(pending);
     });
@@ -169,7 +170,8 @@ public class SubmissionService {
     String directory = "submissions/" + UUID.randomUUID();
     Instant now = Instant.now();
     Submission item = transaction.execute(status -> {
-      var pending = new Submission(actor.getId(), name, file.getSize(), directory, now);
+      User student = actor(current, true); requireRole(student, Role.STUDENT);
+      var pending = new Submission(student.getId(), name, file.getSize(), directory, now);
       pending.reserveUploadUntil(now.plus(UPLOAD_RESERVATION));
       return submissions.saveAndFlush(pending);
     });
@@ -257,6 +259,10 @@ public class SubmissionService {
   }
   public Dashboard dashboard(CurrentUser current) {
     User actor=actor(current); requireRole(actor,Role.ADMIN);
+    if (actor.getCollegeCode()!=null) return new Dashboard(
+        users.countByRoleAndActiveAndCollegeCode(Role.STUDENT,true,actor.getCollegeCode()),
+        users.countByRoleAndActiveAndCollegeCode(Role.TEACHER,true,actor.getCollegeCode()),
+        submissions.countByStudentCollege(actor.getCollegeCode()));
     return new Dashboard(users.countByRoleAndActive(Role.STUDENT,true),users.countByRoleAndActive(Role.TEACHER,true),submissions.count());
   }
   private PageResponse<SubmissionView> page(long studentId,int page,int size) {
@@ -288,8 +294,12 @@ public class SubmissionService {
     return student;
   }
   private User actor(CurrentUser current) {
+    return actor(current, false);
+  }
+  private User actor(CurrentUser current, boolean lock) {
     if (current==null) throw new ApiException(HttpStatus.UNAUTHORIZED,"UNAUTHENTICATED","请先登录");
-    User user=users.findById(current.id()).orElseThrow(SubmissionService::forbidden);
+    User user=(lock ? users.findByIdForUpdate(current.id()) : users.findById(current.id()))
+        .orElseThrow(SubmissionService::forbidden);
     if (!user.isActive() || user.isMustChangePassword()) throw forbidden();
     return user;
   }

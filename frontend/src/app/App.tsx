@@ -3,6 +3,8 @@ import { useMutation } from '@tanstack/react-query'
 import { Link, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { Avatar, Button, Dropdown, Layout, Menu, Space, theme, Typography } from 'antd'
 import {
+  AppstoreOutlined,
+  BarChartOutlined,
   DashboardOutlined,
   DownOutlined,
   FileTextOutlined,
@@ -21,7 +23,10 @@ import {
   SubmissionDetailPage,
 } from '../features/submissions/SubmissionPages'
 import { TeacherStudentDetailPage, TeacherStudentsPage } from '../features/students/TeacherPages'
+import { TeacherImportPage } from '../features/students/TeacherImportPage'
+import { TeacherStatisticsPage } from '../features/students/TeacherStatisticsPage'
 import { AdminDashboardPage, UsersPage } from '../features/users/UserPages'
+import { MajorsPage } from '../features/users/MajorsPage'
 import { ImportsPage } from '../features/imports/ImportsPage'
 
 const { Header, Sider, Content } = Layout
@@ -32,7 +37,7 @@ function RequireSession() {
   if (error)
     return (
       <div style={{ maxWidth: 640, margin: '80px auto', padding: 24 }}>
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <ApiAlert error={error} retry={refresh} />
         </Space>
       </div>
@@ -74,10 +79,12 @@ function selectedKeyFor(role: Role, pathname: string): string {
   }
   if (role === 'TEACHER') {
     if (pathname === '/profile') return '/profile'
+    if (pathname.startsWith('/teacher/statistics')) return '/teacher/statistics'
     return '/teacher/students'
   }
   if (pathname.startsWith('/admin/users')) return '/admin/users'
   if (pathname.startsWith('/admin/imports')) return '/admin/imports'
+  if (pathname.startsWith('/admin/majors')) return '/admin/majors'
   if (pathname === '/profile') return '/profile'
   return '/admin'
 }
@@ -111,11 +118,13 @@ function Shell() {
       : user.role === 'TEACHER'
         ? [
             { key: '/teacher/students', icon: <TeamOutlined />, label: '我的学生' },
+            { key: '/teacher/statistics', icon: <BarChartOutlined />, label: '统计' },
             { key: '/profile', icon: <UserOutlined />, label: '个人信息' },
           ]
         : [
             { key: '/admin', icon: <DashboardOutlined />, label: '平台概览' },
             { key: '/admin/users', icon: <TeamOutlined />, label: '账号管理' },
+            { key: '/admin/majors', icon: <AppstoreOutlined />, label: '专业目录' },
             { key: '/admin/imports', icon: <ImportOutlined />, label: '批量导入' },
             { key: '/profile', icon: <UserOutlined />, label: '个人信息' },
           ]
@@ -240,11 +249,14 @@ export function App() {
             </Route>
             <Route element={<RoleGuard roles={['TEACHER']} />}>
               <Route path="/teacher/students" element={<TeacherStudentsPage />} />
+              <Route path="/teacher/students/import" element={<TeacherImportPage />} />
               <Route path="/teacher/students/:id" element={<TeacherStudentDetailPage />} />
+              <Route path="/teacher/statistics" element={<TeacherStatisticsPage />} />
             </Route>
             <Route element={<RoleGuard roles={['ADMIN']} />}>
               <Route path="/admin" element={<AdminDashboardPage />} />
               <Route path="/admin/users" element={<UsersPage />} />
+              <Route path="/admin/majors" element={<MajorsPage />} />
               <Route path="/admin/imports" element={<ImportsPage />} />
             </Route>
             <Route

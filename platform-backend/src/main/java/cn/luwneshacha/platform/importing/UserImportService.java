@@ -1,6 +1,7 @@
 package cn.luwneshacha.platform.importing;
 
 import cn.luwneshacha.platform.account.Role;
+import cn.luwneshacha.platform.account.AdminScope;
 import cn.luwneshacha.platform.account.UserRepository;
 import cn.luwneshacha.platform.account.UserService;
 import cn.luwneshacha.platform.auth.CurrentUser;
@@ -20,12 +21,16 @@ public class UserImportService {
   private final ExcelUserFile files;
   private final UserRepository users;
   private final UserService accounts;
-  public UserImportService(ExcelUserFile files, UserRepository users, UserService accounts) {
-    this.files = files; this.users = users; this.accounts = accounts;
+  private final AdminScope scope;
+  public UserImportService(ExcelUserFile files, UserRepository users, UserService accounts, AdminScope scope) {
+    this.files = files; this.users = users; this.accounts = accounts; this.scope = scope;
   }
 
   // No outer transaction: each UserService.create commits independently so invalid rows cannot undo valid ones.
-  public ImportResult process(MultipartFile file, Role role, boolean execute) {
+  public ImportResult process(CurrentUser current, MultipartFile file, Role role, String collegeCode, boolean execute) {
+    if (role != Role.STUDENT && role != Role.TEACHER)
+      throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_ROLE", "名单只能导入学生或教师账号");
+    String college = scope.college(scope.actor(current), collegeCode, true);
     return processRows(files.read(file, role), execute, row -> {
       String teacherId = null;
       if (!row.teacherUsername().isEmpty()) {
@@ -33,8 +38,8 @@ public class UserImportService {
             new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TEACHER", "指导教师工号不存在"));
         teacherId = teacher.getId().toString();
       }
-      var request = new UserService.CreateUser(row.username(), row.name(), role, row.major(), teacherId);
-      if (execute) accounts.create(request); else accounts.validateNewUser(request);
+      var request = new UserService.CreateUser(row.username(), row.name(), role, row.major(), teacherId, college);
+      if (execute) accounts.create(current, request); else accounts.validateNewUser(current, request);
     });
   }
 

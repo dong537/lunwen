@@ -1,6 +1,10 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5173'
+const port = Number(process.env.PLAYWRIGHT_PORT ?? '5173')
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  throw new Error('PLAYWRIGHT_PORT 必须是有效端口号')
+}
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:' + port
 
 export default defineConfig({
   testDir: './e2e',
@@ -17,9 +21,9 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: 'npm run dev',
+        command: 'npm run dev -- --port ' + port + ' --strictPort',
         url: baseURL,
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: false,
         timeout: 120_000,
       },
 })

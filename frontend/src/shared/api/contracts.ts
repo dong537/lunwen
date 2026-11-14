@@ -8,6 +8,8 @@ export interface User {
   major: string | null
   teacherId: string | null
   teacherName: string | null
+  collegeCode: string | null
+  collegeName: string | null
   active: boolean
   mustChangePassword: boolean
 }
@@ -63,6 +65,32 @@ export interface Dashboard {
   activeTeachers: number
   totalSubmissions: number
 }
+export interface College {
+  code: string
+  name: string
+}
+export interface SchoolCatalog {
+  schoolName: string
+  colleges: College[]
+}
+export interface Major {
+  id: string
+  collegeCode: string
+  name: string
+  active: boolean
+}
+export interface TeacherStatistics {
+  totalStudents: number
+  activeStudents: number
+  submittedStudents: number
+  notSubmittedStudents: number
+  studentsWithSuccessfulReview: number
+  successfulSubmissions: number
+  pendingSubmissions: number
+  processingSubmissions: number
+  failedSubmissions: number
+  latestSuccessfulProblemCount: number | null
+}
 export interface ImportError {
   row: number
   username: string
@@ -79,7 +107,8 @@ export interface ImportResult {
 export interface UserInput {
   username: string
   name: string
-  role: AccountRole
+  role: Role
+  collegeCode: string
   major?: string | null
   teacherId?: string | null
 }

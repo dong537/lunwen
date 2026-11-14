@@ -10,12 +10,16 @@
 
 ### 2. Signatures
 
+- GET /api/teacher/majors：仅返回当前教师所属学院启用的专业目录项；无学院的旧教师无法新增或导入学生。
+
 - `POST /api/teacher/students`：JSON `{username, name, major?}`，成功 `201 UserView`。
 - `GET /api/teacher/students/imports/template`：返回 `.xlsx` 模板，列为学号、姓名、专业。
 - `POST /api/teacher/students/imports/preview|execute`：multipart 字段仅 `file`，返回既有 `ImportResult`。
 - `GET /api/teacher/statistics`：无参数，返回扁平汇总。
 
 ### 3. Contracts
+
+- 新学生的 collegeCode 由当前教师数据库归属继承，客户端不能指定学院；专业若提供，须匹配本院启用目录。无学院的旧教师返回 409 COLLEGE_UNASSIGNED，需校级管理员人工补录。
 
 - 服务端固定新账号角色为 `STUDENT`、指导教师为当前会话对应且数据库中有效的教师；忽略客户端指定角色或指导关系不安全，必须拒绝未知字段。
 - 文件每行包含学号、姓名、专业；专业可空。文件限制为 `.xlsx`、5 MiB、2000 条数据行、单工作表，不执行公式。

@@ -47,6 +47,7 @@ class TeacherStudentIntegrationTest {
   @Autowired UserRepository users;
   @Autowired PasswordHasher passwords;
   @Autowired UserService accounts;
+  @Autowired MajorCatalogRepository majors;
   @Autowired UserImportService imports;
   @Autowired JdbcTemplate database;
   User teacher, other;
@@ -56,11 +57,15 @@ class TeacherStudentIntegrationTest {
     database.execute("drop function if exists disable_roster_teacher_after_insert()");
     users.findAll().stream().filter(u -> u.getRole() == Role.STUDENT).forEach(users::delete);
     users.deleteAll();
-    teacher = users.save(new User("teacher01", passwords.encode("Password1"), Role.TEACHER, "教师甲", null, null, false));
-    other = users.save(new User("teacher02", passwords.encode("Password1"), Role.TEACHER, "教师乙", null, null, false));
+    majors.deleteAll();
+    majors.save(new MajorCatalog(College.INFORMATION_ENGINEERING.name(), "计算机"));
+    teacher = users.save(new User("teacher01", passwords.encode("Password1"), Role.TEACHER, "教师甲", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    other = users.save(new User("teacher02", passwords.encode("Password1"), Role.TEACHER, "教师乙", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
   }
 
-  @Test void createsStudentForCurrentTeacherWithoutGroupingAndForcesPasswordChange() throws Exception {
+  @Test void createsStudentForCurrentTeacherWithoutGroupingOrMandatoryPasswordChange() throws Exception {
     var auth = login("teacher01");
     mvc.perform(post("/api/teacher/students").session(auth.session()).header(auth.header(), auth.token())
         .contentType("application/json").content("{\"username\":\"student01\",\"name\":\" 学生甲 \",\"major\":\"计算机\"}"))
@@ -68,7 +73,7 @@ class TeacherStudentIntegrationTest {
         .andExpect(jsonPath("$.data.role").value("STUDENT"))
         .andExpect(jsonPath("$.data.teacherId").value(teacher.getId().toString()))
         .andExpect(jsonPath("$.data.name").value("学生甲"))
-        .andExpect(jsonPath("$.data.mustChangePassword").value(true));
+        .andExpect(jsonPath("$.data.mustChangePassword").value(false));
     var saved = users.findByUsername("student01").orElseThrow();
     assertTrue(passwords.matches("123456", saved.getPasswordHash()));
     mvc.perform(post("/api/teacher/students").session(auth.session()).header(auth.header(), auth.token())
@@ -114,6 +119,7 @@ class TeacherStudentIntegrationTest {
         .andExpect(jsonPath("$.data.skippedCount").value(1)).andExpect(jsonPath("$.data.failedCount").value(3));
     var saved = users.findByUsername("student01").orElseThrow();
     assertEquals(teacher.getId(), saved.getTeacherId());
+    assertFalse(saved.isMustChangePassword());
     mvc.perform(get("/api/auth/me").session(auth.session())).andExpect(status().isOk());
     assertEquals("原学生", users.findById(existing.getId()).orElseThrow().getName());
     assertEquals(other.getId(), users.findById(existing.getId()).orElseThrow().getTeacherId());

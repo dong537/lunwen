@@ -9,7 +9,10 @@ import org.springframework.data.repository.query.Param;
 public interface SubmissionRepository extends JpaRepository<Submission, Long> {
   Page<Submission> findByStudentIdOrderByCreatedAtDescIdDesc(long studentId, Pageable page);
   long countByStatus(SubmissionStatus status);
+  @Query("select count(s) from Submission s where s.studentId in (select u.id from User u where u.collegeCode=:collegeCode)")
+  long countByStudentCollege(@Param("collegeCode") String collegeCode);
   boolean existsByStorageDir(String directory);
+  boolean existsByStudentId(Long studentId);
 
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query("update Submission s set s.updatedAt=:now where s.id=:id and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PENDING and s.attempts=0 and s.updatedAt>:now")

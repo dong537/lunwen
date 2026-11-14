@@ -12,6 +12,7 @@ public class User {
   @Enumerated(EnumType.STRING) @Column(nullable = false, length = 16, updatable = false) private Role role;
   @Column(nullable = false, length = 64) private String name;
   @Column(length = 64) private String major;
+  @Column(name = "college_code", length = 32) private String collegeCode;
   @Column(name = "teacher_id") private Long teacherId;
   @Column(name = "must_change_password", nullable = false) private boolean mustChangePassword;
   @Column(name = "is_active", nullable = false) private boolean active = true;
@@ -20,8 +21,12 @@ public class User {
   protected User() {}
   public User(String username, String passwordHash, Role role, String name, String major, Long teacherId,
       boolean mustChangePassword) {
+    this(username, passwordHash, role, name, major, teacherId, null, mustChangePassword);
+  }
+  public User(String username, String passwordHash, Role role, String name, String major, Long teacherId,
+      String collegeCode, boolean mustChangePassword) {
     this.username = username; this.passwordHash = passwordHash; this.role = role; this.name = name;
-    this.major = major; this.teacherId = teacherId; this.mustChangePassword = mustChangePassword;
+    this.major = major; this.teacherId = teacherId; this.collegeCode = collegeCode; this.mustChangePassword = mustChangePassword;
   }
   @PrePersist void created() { createdAt = Instant.now(); updatedAt = createdAt; }
   @PreUpdate void updated() { updatedAt = Instant.now(); }
@@ -31,12 +36,16 @@ public class User {
   public Role getRole() { return role; }
   public String getName() { return name; }
   public String getMajor() { return major; }
+  public String getCollegeCode() { return collegeCode; }
   public Long getTeacherId() { return teacherId; }
   public boolean isActive() { return active; }
   public boolean isMustChangePassword() { return mustChangePassword; }
   public Instant getCreatedAt() { return createdAt; }
   public Instant getUpdatedAt() { return updatedAt; }
   public void updateProfile(String name, String major, Long teacherId) { this.name = name; this.major = major; this.teacherId = teacherId; }
+  public void updateProfile(String name, String major, Long teacherId, String collegeCode) {
+    updateProfile(name, major, teacherId); this.collegeCode = collegeCode;
+  }
   public void setActive(boolean active) { this.active = active; }
   public void changePassword(String hash, boolean mustChange) { passwordHash = hash; mustChangePassword = mustChange; }
 }

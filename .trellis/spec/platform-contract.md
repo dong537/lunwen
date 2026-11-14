@@ -2,13 +2,13 @@
 
 ## 服务与模型
 
-业务服务 `platform-backend` 包根 `cn.luwneshacha.platform`，端口18099。现有backend引擎18098只对业务服务网络开放。PG16，Flyway显式迁移；Hibernate ddl-auto=validate。两个业务表严格按用户设计，不级联删除。时间Instant/UTC；所有API id为字符串，计数数字。
+业务服务 `platform-backend` 包根 `cn.luwneshacha.platform`，端口18099。现有backend引擎18098只对业务服务网络开放。PG16，Flyway显式迁移；Hibernate ddl-auto=validate。账号与提交表不级联删除；专业目录由独立表维护。时间Instant/UTC；所有API id为字符串，计数数字。
 
 `common.ApiResponse<T>(data,error,requestId)` 统一envelope，成功error=null；`common.ApiException(HttpStatus status,String code,String message)`；`common.PageResponse<T>(List<T> items,long total,int page,int size)`，page从1开始，size默认20最大100。错误中文，技术细节仅日志。参数超界400。HTTP 401未登录，403无权/须改密，404不存在，409重复，413超大小。
 
-`account.Role`枚举STUDENT/TEACHER/ADMIN。`account.User` JPA实体getId/getUsername/getRole/getName/getMajor/getTeacherId/getPasswordHash/isActive/isMustChangePassword/getCreatedAt/getUpdatedAt。`account.UserRepository extends JpaRepository<User,Long>`，findByUsername、existsByUsername。`auth.CurrentUser` record(long id,String username,Role role,String name,boolean mustChangePassword)，通过@AuthenticationPrincipal注入。
+`account.Role`枚举STUDENT/TEACHER/ADMIN。`account.User` JPA实体getId/getUsername/getRole/getName/getMajor/getCollegeCode/getTeacherId/getPasswordHash/isActive/isMustChangePassword/getCreatedAt/getUpdatedAt。`account.UserRepository extends JpaRepository<User,Long>`，findByUsername、existsByUsername。`auth.CurrentUser` record(long id,String username,Role role,String name,boolean mustChangePassword)，通过@AuthenticationPrincipal注入。
 
-`account.UserView` record(String id,String username,String name,Role role,String major,String teacherId,String teacherName,boolean active,boolean mustChangePassword)。其它模块不暴露User实体。
+`account.UserView` record(String id,String username,String name,Role role,String major,String teacherId,String teacherName,boolean active,boolean mustChangePassword,String collegeCode,String collegeName)。其它模块不暴露User实体。
 
 ## API
 
@@ -19,16 +19,20 @@
 - POST /api/auth/logout → null
 - GET /api/auth/me → UserView
 - POST /api/auth/password {oldPassword,newPassword,confirmPassword} → UserView
-- GET /api/admin/users?role=STUDENT|TEACHER&q=&active=true|false&page=1&size=20 → PageResponse<UserView>
-- POST /api/admin/users {username,name,role,major?,teacherId?} → UserView，初始密码123456
-- PATCH /api/admin/users/{id} {name,major?,teacherId?} → UserView；username/role不可修改
+- GET /api/admin/users?role=STUDENT|TEACHER|ADMIN&q=&active=true|false&collegeCode=&page=1&size=20 → PageResponse<UserView>；ADMIN 仅校级管理员可查
+- POST /api/admin/users {username,name,role,collegeCode,major?,teacherId?} → UserView，初始密码123456
+- PATCH /api/admin/users/{id} {name,collegeCode,major?,teacherId?} → UserView；username/role不可修改
+- DELETE /api/admin/users/{id} → {outcome:DELETED|DEACTIVATED,user,message}；详见学院账号契约
 - POST /api/admin/users/{id}/active {active} → {user:UserView,assignedStudents:number,message:string|null}
 - POST /api/admin/users/{id}/reset-password → UserView
-- GET /api/admin/teachers?q= → UserView[]，仅启用教师，可搜索至多100项
+- GET /api/admin/teachers?collegeCode=&q= → UserView[]，仅同院启用教师，可搜索至多100项
+- GET /api/admin/catalog → {schoolName,colleges:[{code,name}]}
+- GET /api/admin/majors?collegeCode= → [{id,collegeCode,name,active}]
+- POST /api/admin/majors {collegeCode,name} → Major；PATCH /api/admin/majors/{id}/active {active} → Major
 - GET /api/admin/dashboard → {activeStudents,activeTeachers,totalSubmissions}
 - GET /api/admin/imports/template?role=STUDENT|TEACHER → xlsx下载
-- POST /api/admin/imports/preview multipart(file,role) → ImportResult
-- POST /api/admin/imports/execute multipart(file,role) → ImportResult
+- POST /api/admin/imports/preview multipart(file,role,collegeCode) → ImportResult
+- POST /api/admin/imports/execute multipart(file,role,collegeCode) → ImportResult
 - ImportResult={totalRows,validRows,successCount,skippedCount,failedCount,errors:[{row,username,message}]}；预检successCount=0，错误可由前端将响应CSV导出，执行必须重读文件/数据库，不接受前端可导入名单。
 - GET /api/submissions?page=1&size=20 → PageResponse<SubmissionView>，仅学生本人
 - POST /api/submissions multipart(file) → 202 SubmissionView
@@ -36,6 +40,10 @@
 - GET /api/submissions/{id}/files/original|marked|report → 流式DOCX下载；FAILED拒绝，marked仅SUCCESS，report仅SUCCESS且report_available=true
 - GET /api/submissions/{id}/files/{kind}/url → 短期COS预签名下载；kind同上，复用相同授权与报告可用性检查，report仅指向当前attempt的report.docx。
 - GET /api/teacher/students?q=&page=1&size=20 → PageResponse<StudentSummary>
+- POST /api/teacher/students {username,name,major?} → UserView
+- GET /api/teacher/majors → 本院启用的 Major[]
+- GET /api/teacher/students/imports/template → xlsx下载；POST /api/teacher/students/imports/preview|execute multipart(file) → ImportResult
+- GET /api/teacher/statistics → 教师名单与提交的十项实时汇总，详见教师名单接口契约
 - GET /api/teacher/students/{id} → UserView
 - GET /api/teacher/students/{id}/submissions?page=1&size=20 → PageResponse<SubmissionView>
 - StudentSummary={id,username,name,major,submissionCount,lastSubmittedAt,latestProblemCount}；后3项仅基于SUCCESS，最近时间与问题数来自同一条最近成功记录。
@@ -44,7 +52,7 @@
 
 ## 安全与流程
 
-浏览器不得通过nginx或Vite绕过平台访问/api/inspections。后台认证用实时DB与HttpSession密码指纹，重置密码立即使旧会话失效，必须修改初始密码。
+浏览器不得通过nginx或Vite绕过平台访问/api/inspections。后台认证用实时DB与HttpSession密码指纹，重置密码立即使旧会话失效；通过账号管理新建或重置的教师、管理员必须修改初始密码，学生可自愿改密。环境引导创建的校级管理员沿用其原有密码策略。
 
 下载凭数据库storageDir构造固定对象键，不接受用户任意COS路径。DB内studentId与teacherId校验，不用前端角色授权。原始文件名只用于显示和Content-Disposition（过滤目录/控制符，UTF8）；COS使用随机目录。
 

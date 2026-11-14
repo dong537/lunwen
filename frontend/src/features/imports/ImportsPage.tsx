@@ -1,6 +1,17 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Button, Card, Radio, Space, Statistic, Table, Typography, Upload, message } from 'antd'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  App as AntdApp,
+  Button,
+  Card,
+  Radio,
+  Select,
+  Space,
+  Statistic,
+  Table,
+  Typography,
+  Upload,
+} from 'antd'
 import { DownloadOutlined, InboxOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadProps } from 'antd'
@@ -9,11 +20,19 @@ import { api, download, saveBlob } from '../../shared/api/http'
 import { formatSize, validateFile } from '../../shared/files'
 import { ApiAlert, PageHeader, useDocumentTitle } from '../../shared/ui'
 import { importErrorsCsv } from './csv'
+import { useSession } from '../auth/session'
+import { userApi } from '../users/api'
 
-function importFile(action: 'preview' | 'execute', file: File, role: AccountRole) {
+function importFile(
+  action: 'preview' | 'execute',
+  file: File,
+  role: AccountRole,
+  collegeCode: string,
+) {
   const body = new FormData()
   body.append('file', file)
   body.append('role', role)
+  body.append('collegeCode', collegeCode)
   return api<ImportResult>(`/admin/imports/${action}`, { method: 'POST', body })
 }
 
@@ -31,17 +50,38 @@ const errorColumns: ColumnsType<ImportError> = [
 
 export function ImportsPage() {
   useDocumentTitle('批量导入账号')
+  const { message } = AntdApp.useApp()
+  const { user } = useSession()
   const client = useQueryClient()
   const [role, setRole] = useState<AccountRole>('STUDENT')
+  const [collegeCode, setCollegeCode] = useState(user?.collegeCode ?? '')
   const [file, setFile] = useState<File | null>(null)
   const [validation, setValidation] = useState<string | null>(null)
+  const catalog = useQuery({
+    queryKey: ['school-catalog'],
+    queryFn: ({ signal }) => userApi.catalog(signal),
+  })
   const preview = useMutation({
-    mutationFn: ({ file, role }: { file: File; role: AccountRole }) =>
-      importFile('preview', file, role),
+    mutationFn: ({
+      file,
+      role,
+      collegeCode,
+    }: {
+      file: File
+      role: AccountRole
+      collegeCode: string
+    }) => importFile('preview', file, role, collegeCode),
   })
   const execute = useMutation({
-    mutationFn: ({ file, role }: { file: File; role: AccountRole }) =>
-      importFile('execute', file, role),
+    mutationFn: ({
+      file,
+      role,
+      collegeCode,
+    }: {
+      file: File
+      role: AccountRole
+      collegeCode: string
+    }) => importFile('execute', file, role, collegeCode),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['users'] })
       void client.invalidateQueries({ queryKey: ['dashboard'] })
@@ -70,7 +110,41 @@ export function ImportsPage() {
     <>
       <PageHeader title="批量导入账号" description="下载模板填写后，先预检，再确认导入有效账号。" />
       <Card style={{ marginBottom: 16 }}>
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+          <div>
+            <Typography.Text>学校</Typography.Text>
+            <Select
+              disabled
+              value={catalog.data?.schoolName ?? '山东石油化工学院'}
+              options={[
+                {
+                  value: catalog.data?.schoolName ?? '山东石油化工学院',
+                  label: catalog.data?.schoolName ?? '山东石油化工学院',
+                },
+              ]}
+              style={{ display: 'block', maxWidth: 360, marginTop: 6 }}
+            />
+          </div>
+          <div>
+            <Typography.Text>学院</Typography.Text>
+            <Select
+              aria-label="导入所属学院"
+              value={collegeCode || undefined}
+              placeholder="请选择导入所属学院"
+              style={{ display: 'block', maxWidth: 360, marginTop: 6 }}
+              disabled={!!user?.collegeCode || busy}
+              loading={catalog.isPending}
+              options={(catalog.data?.colleges ?? [])
+                .filter((college) => !user?.collegeCode || college.code === user.collegeCode)
+                .map((college) => ({ value: college.code, label: college.name }))}
+              onChange={(value) => {
+                setCollegeCode(value)
+                preview.reset()
+                execute.reset()
+              }}
+            />
+            <ApiAlert error={catalog.error} retry={() => void catalog.refetch()} />
+          </div>
           <Radio.Group
             value={role}
             disabled={busy || template.isPending}
@@ -135,10 +209,10 @@ export function ImportsPage() {
               type="primary"
               icon={<UploadOutlined />}
               loading={preview.isPending}
-              disabled={!file || busy}
+              disabled={!file || !collegeCode || busy}
               onClick={() => {
                 execute.reset()
-                if (file) preview.mutate({ file, role })
+                if (file && collegeCode) preview.mutate({ file, role, collegeCode })
               }}
             >
               预检文件
@@ -165,9 +239,9 @@ export function ImportsPage() {
               <Button
                 type="primary"
                 loading={execute.isPending}
-                disabled={!file || busy || result.validRows === 0}
+                disabled={!file || !collegeCode || busy || result.validRows === 0}
                 onClick={() => {
-                  if (file) execute.mutate({ file, role })
+                  if (file && collegeCode) execute.mutate({ file, role, collegeCode })
                 }}
               >
                 确认导入有效账号
@@ -175,8 +249,10 @@ export function ImportsPage() {
             </>
           )}
           {execute.data && (
-            <Typography.Paragraph type="success">
-              本次导入已完成。新账号初始密码为 123456，首次登录需重新设置密码。
+            <Typography.Paragraph>
+              {role === 'STUDENT'
+                ? '本次导入已完成。新账号初始密码为 123456，学生可直接登录。'
+                : '本次导入已完成。新账号初始密码为 123456，首次登录需重新设置密码。'}
             </Typography.Paragraph>
           )}
           <ApiAlert error={execute.error} />
@@ -208,7 +284,7 @@ export function ImportsPage() {
               </div>
               <Table<ImportError>
                 size="small"
-                rowKey={(_, index) => `${index}`}
+                rowKey={(error) => JSON.stringify([error.row, error.username, error.message])}
                 columns={errorColumns}
                 dataSource={result.errors}
                 pagination={false}

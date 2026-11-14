@@ -29,6 +29,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (
           previous?.id !== next.id ||
           previous?.role !== next.role ||
+          previous?.collegeCode !== next.collegeCode ||
           previous?.mustChangePassword !== next.mustChangePassword
         ) {
           // 其他页签也能改变会话；在发布新身份前清理旧账号的服务器数据。
@@ -68,7 +69,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setUser,
       }}
     >
-      <Fragment key={`${session.data?.id ?? 'anonymous'}:${session.data?.role ?? ''}`}>
+      <Fragment
+        key={`${session.data?.id ?? 'anonymous'}:${session.data?.role ?? ''}:${session.data?.collegeCode ?? 'unassigned'}`}
+      >
         {children}
       </Fragment>
     </SessionContext.Provider>

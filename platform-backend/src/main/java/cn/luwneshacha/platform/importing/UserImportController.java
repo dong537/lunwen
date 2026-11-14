@@ -1,6 +1,7 @@
 package cn.luwneshacha.platform.importing;
 
 import cn.luwneshacha.platform.account.Role;
+import cn.luwneshacha.platform.auth.CurrentUser;
 import cn.luwneshacha.platform.common.ApiResponse;
 import java.nio.charset.StandardCharsets;
 import org.springframework.http.ContentDisposition;
@@ -9,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 @RestController @RequestMapping("/api/admin/imports")
 public class UserImportController {
@@ -23,11 +25,13 @@ public class UserImportController {
         .body(content);
   }
   @PostMapping(value = "/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  public ApiResponse<UserImportService.ImportResult> preview(@RequestParam MultipartFile file, @RequestParam Role role) {
-    return ApiResponse.ok(imports.process(file, role, false));
+  public ApiResponse<UserImportService.ImportResult> preview(@AuthenticationPrincipal CurrentUser current,
+      @RequestParam MultipartFile file, @RequestParam Role role, @RequestParam(required = false) String collegeCode) {
+    return ApiResponse.ok(imports.process(current, file, role, collegeCode, false));
   }
   @PostMapping(value = "/execute", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  public ApiResponse<UserImportService.ImportResult> execute(@RequestParam MultipartFile file, @RequestParam Role role) {
-    return ApiResponse.ok(imports.process(file, role, true));
+  public ApiResponse<UserImportService.ImportResult> execute(@AuthenticationPrincipal CurrentUser current,
+      @RequestParam MultipartFile file, @RequestParam Role role, @RequestParam(required = false) String collegeCode) {
+    return ApiResponse.ok(imports.process(current, file, role, collegeCode, true));
   }
 }

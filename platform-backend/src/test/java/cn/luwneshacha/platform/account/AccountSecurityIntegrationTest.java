@@ -5,6 +5,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.junit.jupiter.api.Assertions.*;
 
 import cn.luwneshacha.platform.auth.PasswordHasher;
+import cn.luwneshacha.platform.auth.CurrentUser;
+import cn.luwneshacha.platform.submission.SubmissionRepository;
+import cn.luwneshacha.platform.submission.SubmissionController;
+import cn.luwneshacha.platform.submission.SubmissionService;
+import cn.luwneshacha.platform.submission.TransferProperties;
+import cn.luwneshacha.platform.storage.ObjectPresigner;
+import cn.luwneshacha.platform.storage.ObjectStorage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import java.io.ByteArrayOutputStream;
@@ -19,9 +26,11 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Bean;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -43,67 +52,90 @@ class AccountSecurityIntegrationTest {
   @SpringBootConfiguration @EnableAutoConfiguration
   @ComponentScan({"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.auth",
       "cn.luwneshacha.platform.common", "cn.luwneshacha.platform.importing"})
-  @EntityScan("cn.luwneshacha.platform.account")
-  @EnableJpaRepositories("cn.luwneshacha.platform.account")
-  static class TestApplication {}
+  @EntityScan({"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.submission"})
+  @EnableJpaRepositories({"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.submission"})
+  static class TestApplication {
+    @Bean SubmissionService submissionService(SubmissionRepository submissions, UserRepository users,
+        org.springframework.transaction.PlatformTransactionManager transactions) {
+      return new SubmissionService(submissions, users, org.mockito.Mockito.mock(ObjectStorage.class),
+          transactions, org.mockito.Mockito.mock(ObjectPresigner.class),
+          new TransferProperties(TransferProperties.Mode.DIRECT, 600));
+    }
+    @Bean SubmissionController submissionController(SubmissionService service) {
+      return new SubmissionController(service);
+    }
+  }
 
   @Autowired MockMvc mvc;
   @Autowired ObjectMapper json;
   @Autowired UserRepository users;
   @Autowired PasswordHasher passwords;
   @Autowired UserService accounts;
+  @Autowired MajorCatalogRepository majors;
+  @Autowired SubmissionRepository submissions;
+  @Autowired JdbcTemplate database;
   @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
   User student;
 
   @BeforeEach void seed() {
+    submissions.deleteAll();
     users.findAll().stream().filter(u -> u.getRole() == Role.STUDENT).forEach(users::delete);
     users.deleteAll();
+    majors.deleteAll();
+    majors.save(new MajorCatalog(College.INFORMATION_ENGINEERING.name(), "计算机"));
+    majors.save(new MajorCatalog(College.INFORMATION_ENGINEERING.name(), "计算机科学"));
     users.save(new User("admin", passwords.encode("AdminPassword1"), Role.ADMIN, "管理员", null, null, false));
-    student = users.save(new User("2026001", passwords.encode("123456"), Role.STUDENT, "测试学生", null, null, true));
+    student = users.save(new User("2026001", passwords.encode("123456"), Role.STUDENT, "测试学生", null, null,
+        College.INFORMATION_ENGINEERING.name(), true));
   }
 
   @Test void importPreviewDoesNotWriteAndExecutionImportsOnlyValidNewAccounts() throws Exception {
-    var teacher = users.save(new User("teacher01", passwords.encode("123456"), Role.TEACHER, "指导老师", null, null, true));
+    var teacher = users.save(new User("teacher01", passwords.encode("123456"), Role.TEACHER, "指导老师", null, null, College.INFORMATION_ENGINEERING.name(), true));
     var file = workbook(Role.STUDENT, new String[][] {{"new001", "新学生", "计算机", "teacher01"},
         {"2026001", "不可覆盖的名字", "新专业", "teacher01"}, {"bad001", "", "", ""},
         {"bad002", "学生", "", "missing"}});
     var admin = login("admin", "AdminPassword1");
     var csrf = csrf(admin);
     mvc.perform(multipart("/api/admin/imports/preview").file(file).param("role", "STUDENT")
+        .param("collegeCode", College.INFORMATION_ENGINEERING.name())
         .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isOk())
         .andExpect(jsonPath("$.data.totalRows").value(4)).andExpect(jsonPath("$.data.validRows").value(1))
         .andExpect(jsonPath("$.data.successCount").value(0)).andExpect(jsonPath("$.data.skippedCount").value(1))
         .andExpect(jsonPath("$.data.failedCount").value(2));
     assertFalse(users.existsByUsername("new001"));
     mvc.perform(multipart("/api/admin/imports/execute").file(file).param("role", "STUDENT")
+        .param("collegeCode", College.INFORMATION_ENGINEERING.name())
         .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isOk())
         .andExpect(jsonPath("$.data.successCount").value(1)).andExpect(jsonPath("$.data.failedCount").value(2));
     var imported = users.findByUsername("new001").orElseThrow();
     assertEquals(teacher.getId(), imported.getTeacherId());
-    assertTrue(imported.isMustChangePassword());
+    assertFalse(imported.isMustChangePassword());
     assertTrue(passwords.matches("123456", imported.getPasswordHash()));
     assertEquals("测试学生", users.findByUsername("2026001").orElseThrow().getName());
     mvc.perform(multipart("/api/admin/imports/execute").file(file).param("role", "STUDENT")
+        .param("collegeCode", College.INFORMATION_ENGINEERING.name())
         .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isOk())
         .andExpect(jsonPath("$.data.successCount").value(0)).andExpect(jsonPath("$.data.skippedCount").value(2));
   }
 
   @Test void importsOneHundredStudentsAndRepeatingTheFileSkipsEveryAccount() throws Exception {
-    var teacher = users.save(new User("teacher100", passwords.encode("123456"), Role.TEACHER, "批量导入导师", null, null, true));
+    var teacher = users.save(new User("teacher100", passwords.encode("123456"), Role.TEACHER, "批量导入导师", null, null, College.INFORMATION_ENGINEERING.name(), true));
     var rows = java.util.stream.IntStream.range(0, 100)
         .mapToObj(i -> new String[] {"202610" + String.format(java.util.Locale.ROOT, "%03d", i), "导入测试学生" + i, "计算机科学", "teacher100"})
         .toArray(String[][]::new);
     var file = workbook(Role.STUDENT, rows);
     var admin = login("admin", "AdminPassword1"); var csrf = csrf(admin);
     mvc.perform(multipart("/api/admin/imports/execute").file(file).param("role", "STUDENT")
+        .param("collegeCode", College.INFORMATION_ENGINEERING.name())
         .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isOk())
         .andExpect(jsonPath("$.data.totalRows").value(100)).andExpect(jsonPath("$.data.successCount").value(100))
         .andExpect(jsonPath("$.data.skippedCount").value(0)).andExpect(jsonPath("$.data.failedCount").value(0));
     var imported = users.findAll().stream().filter(u -> u.getUsername().startsWith("202610")).toList();
     assertEquals(100, imported.size());
-    assertTrue(imported.stream().allMatch(u -> u.getTeacherId().equals(teacher.getId()) && u.isMustChangePassword() && u.isActive()));
+    assertTrue(imported.stream().allMatch(u -> u.getTeacherId().equals(teacher.getId()) && !u.isMustChangePassword() && u.isActive()));
     var identities = imported.stream().collect(java.util.stream.Collectors.toMap(User::getUsername, User::getId));
     mvc.perform(multipart("/api/admin/imports/execute").file(file).param("role", "STUDENT")
+        .param("collegeCode", College.INFORMATION_ENGINEERING.name())
         .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isOk())
         .andExpect(jsonPath("$.data.totalRows").value(100)).andExpect(jsonPath("$.data.successCount").value(0))
         .andExpect(jsonPath("$.data.skippedCount").value(100)).andExpect(jsonPath("$.data.failedCount").value(0));
@@ -112,16 +144,18 @@ class AccountSecurityIntegrationTest {
   }
 
   @Test void importRejectsAllDuplicateRowsAndRechecksTeacherOnExecution() throws Exception {
-    var teacher = users.save(new User("teacher01", passwords.encode("123456"), Role.TEACHER, "教师", null, null, false));
+    var teacher = users.save(new User("teacher01", passwords.encode("123456"), Role.TEACHER, "教师", null, null, College.INFORMATION_ENGINEERING.name(), false));
     var file = workbook(Role.STUDENT, new String[][] {{"dup001", "甲", "", ""}, {"dup001", "乙", "", ""},
         {"new002", "丙", "", "teacher01"}});
     var admin = login("admin", "AdminPassword1");
     var csrf = csrf(admin);
     mvc.perform(multipart("/api/admin/imports/preview").file(file).param("role", "STUDENT")
+        .param("collegeCode", College.INFORMATION_ENGINEERING.name())
         .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isOk())
         .andExpect(jsonPath("$.data.validRows").value(1)).andExpect(jsonPath("$.data.failedCount").value(2));
     teacher.setActive(false); users.saveAndFlush(teacher);
     mvc.perform(multipart("/api/admin/imports/execute").file(file).param("role", "STUDENT")
+        .param("collegeCode", College.INFORMATION_ENGINEERING.name())
         .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isOk())
         .andExpect(jsonPath("$.data.successCount").value(0)).andExpect(jsonPath("$.data.failedCount").value(3));
     assertFalse(users.existsByUsername("dup001")); assertFalse(users.existsByUsername("new002"));
@@ -138,23 +172,47 @@ class AccountSecurityIntegrationTest {
     }
     String[][] tooMany = java.util.stream.IntStream.range(0, 2001).mapToObj(i -> new String[] {"user" + i, "姓名"}).toArray(String[][]::new);
     mvc.perform(multipart("/api/admin/imports/preview").file(workbook(Role.TEACHER, tooMany)).param("role", "TEACHER")
+        .param("collegeCode", College.INFORMATION_ENGINEERING.name())
         .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("IMPORT_ROW_LIMIT"));
     mvc.perform(multipart("/api/admin/imports/preview").file(new MockMultipartFile("file", "users.xlsx", "application/octet-stream", new byte[5 * 1024 * 1024 + 1]))
-        .param("role", "TEACHER").session(admin).header(csrf.header(), csrf.token())).andExpect(status().isPayloadTooLarge());
+        .param("role", "TEACHER").param("collegeCode", College.INFORMATION_ENGINEERING.name())
+        .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isPayloadTooLarge());
     mvc.perform(multipart("/api/admin/imports/preview").file(new MockMultipartFile("file", "users.csv", "text/csv", new byte[] {1}))
-        .param("role", "TEACHER").session(admin).header(csrf.header(), csrf.token())).andExpect(status().isBadRequest());
+        .param("role", "TEACHER").param("collegeCode", College.INFORMATION_ENGINEERING.name())
+        .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isBadRequest());
     mvc.perform(get("/api/admin/imports/template").param("role", "ADMIN").session(admin)).andExpect(status().isBadRequest());
+  }
+
+  @Test void schoolAdministratorImportRequiresCollegeForPreviewAndExecute() throws Exception {
+    String username = "missing_college_teacher";
+    var file = workbook(Role.TEACHER, new String[][] {{username, "待导入教师"}});
+    var admin = login("admin", "AdminPassword1"); var csrf = csrf(admin);
+    long accountCount = users.count();
+    assertFalse(users.existsByUsername(username));
+    mvc.perform(multipart("/api/admin/imports/preview").file(file).param("role", "TEACHER")
+        .param("collegeCode", College.INFORMATION_ENGINEERING.name())
+        .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.validRows").value(1));
+    for (String action : new String[] {"preview", "execute"}) {
+      mvc.perform(multipart("/api/admin/imports/" + action).file(file).param("role", "TEACHER")
+          .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.error.code").value("COLLEGE_REQUIRED"));
+      assertFalse(users.existsByUsername(username));
+      assertEquals(accountCount, users.count());
+    }
   }
 
   @Test void teacherManagementWarnsAboutAssignedStudentsAndKeepsAdministratorImmutable() throws Exception {
     var admin = login("admin", "AdminPassword1"); var csrf = csrf(admin);
     var created = mvc.perform(post("/api/admin/users").session(admin).header(csrf.header(), csrf.token())
-        .contentType("application/json").content("{\"username\":\"teacher02\",\"name\":\"教师\",\"role\":\"TEACHER\"}"))
+        .contentType("application/json").content("{\"username\":\"teacher02\",\"name\":\"教师\",\"role\":\"TEACHER\",\"collegeCode\":\"INFORMATION_ENGINEERING\"}"))
         .andExpect(status().isOk()).andReturn();
     String teacherId = json.readTree(created.getResponse().getContentAsByteArray()).path("data").path("id").asText();
+    assertTrue(users.findById(Long.parseLong(teacherId)).orElseThrow().isMustChangePassword());
     mvc.perform(patch("/api/admin/users/" + student.getId()).session(admin).header(csrf.header(), csrf.token())
-        .contentType("application/json").content(json.writeValueAsBytes(Map.of("name", "学生", "teacherId", teacherId))))
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("name", "学生", "teacherId", teacherId,
+            "collegeCode", College.INFORMATION_ENGINEERING.name()))))
         .andExpect(status().isOk()).andExpect(jsonPath("$.data.teacherName").value("教师"));
     mvc.perform(post("/api/admin/users/" + teacherId + "/active").session(admin).header(csrf.header(), csrf.token())
         .contentType("application/json").content("{\"active\":false}"))
@@ -162,9 +220,170 @@ class AccountSecurityIntegrationTest {
         .andExpect(jsonPath("$.data.message").isNotEmpty());
     long adminId = users.findByUsername("admin").orElseThrow().getId();
     mvc.perform(post("/api/admin/users/" + adminId + "/reset-password").session(admin).header(csrf.header(), csrf.token()))
-        .andExpect(status().isBadRequest());
+        .andExpect(status().isForbidden());
     mvc.perform(get("/api/admin/users").session(admin).param("role", "STUDENT").param("page", "0"))
         .andExpect(status().isBadRequest());
+  }
+
+  @Test void collegeAdministratorIsRestrictedAcrossListsMutationsAndTeacherChoices() throws Exception {
+    users.save(new User("info_teacher", passwords.encode("Password1"), Role.TEACHER, "信息学院教师", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    User otherTeacher = users.save(new User("arts_teacher", passwords.encode("Password1"), Role.TEACHER, "艺术学院教师", null, null,
+        College.EDUCATION_ARTS.name(), false));
+    users.save(new User("college_admin", passwords.encode("Password1"), Role.ADMIN, "学院管理员", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    var session = login("college_admin", "Password1"); var csrf = csrf(session);
+    mvc.perform(get("/api/admin/catalog").session(session)).andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.schoolName").value(College.SCHOOL_NAME))
+        .andExpect(jsonPath("$.data.colleges.length()").value(1));
+    mvc.perform(get("/api/admin/users").session(session).param("role", "TEACHER"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.items[0].username").value("info_teacher"));
+    mvc.perform(get("/api/admin/users").session(session).param("role", "ADMIN"))
+        .andExpect(status().isForbidden());
+    mvc.perform(get("/api/admin/teachers").session(session).param("collegeCode", College.INFORMATION_ENGINEERING.name()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(1));
+    mvc.perform(get("/api/admin/teachers").session(session).param("collegeCode", College.EDUCATION_ARTS.name()))
+        .andExpect(status().isForbidden());
+    mvc.perform(get("/api/admin/majors").session(session).param("collegeCode", College.EDUCATION_ARTS.name()))
+        .andExpect(status().isForbidden());
+    mvc.perform(post("/api/admin/users").session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("username", "cross_teacher",
+            "name", "教师", "role", "TEACHER", "collegeCode", College.EDUCATION_ARTS.name()))))
+        .andExpect(status().isForbidden());
+    mvc.perform(delete("/api/admin/users/" + otherTeacher.getId()).session(session).header(csrf.header(), csrf.token()))
+        .andExpect(status().isForbidden());
+    assertTrue(users.findById(otherTeacher.getId()).orElseThrow().isActive());
+  }
+
+  @Test void schoolAdminMaintainsCollegeAdministratorsAndMajorsWithoutErasingLegacyMajor() throws Exception {
+    var session = login("admin", "AdminPassword1"); var csrf = csrf(session);
+    mvc.perform(get("/api/admin/catalog").session(session)).andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.colleges.length()").value(3));
+    mvc.perform(post("/api/admin/users").session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("username", "arts_admin",
+            "name", "艺术学院管理员", "role", "ADMIN", "collegeCode", College.EDUCATION_ARTS.name()))))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.collegeName").value("教育与艺术学院"));
+    mvc.perform(get("/api/admin/users").session(session).param("role", "ADMIN"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(2));
+    var major = mvc.perform(post("/api/admin/majors").session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("collegeCode", College.INFORMATION_ENGINEERING.name(),
+            "name", "电子信息")))).andExpect(status().isCreated()).andReturn();
+    String majorId = json.readTree(major.getResponse().getContentAsByteArray()).path("data").path("id").asText();
+    mvc.perform(patch("/api/admin/majors/" + majorId + "/active").session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content("{\"active\":false}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.active").value(false));
+    mvc.perform(post("/api/admin/users").session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("username", "new_student",
+            "name", "学生", "role", "STUDENT", "major", "电子信息", "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_MAJOR"));
+    student.updateProfile(student.getName(), "历史专业", null); users.saveAndFlush(student);
+    mvc.perform(patch("/api/admin/users/" + student.getId()).session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("name", "新名字",
+            "major", "历史专业", "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.major").value("历史专业"));
+  }
+
+  @Test void deleteRemovesUnreferencedAccountsButDeactivatesAccountsWithHistory() throws Exception {
+    var session = login("admin", "AdminPassword1"); var csrf = csrf(session);
+    User unused = users.save(new User("unused_teacher", passwords.encode("Password1"), Role.TEACHER, "未使用", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    mvc.perform(delete("/api/admin/users/" + unused.getId()).session(session).header(csrf.header(), csrf.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.outcome").value("DELETED"));
+    assertFalse(users.existsById(unused.getId()));
+    User teacher = users.save(new User("assigned_teacher", passwords.encode("Password1"), Role.TEACHER, "有学生", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    student.updateProfile(student.getName(), student.getMajor(), teacher.getId()); users.saveAndFlush(student);
+    mvc.perform(delete("/api/admin/users/" + teacher.getId()).session(session).header(csrf.header(), csrf.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.outcome").value("DEACTIVATED"));
+    assertFalse(users.findById(teacher.getId()).orElseThrow().isActive());
+    database.update("insert into submission(student_id,original_filename,file_size,status,storage_dir,created_at,updated_at) values (?, 'x.docx', 1, 'SUCCESS', ?, now(), now())",
+        student.getId(), "delete-check-" + student.getId());
+    mvc.perform(delete("/api/admin/users/" + student.getId()).session(session).header(csrf.header(), csrf.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.outcome").value("DEACTIVATED"));
+    assertFalse(users.findById(student.getId()).orElseThrow().isActive());
+    long rootAdminId = users.findByUsername("admin").orElseThrow().getId();
+    mvc.perform(delete("/api/admin/users/" + rootAdminId).session(session).header(csrf.header(), csrf.token()))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test void deleteStudentWithTeacherButNoSubmissionsPreservesTeacher() throws Exception {
+    User teacher = users.save(new User("unused_student_teacher", passwords.encode("Password1"), Role.TEACHER,
+        "指导教师", null, null, College.INFORMATION_ENGINEERING.name(), false));
+    student.updateProfile(student.getName(), student.getMajor(), teacher.getId());
+    users.saveAndFlush(student);
+    var session = login("admin", "AdminPassword1"); var csrf = csrf(session);
+    mvc.perform(delete("/api/admin/users/" + student.getId()).session(session).header(csrf.header(), csrf.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.outcome").value("DELETED"))
+        .andExpect(jsonPath("$.data.user").isEmpty());
+    assertFalse(users.existsById(student.getId()));
+    assertTrue(users.findById(teacher.getId()).orElseThrow().isActive());
+    assertEquals(0, submissions.count());
+  }
+
+  @Test void studentCannotSelectAnotherCollegeTeacherAndTeacherWithStudentsCannotMove() throws Exception {
+    User artsTeacher = users.save(new User("arts_teacher", passwords.encode("Password1"), Role.TEACHER, "艺术教师",
+        null, null, College.EDUCATION_ARTS.name(), false));
+    var session = login("admin", "AdminPassword1"); var csrf = csrf(session);
+    mvc.perform(post("/api/admin/users").session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("username", "cross_student",
+            "name", "跨院学生", "role", "STUDENT", "teacherId", artsTeacher.getId().toString(),
+            "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_TEACHER"));
+    User infoTeacher = users.save(new User("info_teacher", passwords.encode("Password1"), Role.TEACHER, "信息教师",
+        null, null, College.INFORMATION_ENGINEERING.name(), false));
+    student.updateProfile(student.getName(), student.getMajor(), infoTeacher.getId()); users.saveAndFlush(student);
+    mvc.perform(patch("/api/admin/users/" + infoTeacher.getId()).session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("name", "信息教师",
+            "collegeCode", College.EDUCATION_ARTS.name()))))
+        .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("TEACHER_HAS_STUDENTS"));
+    student.updateProfile(student.getName(), "计算机", null); users.saveAndFlush(student);
+    mvc.perform(patch("/api/admin/users/" + student.getId()).session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("name", "学生",
+            "major", "计算机", "collegeCode", College.EDUCATION_ARTS.name()))))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_MAJOR"));
+  }
+
+  @Test void backfillLegacyTeacherAndStudentCollegeWithoutGuessingStudentCollege() throws Exception {
+    User legacyTeacher = users.save(new User("legacy_teacher", passwords.encode("Password1"), Role.TEACHER,
+        "待归属教师", null, null, false));
+    User legacyStudent = users.save(new User("legacy_student", passwords.encode("Password1"), Role.STUDENT,
+        "待归属学生", "旧专业", legacyTeacher.getId(), false));
+    var session = login("admin", "AdminPassword1"); var csrf = csrf(session);
+    mvc.perform(patch("/api/admin/users/" + legacyTeacher.getId()).session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("name", "待归属教师",
+            "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+        .andExpect(status().isOk());
+    assertNull(users.findById(legacyStudent.getId()).orElseThrow().getCollegeCode());
+    mvc.perform(patch("/api/admin/users/" + legacyStudent.getId()).session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("name", "待归属学生",
+            "major", "旧专业", "teacherId", legacyTeacher.getId().toString(),
+            "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+        .andExpect(status().isOk());
+    assertEquals(College.INFORMATION_ENGINEERING.name(), users.findById(legacyStudent.getId()).orElseThrow().getCollegeCode());
+  }
+
+  @Test void existingSessionUsesCurrentDatabaseCollegeAndStopsWhenDisabled() throws Exception {
+    User manager = users.save(new User("scope_admin", passwords.encode("Password1"), Role.ADMIN, "学院管理员", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    users.save(new User("arts_teacher", passwords.encode("Password1"), Role.TEACHER, "艺术教师", null, null,
+        College.EDUCATION_ARTS.name(), false));
+    var managerSession = login("scope_admin", "Password1");
+    mvc.perform(get("/api/admin/users").session(managerSession).param("role", "TEACHER"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(0));
+    var schoolSession = login("admin", "AdminPassword1"); var csrf = csrf(schoolSession);
+    mvc.perform(patch("/api/admin/users/" + manager.getId()).session(schoolSession).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("name", "学院管理员",
+            "collegeCode", College.EDUCATION_ARTS.name()))))
+        .andExpect(status().isOk());
+    mvc.perform(get("/api/admin/users").session(managerSession).param("role", "TEACHER"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.items[0].username").value("arts_teacher"));
+    mvc.perform(post("/api/admin/users/" + manager.getId() + "/active").session(schoolSession)
+        .header(csrf.header(), csrf.token()).contentType("application/json").content("{\"active\":false}"))
+        .andExpect(status().isOk());
+    mvc.perform(get("/api/admin/users").session(managerSession).param("role", "TEACHER"))
+        .andExpect(status().isUnauthorized());
   }
 
   @Test void concurrentProfileAndPasswordResetPreserveBothChanges() throws Exception {
@@ -174,14 +393,16 @@ class AccountSecurityIntegrationTest {
     String initialHash = student.getPasswordHash();
     try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
       var profile = executor.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactions).execute(status -> {
-        accounts.update(student.getId(), new UserService.UpdateUser("并发修改后的名字", "计算机", null));
+        accounts.update(CurrentUser.from(users.findByUsername("admin").orElseThrow()), student.getId(),
+            new UserService.UpdateUser("并发修改后的名字", "计算机", null, College.INFORMATION_ENGINEERING.name()));
         updated.countDown();
         try { if (!release.await(10, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("release timed out"); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); }
         return null;
       }));
       assertTrue(updated.await(5, java.util.concurrent.TimeUnit.SECONDS));
-      var reset = executor.submit(() -> { resetting.countDown(); return accounts.resetPassword(student.getId()); });
+      var reset = executor.submit(() -> { resetting.countDown(); return accounts.resetPassword(
+          CurrentUser.from(users.findByUsername("admin").orElseThrow()), student.getId()); });
       assertTrue(resetting.await(5, java.util.concurrent.TimeUnit.SECONDS));
       try { assertThrows(java.util.concurrent.TimeoutException.class, () -> reset.get(1, java.util.concurrent.TimeUnit.SECONDS)); }
       finally { release.countDown(); }
@@ -191,7 +412,7 @@ class AccountSecurityIntegrationTest {
     assertEquals("并发修改后的名字", result.getName());
     assertEquals("计算机", result.getMajor());
     assertNotEquals(initialHash, result.getPasswordHash());
-    assertTrue(result.isMustChangePassword());
+    assertFalse(result.isMustChangePassword());
     assertTrue(passwords.matches("123456", result.getPasswordHash()));
   }
 
@@ -209,10 +430,19 @@ class AccountSecurityIntegrationTest {
     }
   }
 
-  @Test void firstLoginCannotUseBusinessRoutesUntilPasswordChanges() throws Exception {
-    var session = login("2026001", "123456");
-    mvc.perform(get("/api/admin/users").session(session)).andExpect(status().isForbidden())
-        .andExpect(jsonPath("$.error.code").value("PASSWORD_CHANGE_REQUIRED"));
+  @Test void newlyCreatedStudentCanUseSubmissionRouteWithoutChangingPasswordAndMayChangeItVoluntarily() throws Exception {
+    var admin = login("admin", "AdminPassword1");
+    var adminCsrf = csrf(admin);
+    mvc.perform(post("/api/admin/users").session(admin).header(adminCsrf.header(), adminCsrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of(
+            "username", "new_student", "name", "新学生", "role", "STUDENT",
+            "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.mustChangePassword").value(false));
+    var session = login("new_student", "123456");
+    mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.mustChangePassword").value(false));
+    mvc.perform(get("/api/submissions").session(session)).andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.total").value(0));
     var csrf = csrf(session);
     mvc.perform(post("/api/auth/password").session(session).header(csrf.header(), csrf.token())
         .contentType("application/json").content(json.writeValueAsBytes(Map.of("oldPassword", "123456",
@@ -220,7 +450,7 @@ class AccountSecurityIntegrationTest {
         .andExpect(status().isOk()).andExpect(jsonPath("$.data.mustChangePassword").value(false));
     mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk());
     mvc.perform(get("/api/admin/users").session(session)).andExpect(status().isForbidden());
-    assertTrue(passwords.matches("论文".repeat(50), users.findById(student.getId()).orElseThrow().getPasswordHash()));
+    assertTrue(passwords.matches("论文".repeat(50), users.findByUsername("new_student").orElseThrow().getPasswordHash()));
   }
 
   @Test void passwordResetInvalidatesExistingSessionsImmediately() throws Exception {
@@ -230,8 +460,24 @@ class AccountSecurityIntegrationTest {
     mvc.perform(post("/api/admin/users/" + student.getId() + "/reset-password").session(admin)
         .header(csrf.header(), csrf.token())).andExpect(status().isOk());
     mvc.perform(get("/api/auth/me").session(studentSession)).andExpect(status().isUnauthorized());
-    mvc.perform(get("/api/auth/me").session(login("2026001", "123456"))).andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.mustChangePassword").value(true));
+    var refreshed = login("2026001", "123456");
+    mvc.perform(get("/api/auth/me").session(refreshed)).andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.mustChangePassword").value(false));
+    mvc.perform(get("/api/submissions").session(refreshed)).andExpect(status().isOk());
+  }
+
+  @Test void teacherPasswordResetStillRequiresChangingTheInitialPassword() throws Exception {
+    User teacher = users.save(new User("reset_teacher", passwords.encode("OldPassword1"), Role.TEACHER,
+        "教师", null, null, College.INFORMATION_ENGINEERING.name(), false));
+    var admin = login("admin", "AdminPassword1");
+    var token = csrf(admin);
+    mvc.perform(post("/api/admin/users/" + teacher.getId() + "/reset-password")
+        .session(admin).header(token.header(), token.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.mustChangePassword").value(true));
+    var initial = login("reset_teacher", "123456");
+    mvc.perform(get("/api/teacher/students/imports/template").session(initial))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("PASSWORD_CHANGE_REQUIRED"));
   }
 
   @Test void ownPasswordChangeRevokesOtherSessionsAndAllowsFetchingFreshCsrf() throws Exception {

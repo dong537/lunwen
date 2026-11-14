@@ -312,6 +312,59 @@ class SubmissionIntegrationTest {
     assertEquals(0,submissions.count());
   }
 
+  @Test void proxyUploadWaitsForConcurrentStudentDeactivation() throws Exception {
+    assertUploadWaitsForStudentDeactivation(false);
+  }
+
+  @Test void directUploadWaitsForConcurrentStudentDeactivation() throws Exception {
+    assertUploadWaitsForStudentDeactivation(true);
+  }
+
+  private void assertUploadWaitsForStudentDeactivation(boolean direct) throws Exception {
+    var locked = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    var uploading = new CountDownLatch(1);
+    try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      var deactivate = executor.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactions)
+          .execute(status -> {
+            User current = users.findByIdForUpdate(student.getId()).orElseThrow();
+            current.setActive(false); users.saveAndFlush(current);
+            locked.countDown();
+            try { if (!release.await(10, TimeUnit.SECONDS)) throw new AssertionError("release timed out"); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); }
+            return null;
+          }));
+      assertTrue(locked.await(5, TimeUnit.SECONDS));
+      var upload = executor.submit(() -> {
+        uploading.countDown();
+        if (direct) service.createUpload(actor(student), "a.docx", 1);
+        else service.upload(actor(student), file("a.docx", new byte[]{1}));
+      });
+      assertTrue(uploading.await(5, TimeUnit.SECONDS));
+      try { assertThrows(TimeoutException.class, () -> upload.get(1, TimeUnit.SECONDS)); }
+      finally { release.countDown(); }
+      deactivate.get(5, TimeUnit.SECONDS);
+      var failure = assertThrows(ExecutionException.class, () -> upload.get(5, TimeUnit.SECONDS));
+      assertEquals("FORBIDDEN", assertInstanceOf(ApiException.class, failure.getCause()).code());
+    } finally { release.countDown(); }
+    assertEquals(0, submissions.count());
+    assertTrue(storage.data.isEmpty());
+  }
+
+  @Test void deletedStudentDuringUploadValidationDoesNotCreateSubmission() {
+    var existingSession = actor(student);
+    var file = new MockMultipartFile("file", "a.docx", "application/octet-stream", new byte[]{1}) {
+      @Override public String getOriginalFilename() {
+        users.deleteById(student.getId());
+        return super.getOriginalFilename();
+      }
+    };
+    var failure = assertThrows(ApiException.class, () -> service.upload(existingSession, file));
+    assertEquals("FORBIDDEN", failure.code());
+    assertEquals(0, submissions.count());
+    assertTrue(storage.data.isEmpty());
+  }
+
   @Test void uploadReservationPreventsPrematureClaimAndDownload() {
     storage.beforeUpload=()->{
       var row=submissions.findAll().get(0);

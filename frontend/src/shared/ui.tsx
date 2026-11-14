@@ -29,7 +29,7 @@ export function ApiAlert({ error, retry }: { error: unknown; retry?: () => void 
         title={errorText(error)}
         description={
           fieldErrors.length > 0 ? (
-            <Space direction="vertical" size={4}>
+            <Space orientation="vertical" size={4}>
               <ul style={{ margin: 0, paddingInlineStart: 20 }}>
                 {fieldErrors.map(([field, message]) => (
                   <li key={field}>{message}</li>
@@ -68,7 +68,7 @@ export function PageHeader({
   extra?: ReactNode
 }) {
   return (
-    <Space direction="vertical" size={4} style={{ marginBottom: 16, width: '100%' }}>
+    <Space orientation="vertical" size={4} style={{ marginBottom: 16, width: '100%' }}>
       <div
         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}
       >

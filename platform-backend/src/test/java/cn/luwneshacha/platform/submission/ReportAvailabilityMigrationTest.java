@@ -35,7 +35,25 @@ class ReportAvailabilityMigrationTest {
             INSERT INTO sys_user (id, username, password_hash, role, name, major,
                 must_change_password, is_active, created_at, updated_at)
             VALUES (101, 'migration_student', 'test-only-hash', 'STUDENT', '迁移测试学生', '计算机',
+                true, true, '2026-10-01T01:02:03Z', '2026-10-02T04:05:06Z')
+            """);
+        statement.executeUpdate("""
+            INSERT INTO sys_user (id, username, password_hash, role, name,
+                must_change_password, is_active, created_at, updated_at)
+            VALUES (102, 'migration_teacher', 'teacher-hash', 'TEACHER', '迁移测试教师',
+                true, true, '2026-10-01T01:02:03Z', '2026-10-02T04:05:06Z')
+            """);
+        statement.executeUpdate("""
+            INSERT INTO sys_user (id, username, password_hash, role, name,
+                must_change_password, is_active, created_at, updated_at)
+            VALUES (103, 'unchanged_student', 'student-hash', 'STUDENT', '无需迁移学生',
                 false, true, '2026-10-01T01:02:03Z', '2026-10-02T04:05:06Z')
+            """);
+        statement.executeUpdate("""
+            INSERT INTO sys_user (id, username, password_hash, role, name,
+                must_change_password, is_active, created_at, updated_at)
+            VALUES (104, 'migration_admin', 'admin-hash', 'ADMIN', '迁移测试管理员',
+                true, true, '2026-10-01T01:02:03Z', '2026-10-02T04:05:06Z')
             """);
         statement.executeUpdate("""
             INSERT INTO submission (id, student_id, original_filename, file_size, status,
@@ -50,14 +68,19 @@ class ReportAvailabilityMigrationTest {
       String historicalSubmission = scalar(connection,
           "SELECT to_jsonb(s)::text FROM submission s WHERE id = 201");
       String historicalUser = scalar(connection,
-          "SELECT to_jsonb(u)::text FROM sys_user u WHERE id = 101");
+          "SELECT (to_jsonb(u) - 'must_change_password')::text FROM sys_user u WHERE id = 101");
 
       configuration.target("latest").load().migrate();
 
       assertEquals(historicalSubmission, scalar(connection,
           "SELECT (to_jsonb(s) - 'report_available')::text FROM submission s WHERE id = 201"));
       assertEquals(historicalUser, scalar(connection,
-          "SELECT to_jsonb(u)::text FROM sys_user u WHERE id = 101"));
+          "SELECT (to_jsonb(u) - 'college_code' - 'must_change_password')::text FROM sys_user u WHERE id = 101"));
+      assertEquals("false", scalar(connection, "SELECT must_change_password::text FROM sys_user WHERE id = 101"));
+      assertEquals("true", scalar(connection, "SELECT must_change_password::text FROM sys_user WHERE id = 102"));
+      assertEquals("false", scalar(connection, "SELECT must_change_password::text FROM sys_user WHERE id = 103"));
+      assertEquals("true", scalar(connection, "SELECT must_change_password::text FROM sys_user WHERE id = 104"));
+      assertNull(scalar(connection, "SELECT college_code FROM sys_user WHERE id = 101"));
       try (var statement = connection.prepareStatement("""
           SELECT data_type, is_nullable, column_default
           FROM information_schema.columns

@@ -1,8 +1,9 @@
 import { useDeferredValue, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Form, Input, message, Modal, Select } from 'antd'
-import type { AccountRole, User } from '../../shared/api/contracts'
+import { App as AntdApp, Form, Input, Modal, Select } from 'antd'
+import type { Role, User } from '../../shared/api/contracts'
 import { ApiAlert } from '../../shared/ui'
+import { useSession } from '../auth/session'
 import { userApi } from './api'
 
 export function UserForm({
@@ -12,27 +13,55 @@ export function UserForm({
   onSaved,
 }: {
   user: User | null
-  role: AccountRole
+  role: Role
   onClose: () => void
   onSaved: () => void
 }) {
+  const { message } = AntdApp.useApp()
   const [form] = Form.useForm()
+  const { user: currentUser } = useSession()
+  const collegeCode = Form.useWatch('collegeCode', form) as string | undefined
+  const catalog = useQuery({
+    queryKey: ['school-catalog'],
+    queryFn: ({ signal }) => userApi.catalog(signal),
+  })
+  const majors = useQuery({
+    queryKey: ['majors', collegeCode],
+    queryFn: ({ signal }) => userApi.majors(collegeCode!, signal),
+    enabled: role === 'STUDENT' && !!collegeCode,
+  })
   const [teacherSearch, setTeacherSearch] = useState('')
   const search = useDeferredValue(teacherSearch)
   const teachers = useQuery({
-    queryKey: ['teacher-options', search],
-    queryFn: ({ signal }) => userApi.teachers(search, signal),
-    enabled: role === 'STUDENT',
+    queryKey: ['teacher-options', collegeCode, search],
+    queryFn: ({ signal }) => userApi.teachers(collegeCode!, search, signal),
+    enabled: role === 'STUDENT' && !!collegeCode,
   })
+  const teacherOptions = (teachers.data ?? []).map((teacher) => ({
+    value: teacher.id,
+    label: teacher.name + ' · ' + teacher.username,
+  }))
+  if (
+    user?.teacherId &&
+    user.collegeCode === collegeCode &&
+    !teacherOptions.some((option) => option.value === user.teacherId)
+  ) {
+    teacherOptions.push({
+      value: user.teacherId,
+      label: (user.teacherName || '原指导教师') + '（当前所选）',
+    })
+  }
   const save = useMutation({
     mutationFn: (values: {
       username: string
       name: string
+      collegeCode: string
       major?: string
       teacherId?: string
     }) => {
       const input = {
         name: values.name.trim(),
+        collegeCode: values.collegeCode,
         ...(role === 'STUDENT'
           ? { major: values.major?.trim() || null, teacherId: values.teacherId || null }
           : {}),
@@ -45,21 +74,26 @@ export function UserForm({
       void message.success(
         user
           ? `已更新${saved.name}的账号信息。`
-          : `已创建${saved.name}的账号，初始密码为 123456，首次登录需重新设置密码。`,
+          : `已创建${saved.name}的账号，初始密码为 123456，${saved.mustChangePassword ? '首次登录需重新设置密码。' : '可直接登录。'}`,
       )
       onSaved()
     },
   })
   return (
     <Modal
-      title={`${user ? '编辑' : '新建'}${role === 'STUDENT' ? '学生' : '教师'}账号`}
+      title={
+        (user ? '编辑' : '新建') +
+        (role === 'STUDENT' ? '学生' : role === 'TEACHER' ? '教师' : '学院管理员') +
+        '账号'
+      }
       open
       onCancel={onClose}
       onOk={() => form.submit()}
+      okButtonProps={{ disabled: catalog.isPending || !!catalog.error }}
       confirmLoading={save.isPending}
       okText="保存"
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}
@@ -68,11 +102,44 @@ export function UserForm({
         initialValues={{
           username: user?.username ?? '',
           name: user?.name ?? '',
+          collegeCode: user?.collegeCode ?? currentUser?.collegeCode ?? undefined,
           major: user?.major ?? '',
           teacherId: user?.teacherId ?? undefined,
         }}
         onFinish={(values) => save.mutate(values)}
       >
+        <Form.Item label="学校">
+          <Select
+            disabled
+            value={catalog.data?.schoolName ?? '山东石油化工学院'}
+            options={[
+              {
+                value: catalog.data?.schoolName ?? '山东石油化工学院',
+                label: catalog.data?.schoolName ?? '山东石油化工学院',
+              },
+            ]}
+          />
+        </Form.Item>
+        <Form.Item
+          label="学院"
+          name="collegeCode"
+          rules={[{ required: true, message: '请选择学院' }]}
+        >
+          <Select
+            placeholder={catalog.isPending ? '正在加载学院' : '请选择学院'}
+            loading={catalog.isPending}
+            disabled={!!currentUser?.collegeCode}
+            options={(catalog.data?.colleges ?? [])
+              .filter(
+                (college) => !currentUser?.collegeCode || college.code === currentUser.collegeCode,
+              )
+              .map((college) => ({ value: college.code, label: college.name }))}
+            onChange={() => {
+              form.setFieldsValue({ major: undefined, teacherId: undefined })
+              setTeacherSearch('')
+            }}
+          />
+        </Form.Item>
         <Form.Item
           label={role === 'STUDENT' ? '学号' : '工号'}
           name="username"
@@ -94,7 +161,24 @@ export function UserForm({
         {role === 'STUDENT' && (
           <>
             <Form.Item label="专业（选填）" name="major">
-              <Input maxLength={64} />
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                placeholder={collegeCode ? '选择本学院专业' : '请先选择学院'}
+                disabled={!collegeCode}
+                loading={majors.isPending && !!collegeCode}
+                options={(majors.data ?? [])
+                  .filter(
+                    (major) =>
+                      major.active ||
+                      (major.name === user?.major && user.collegeCode === collegeCode),
+                  )
+                  .map((major) => ({
+                    value: major.name,
+                    label: major.active ? major.name : major.name + '（已停用）',
+                  }))}
+              />
             </Form.Item>
             <Form.Item label="指导教师（选填）" name="teacherId">
               <Select
@@ -102,16 +186,17 @@ export function UserForm({
                 showSearch
                 filterOption={false}
                 placeholder="输入工号或姓名搜索"
+                disabled={!collegeCode}
                 onSearch={setTeacherSearch}
                 loading={teachers.isPending}
-                options={(teachers.data ?? []).map((teacher) => ({
-                  value: teacher.id,
-                  label: `${teacher.name} · ${teacher.username}`,
-                }))}
+                options={teacherOptions}
               />
             </Form.Item>
           </>
         )}
+        <ApiAlert error={catalog.error} retry={() => void catalog.refetch()} />
+        <ApiAlert error={majors.error} retry={() => void majors.refetch()} />
+        <ApiAlert error={teachers.error} retry={() => void teachers.refetch()} />
         <ApiAlert error={save.error} />
       </Form>
     </Modal>
