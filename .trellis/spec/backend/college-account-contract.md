@@ -2,7 +2,7 @@
 
 ## 1. Scope / Trigger
 
-- 修改账号列表、创建、编辑、启停、删除、Excel 导入、导师候选或专业目录时适用。毕业生按导师名单管理，不引入班级、年级分组。
+- 修改账号列表、创建、编辑、启停、删除、Excel 导入、导师候选或专业目录时适用。毕业生按导师名单管理，不引入班级；学生年级为可筛选的显式四位年份，不从学号推断。
 - 学校固定“山东石油化工学院”；三个学院由后端 College 枚举与 Flyway 检查约束限定：INFORMATION_ENGINEERING、EDUCATION_ARTS、ECONOMICS_MANAGEMENT。
 - sys_user.college_code 是归属权威字段。旧值 null 表示待归属，不根据专业、导师或前端选项推断；ADMIN 且学院为空是校级管理员，非空是学院管理员。
 
@@ -14,17 +14,17 @@
 | GET /api/admin/majors?collegeCode= | [{id:string,collegeCode,name,active}]，包含停用项 |
 | POST /api/admin/majors | {collegeCode,name} → 201 MajorView |
 | PATCH /api/admin/majors/{id}/active | {active:boolean} → MajorView |
-| GET /api/admin/users | role 必传；q="",active?,collegeCode?,page=1,size=20 → PageResponse<UserView> |
-| GET /api/admin/teachers | collegeCode 必传，q=""；最多100名本院启用教师，按账号、ID排序 |
-| POST /api/admin/users | {username,name,role,major?,teacherId?,collegeCode} → 200 UserView |
-| PATCH /api/admin/users/{id} | {name,major?,teacherId?,collegeCode} → UserView |
+| GET /api/admin/users | role 必传；q="",active?,collegeCode?,grade?,page=1,size=20 → PageResponse<UserView>；学生 grade=UNSET 可筛旧空值 |
+| GET /api/admin/teachers | collegeCode 必传，q="",page=1,size=20 → PageResponse<UserView>，不截断第101名之后的候选 |
+| POST /api/admin/users | {username,name,role,major?,teacherId?,collegeCode,grade?} → 200 UserView；新学生 grade 必填 |
+| PATCH /api/admin/users/{id} | {name,major?,teacherId?,collegeCode,grade?} → UserView |
 | POST /api/admin/users/{id}/active | {active:boolean} → {user,assignedStudents,message} |
 | POST /api/admin/users/{id}/reset-password | → UserView，恢复初始密码；教师/管理员须改密，学生无需强制改密 |
 | DELETE /api/admin/users/{id} | → {outcome:'DELETED'或'DEACTIVATED',user:UserView或null,message} |
-| 管理员 Excel preview/execute | multipart 增 collegeCode；校管必传，院管可继承；模板不按院区分 |
+| 管理员 Excel preview/execute | multipart 的 collegeCode 可选范围约束；校管可逐行导入多院，院管仅本院；学生模板为学号、姓名、学校、学院、专业、年级、指导教师工号，教师模板为工号、姓名、学校、学院、专业 |
 | GET /api/teacher/majors | 当前教师本院启用专业；无学院返回409 COLLEGE_UNASSIGNED |
 
-- UserView 增加 collegeCode、collegeName，未知学院两项为空。
+- UserView 包含 collegeCode、collegeName、grade；未知学院两项为空，旧学生未知年级为 null。
 - V3 增加可空 sys_user.college_code varchar(32) 和索引 (college_code,role,is_active)；新增 major_catalog(id bigint identity,college_code varchar(32),name varchar(64),is_active boolean)，同院专业名唯一。迁移不自动补旧账号学院，不改提交记录。
 
 ## 3. Contracts
@@ -33,8 +33,8 @@
 - 每请求从数据库读取当前账号；写操作锁定操作者行，再校验角色、启用状态、改密状态和学院。会话中的旧学院不能授权。
 - 校管管理全校师生与学院管理员，不能操作校级管理员目标；院管只能管理本院师生和专业，不能列出或管理任何管理员。学院查询和目标ID均在服务端约束。
 - 新账号必须有合法学院；校管创建的ADMIN只能是学院管理员。院管创建师生可继承自身学院，不能指定其他学院。
-- username为3–32位字母、数字、下划线；姓名非空且最多64字符；专业可空且最多64字符；teacherId可空，提供时为正整数字符串。只有学生可有专业、导师。
-- 专业名trim、非空、最多64字符；同院同名包含停用项，不因停用释放名称。新建或更改学生专业须在本院启用目录中。未改动的历史专业可保留；从已有非空学院转院必须重新校验。旧账号从未知学院补录时不猜测或抹去历史专业。
+- username为3–32位字母、数字、下划线；姓名非空且最多64字符；专业可空且最多64字符；teacherId可空，提供时为正整数字符串。学生须填写 2000–2100 的年级（旧账号可为 null）且可有导师；教师可有专业但无导师/年级；管理员无专业/导师/年级。
+- 专业名trim、非空、最多64字符；同院同名包含停用项，不因停用释放名称。新建或更改师生专业须在本院启用目录中。未改动的历史专业可保留；从已有非空学院转院必须重新校验。旧账号从未知学院补录时不猜测或抹去历史专业。
 - 学生导师须是同院、启用的教师；创建或更新学生时锁导师行。教师已有学生且原学院非空时，变更学院返回冲突；补录旧教师学院不自动修改其学生。
 - 删除按**受保护入向引用**判断：被学生引用的教师、有任意提交记录的学生原子停用，保留关联与历史，返回DEACTIVATED及账号；无此类引用时永久删除，返回DELETED、user=null。学生仅有teacherId、没有提交时允许删除，保留教师。
 - 删除与新增关联共享被引用账号行锁：创建学生锁导师；代理上传与直传预留在短事务内再次锁定、核验学生后创建提交。停用/删除先提交时，迟到创建不得沿用事务外旧权限；创建先提交时，删除查到关联后停用。COS传输与签名不持有数据库行锁。数据库外键保留ON DELETE RESTRICT，不做级联删除。
@@ -51,7 +51,7 @@
 | 教师学院未分配 | 409 COLLEGE_UNASSIGNED |
 | 用户不存在 / 用户名重复 | 404 USER_NOT_FOUND / 409 USERNAME_EXISTS |
 | 校验注解不通过 / 搜索超过100字符 / 非法分页 | 400 VALIDATION_ERROR / 400 INVALID_QUERY / 400 INVALID_PAGE |
-| 非学生带专业或导师 | 400 INVALID_PROFILE |
+| 管理员带专业/导师/年级，或教师带导师/年级 | 400 INVALID_PROFILE |
 | 导师不存在、停用、跨院、非教师、超long范围 | 400 INVALID_TEACHER；字符串格式不满足正整数为400 VALIDATION_ERROR |
 | 非本院启用专业 / 专业不存在 / 同院重名 | 400 INVALID_MAJOR / 404 MAJOR_NOT_FOUND / 409 MAJOR_EXISTS |
 | 有学生的教师转离原非空学院 | 409 TEACHER_HAS_STUDENTS |

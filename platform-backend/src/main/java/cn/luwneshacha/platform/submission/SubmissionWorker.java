@@ -49,6 +49,7 @@ public class SubmissionWorker {
         HttpAuditEngine.copyLimited(source.stream(),output,SubmissionService.MAX_BYTES);
       }
       var result=engine.inspect(input,directory);
+      var ruleSummary=RuleIssueSummary.parse(result.reportJson(),result.problemCount());
       try(var content=Files.newInputStream(result.marked())) {
         storage.put(claim.attemptPrefix()+"marked.docx",content,Files.size(result.marked()),SubmissionService.DOCX);
       }
@@ -58,7 +59,7 @@ public class SubmissionWorker {
       try(var content=new ByteArrayInputStream(result.reportJson())) {
         storage.put(claim.attemptPrefix()+"report.json",content,result.reportJson().length,"application/json");
       }
-      succeeded=tasks.succeed(claim,result.problemCount(),Instant.now());
+      succeeded=tasks.succeedIndexed(claim,result.problemCount(),ruleSummary,Instant.now());
       if(!succeeded) log.warn("submission_attempt_fenced submission={} attempt={}",claim.id(),claim.attempt());
     } catch(EngineFailure error) {
       log.warn("submission_engine_failed submission={} attempt={} retryable={}",claim.id(),claim.attempt(),error.retryable(),error);

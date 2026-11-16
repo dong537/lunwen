@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
@@ -37,19 +36,23 @@ public class UserService {
   public UserView current(long id) { return view(required(id)); }
 
   @Transactional(readOnly = true)
-  public PageResponse<UserView> list(CurrentUser current, Role role, String query, Boolean active, String collegeCode, int page, int size) {
+  public PageResponse<UserView> list(CurrentUser current, Role role, String query, Boolean active, String collegeCode,
+      String grade, int page, int size) {
     User actor = scope.actor(current);
     if (role == Role.ADMIN) scope.school(actor);
+    GradeFilter gradeFilter = parseGradeFilter(role, grade);
     String college = scope.college(actor, collegeCode, false);
-    var result = users.findAll(search(role, query, active, college), PageParameters.of(page, size, Sort.by("username", "id")));
+    var result = users.findAll(search(role, query, active, college, gradeFilter), PageParameters.of(page, size, Sort.by("username", "id")));
     return new PageResponse<>(views(result.getContent()), result.getTotalElements(), page, size);
   }
 
   @Transactional(readOnly = true)
-  public List<UserView> teachers(CurrentUser current, String query, String collegeCode) {
+  public PageResponse<UserView> teachers(CurrentUser current, String query, String collegeCode, int page, int size) {
     College.fromCode(collegeCode);
     String college = scope.college(scope.actor(current), collegeCode, true);
-    return views(users.findAll(search(Role.TEACHER, query, true, college), PageRequest.of(0, 100, Sort.by("username", "id"))).getContent());
+    var result = users.findAll(search(Role.TEACHER, query, true, college, null),
+        PageParameters.of(page, size, Sort.by("username", "id")));
+    return new PageResponse<>(views(result.getContent()), result.getTotalElements(), page, size);
   }
 
   @Transactional
@@ -64,9 +67,9 @@ public class UserService {
     validate(request);
     String username = request.username();
     if (users.existsByUsername(username)) throw new ApiException(HttpStatus.CONFLICT, "USERNAME_EXISTS", "账号已存在");
-    Long teacher = validateProfile(request.role(), request.major(), request.teacherId(), college, null, true);
+    Long teacher = validateProfile(request.role(), request.major(), request.teacherId(), request.grade(), college, null, true);
     var user = new User(username, passwords.encode("123456"), request.role(), request.name().trim(),
-        nullable(request.major()), teacher, college, request.role() != Role.STUDENT);
+        nullable(request.major()), teacher, college, request.role() != Role.STUDENT, request.grade());
     users.saveAndFlush(user);
     return view(user);
   }
@@ -88,6 +91,9 @@ public class UserService {
   @Transactional(readOnly = true)
   public void validateTeacher(CurrentUser current) { requireTeacher(current, false); }
 
+  @Transactional(readOnly = true)
+  public String teacherCollegeCode(CurrentUser current) { return teacherCollege(requireTeacher(current, false)); }
+
   private User requireTeacher(CurrentUser current, boolean lock) {
     if (current == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "请先登录");
     User teacher = (lock ? users.findByIdForUpdate(current.id()) : users.findById(current.id()))
@@ -99,7 +105,8 @@ public class UserService {
     return new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "无权管理该学生");
   }
   private static CreateUser studentRequest(User teacher, CreateStudent request) {
-    return new CreateUser(request.username(), request.name(), Role.STUDENT, request.major(), teacher.getId().toString(), teacherCollege(teacher));
+    return new CreateUser(request.username(), request.name(), Role.STUDENT, request.major(), teacher.getId().toString(),
+        teacherCollege(teacher), request.grade());
   }
   private static String teacherCollege(User teacher) {
     if (teacher.getCollegeCode() == null)
@@ -116,8 +123,9 @@ public class UserService {
     if (user.getRole() == Role.TEACHER && user.getCollegeCode() != null
         && !college.equals(user.getCollegeCode()) && users.countByTeacherId(id) > 0)
       throw new ApiException(HttpStatus.CONFLICT, "TEACHER_HAS_STUDENTS", "请先重新分配该教师名下学生，再修改教师学院");
-    Long teacher = validateProfile(user.getRole(), request.major(), request.teacherId(), college, user, true);
-    user.updateProfile(request.name().trim(), nullable(request.major()), teacher, college);
+    Integer grade = user.getRole() == Role.STUDENT && request.grade() == null ? user.getGrade() : request.grade();
+    Long teacher = validateProfile(user.getRole(), request.major(), request.teacherId(), grade, college, user, true);
+    user.updateProfile(request.name().trim(), nullable(request.major()), teacher, college, grade);
     return view(users.saveAndFlush(user));
   }
 
@@ -161,13 +169,16 @@ public class UserService {
   }
   private void validateNewUser(CreateUser request, String college) {
     validate(request);
-    validateProfile(request.role(), request.major(), request.teacherId(), college, null, false);
+    validateProfile(request.role(), request.major(), request.teacherId(), request.grade(), college, null, false);
   }
 
-  private Long validateProfile(Role role, String major, String teacherId, String college, User existing, boolean lockTeacher) {
-    if (role != Role.STUDENT && (nullable(major) != null || nullable(teacherId) != null))
-      throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PROFILE", "只有学生可以填写专业和指导教师");
-    if (role == Role.STUDENT && (existing == null
+  private Long validateProfile(Role role, String major, String teacherId, Integer grade, String college, User existing,
+      boolean lockTeacher) {
+    if ((role == Role.ADMIN && nullable(major) != null) || (role != Role.STUDENT && (nullable(teacherId) != null || grade != null)))
+      throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_PROFILE", "管理员不能填写专业，只有学生可以填写年级和指导教师");
+    if (role == Role.STUDENT && existing == null && grade == null)
+      throw new ApiException(HttpStatus.BAD_REQUEST, "GRADE_REQUIRED", "请填写学生入学年级");
+    if ((role == Role.STUDENT || role == Role.TEACHER) && (existing == null
         || !java.util.Objects.equals(nullable(major), nullable(existing.getMajor()))
         || (existing.getCollegeCode() != null && !college.equals(existing.getCollegeCode()))))
       majors.validateActive(college, major);
@@ -205,13 +216,28 @@ public class UserService {
     return values.stream().map(user -> UserView.from(user,
         teachers.containsKey(user.getTeacherId()) ? teachers.get(user.getTeacherId()).getName() : null)).toList();
   }
-  private static Specification<User> search(Role role, String query, Boolean active, String college) {
+  private static GradeFilter parseGradeFilter(Role role, String grade) {
+    if (grade == null || grade.isBlank()) return null;
+    if (role != Role.STUDENT)
+      throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_GRADE", "年级筛选只用于学生账号");
+    if ("UNSET".equals(grade)) return new GradeFilter(null, true);
+    if (!grade.matches("[0-9]{4}"))
+      throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_GRADE", "年级须为2000至2100年的入学年份");
+    int year = Integer.parseInt(grade);
+    if (year < 2000 || year > 2100)
+      throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_GRADE", "年级须为2000至2100年的入学年份");
+    return new GradeFilter(year, false);
+  }
+
+  private static Specification<User> search(Role role, String query, Boolean active, String college, GradeFilter grade) {
     if (query != null && query.length() > 100)
       throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_QUERY", "搜索内容不能超过100个字符");
     return (root, criteria, cb) -> {
       var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
       predicates.add(cb.equal(root.get("role"), role));
       if (college != null) predicates.add(cb.equal(root.get("collegeCode"), college));
+      if (grade != null) predicates.add(grade.unset()
+          ? cb.isNull(root.get("grade")) : cb.equal(root.get("grade"), grade.year()));
       if (active != null) predicates.add(cb.equal(root.get("active"), active));
       if (query != null && !query.isBlank()) {
         String pattern = "%" + query.trim().toLowerCase(java.util.Locale.ROOT).replace("\\", "\\\\")
@@ -229,16 +255,24 @@ public class UserService {
       @NotNull(message = "请选择角色") Role role,
       @Size(max = 64, message = "专业不能超过64个字符") String major,
       @Pattern(regexp = "[1-9][0-9]*", message = "指导教师编号不正确") String teacherId,
-      String collegeCode) {}
+      String collegeCode,
+      @Min(value = 2000, message = "年级须为2000至2100年的入学年份")
+      @Max(value = 2100, message = "年级须为2000至2100年的入学年份") Integer grade) {}
   public record UpdateUser(
       @NotBlank(message = "请填写姓名") @Size(max = 64, message = "姓名不能超过64个字符") String name,
       @Size(max = 64, message = "专业不能超过64个字符") String major,
       @Pattern(regexp = "[1-9][0-9]*", message = "指导教师编号不正确") String teacherId,
-      String collegeCode) {}
+      String collegeCode,
+      @Min(value = 2000, message = "年级须为2000至2100年的入学年份")
+      @Max(value = 2100, message = "年级须为2000至2100年的入学年份") Integer grade) {}
   public record ActiveResult(UserView user, long assignedStudents, String message) {}
   public record DeleteResult(String outcome, UserView user, String message) {}
   public record CreateStudent(
       @NotNull(message = "请填写学号") @Pattern(regexp = "[A-Za-z0-9_]{3,32}", message = "学号须为3至32位字母、数字或下划线") String username,
       @NotBlank(message = "请填写姓名") @Size(max = 64, message = "姓名不能超过64个字符") String name,
-      @Size(max = 64, message = "专业不能超过64个字符") String major) {}
+      @Size(max = 64, message = "专业不能超过64个字符") String major,
+      @NotNull(message = "请填写学生入学年级")
+      @Min(value = 2000, message = "年级须为2000至2100年的入学年份")
+      @Max(value = 2100, message = "年级须为2000至2100年的入学年份") Integer grade) {}
+  private record GradeFilter(Integer year, boolean unset) {}
 }

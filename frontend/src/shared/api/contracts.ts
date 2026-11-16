@@ -6,6 +6,7 @@ export interface User {
   name: string
   role: Role
   major: string | null
+  grade: number | null
   teacherId: string | null
   teacherName: string | null
   collegeCode: string | null
@@ -56,6 +57,7 @@ export interface StudentSummary {
   username: string
   name: string
   major: string | null
+  grade: number | null
   submissionCount: number
   lastSubmittedAt: string | null
   latestProblemCount: number | null
@@ -64,6 +66,9 @@ export interface Dashboard {
   activeStudents: number
   activeTeachers: number
   totalSubmissions: number
+  dailySubmissions: { date: string; count: number }[]
+  statusDistribution: { status: SubmissionStatus; count: number }[]
+  studentsByCollege: { collegeCode: string | null; collegeName: string; count: number }[]
 }
 export interface College {
   code: string
@@ -91,6 +96,31 @@ export interface TeacherStatistics {
   failedSubmissions: number
   latestSuccessfulProblemCount: number | null
 }
+export type StatisticsRange = '30' | '90' | '365' | 'ALL'
+export interface TeacherInsights {
+  coverage: { eligibleReviews: number; indexedReviews: number }
+  topRules: { ruleId: string; description: string; count: number }[]
+  problemDistribution: { label: string; students: number }[]
+  dailySubmissions: { date: string; count: number }[]
+  heatmap: {
+    rules: { ruleId: string; description: string }[]
+    students: {
+      studentId: string
+      name: string
+      counts: Record<string, number>
+    }[]
+  }
+  students: Page<{
+    id: string
+    username: string
+    name: string
+    grade: number | null
+    major: string | null
+    lastSubmittedAt: string | null
+    latestProblemCount: number | null
+    latestReviewStatus: SubmissionStatus | null
+  }>
+}
 export interface ImportError {
   row: number
   username: string
@@ -110,5 +140,6 @@ export interface UserInput {
   role: Role
   collegeCode: string
   major?: string | null
+  grade?: number | null
   teacherId?: string | null
 }

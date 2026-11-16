@@ -30,7 +30,7 @@ public final class ExcelUserFile {
     return read(file, columns(role));
   }
   public List<RowInput> readTeacherStudents(MultipartFile file) {
-    return read(file, new String[] {"学号", "姓名", "专业"});
+    return read(file, new String[] {"学号", "姓名", "学校", "学院", "专业", "年级"});
   }
   private List<RowInput> read(MultipartFile file, String[] columns) {
     if (file.isEmpty()) throw invalid("IMPORT_EMPTY", "请选择有内容的 Excel 文件");
@@ -69,13 +69,13 @@ public final class ExcelUserFile {
             if (cell.getCellType() == CellType.FORMULA) error = "请将公式替换为文字后再导入";
             else if (cell.getCellType() == CellType.ERROR) error = "单元格存在错误，请修正后再导入";
             else if (cell.getColumnIndex() >= columns.length) error = "有模板以外的内容，请只填写模板中的列";
-            else if (value.length() > 512) error = "单元格内容过长，请检查账号、姓名和专业";
+            else if (value.length() > 512) error = "单元格内容过长，请检查账号、姓名、学校、学院、专业和年级";
             else values[cell.getColumnIndex()] = value;
           }
           if (!nonempty) continue;
           if (result.size() == MAX_ROWS) throw invalid("IMPORT_ROW_LIMIT", "每次最多导入 2000 行，请拆分文件");
-          result.add(new RowInput(row.getRowNum() + 1, values[0], values[1],
-              columns.length >= 3 ? values[2] : "", columns.length >= 4 ? values[3] : "", error));
+          result.add(new RowInput(row.getRowNum() + 1, values[0], values[1], values[2], values[3], values[4],
+              columns.length >= 6 ? values[5] : "", columns.length >= 7 ? values[6] : "", error));
         }
         if (result.isEmpty()) throw invalid("IMPORT_EMPTY", "表格中没有账号数据，请在表头下填写名单");
         return List.copyOf(result);
@@ -89,7 +89,7 @@ public final class ExcelUserFile {
     return template(columns(role), role == Role.STUDENT ? "学生账号" : "教师账号");
   }
   public byte[] teacherStudentTemplate() {
-    return template(new String[] {"学号", "姓名", "专业"}, "学生账号");
+    return template(new String[] {"学号", "姓名", "学校", "学院", "专业", "年级"}, "学生账号");
   }
   private byte[] template(String[] columns, String sheetName) {
     try (var book = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
@@ -123,11 +123,12 @@ public final class ExcelUserFile {
     }
   }
   private static String[] columns(Role role) {
-    if (role == Role.STUDENT) return new String[] {"学号", "姓名", "专业", "指导教师工号"};
-    if (role == Role.TEACHER) return new String[] {"工号", "姓名"};
+    if (role == Role.STUDENT) return new String[] {"学号", "姓名", "学校", "学院", "专业", "年级", "指导教师工号"};
+    if (role == Role.TEACHER) return new String[] {"工号", "姓名", "学校", "学院", "专业"};
     throw invalid("INVALID_ROLE", "只能导入学生或教师账号");
   }
   private static ApiException invalid(String code, String message) { return new ApiException(HttpStatus.BAD_REQUEST, code, message); }
   private static ApiException oversized() { return new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", "Excel 文件不能超过 5MB"); }
-  public record RowInput(int row, String username, String name, String major, String teacherUsername, String error) {}
+  public record RowInput(int row, String username, String name, String school, String college, String major,
+      String grade, String teacherUsername, String error) {}
 }

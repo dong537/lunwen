@@ -109,6 +109,7 @@ class AccountSecurityIntegrationTest {
         .andExpect(jsonPath("$.data.successCount").value(1)).andExpect(jsonPath("$.data.failedCount").value(2));
     var imported = users.findByUsername("new001").orElseThrow();
     assertEquals(teacher.getId(), imported.getTeacherId());
+    assertEquals(2023, imported.getGrade());
     assertFalse(imported.isMustChangePassword());
     assertTrue(passwords.matches("123456", imported.getPasswordHash()));
     assertEquals("测试学生", users.findByUsername("2026001").orElseThrow().getName());
@@ -167,7 +168,7 @@ class AccountSecurityIntegrationTest {
         .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
     try (var book = new XSSFWorkbook(new ByteArrayInputStream(template))) {
       assertEquals("学号", book.getSheetAt(0).getRow(0).getCell(0).getStringCellValue());
-      assertEquals("指导教师工号", book.getSheetAt(0).getRow(0).getCell(3).getStringCellValue());
+      assertEquals("指导教师工号", book.getSheetAt(0).getRow(0).getCell(6).getStringCellValue());
       assertEquals("@", book.getSheetAt(0).getColumnStyle(0).getDataFormatString());
     }
     String[][] tooMany = java.util.stream.IntStream.range(0, 2001).mapToObj(i -> new String[] {"user" + i, "姓名"}).toArray(String[][]::new);
@@ -184,7 +185,7 @@ class AccountSecurityIntegrationTest {
     mvc.perform(get("/api/admin/imports/template").param("role", "ADMIN").session(admin)).andExpect(status().isBadRequest());
   }
 
-  @Test void schoolAdministratorImportRequiresCollegeForPreviewAndExecute() throws Exception {
+  @Test void schoolAdministratorImportsUsingVerifiedExcelCollegeWithoutPageScope() throws Exception {
     String username = "missing_college_teacher";
     var file = workbook(Role.TEACHER, new String[][] {{username, "待导入教师"}});
     var admin = login("admin", "AdminPassword1"); var csrf = csrf(admin);
@@ -194,13 +195,89 @@ class AccountSecurityIntegrationTest {
         .param("collegeCode", College.INFORMATION_ENGINEERING.name())
         .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isOk())
         .andExpect(jsonPath("$.data.validRows").value(1));
-    for (String action : new String[] {"preview", "execute"}) {
-      mvc.perform(multipart("/api/admin/imports/" + action).file(file).param("role", "TEACHER")
-          .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isBadRequest())
-          .andExpect(jsonPath("$.error.code").value("COLLEGE_REQUIRED"));
-      assertFalse(users.existsByUsername(username));
-      assertEquals(accountCount, users.count());
+    mvc.perform(multipart("/api/admin/imports/preview").file(file).param("role", "TEACHER")
+        .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.validRows").value(1));
+    assertEquals(accountCount, users.count());
+    mvc.perform(multipart("/api/admin/imports/execute").file(file).param("role", "TEACHER")
+        .session(admin).header(csrf.header(), csrf.token())).andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.successCount").value(1));
+    assertEquals(College.INFORMATION_ENGINEERING.name(), users.findByUsername(username).orElseThrow().getCollegeCode());
+  }
+
+  @Test void gradeFilteringKeepsUnknownLegacyStudentsDistinctFromExplicitYears() throws Exception {
+    var admin = login("admin", "AdminPassword1"); var csrf = csrf(admin);
+    for (int year : new int[] {2023, 2024}) {
+      mvc.perform(post("/api/admin/users").session(admin).header(csrf.header(), csrf.token())
+          .contentType("application/json").content(json.writeValueAsBytes(Map.of("username", "new_" + year,
+              "name", "学生" + year, "role", "STUDENT", "grade", year,
+              "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+          .andExpect(status().isOk()).andExpect(jsonPath("$.data.grade").value(year));
     }
+    mvc.perform(get("/api/admin/users").session(admin).param("role", "STUDENT"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(3));
+    mvc.perform(get("/api/admin/users").session(admin).param("role", "STUDENT").param("grade", "2023"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.items[0].username").value("new_2023"));
+    var yearStudent = users.findByUsername("new_2023").orElseThrow();
+    mvc.perform(patch("/api/admin/users/" + yearStudent.getId()).session(admin)
+            .header(csrf.header(), csrf.token()).contentType("application/json")
+            .content(json.writeValueAsBytes(Map.of("name", "学生改名", "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.grade").value(2023));
+    assertEquals(2023, users.findByUsername("new_2023").orElseThrow().getGrade());
+    mvc.perform(get("/api/admin/users").session(admin).param("role", "STUDENT").param("grade", "UNSET"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
+        .andExpect(jsonPath("$.data.items[0].username").value("2026001"))
+        .andExpect(jsonPath("$.data.items[0].grade").isEmpty());
+    mvc.perform(get("/api/admin/users").session(admin).param("role", "TEACHER").param("grade", "2023"))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_GRADE"));
+    mvc.perform(get("/api/admin/users").session(admin).param("role", "STUDENT").param("grade", "1999"))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_GRADE"));
+    mvc.perform(post("/api/admin/users").session(admin).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("username", "missing_grade",
+            "name", "学生", "role", "STUDENT", "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("GRADE_REQUIRED"));
+    assertFalse(users.existsByUsername("missing_grade"));
+  }
+
+  @Test void teacherChoicesArePagedAndSearchableBeyondOneHundredAccounts() throws Exception {
+    for (int i = 1; i <= 101; i++) users.save(new User("choice_" + String.format("%03d", i),
+        passwords.encode("Password1"), Role.TEACHER, "教师" + i, null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    var admin = login("admin", "AdminPassword1");
+    mvc.perform(get("/api/admin/teachers").session(admin).param("collegeCode", College.INFORMATION_ENGINEERING.name())
+        .param("page", "6").param("size", "20"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(101))
+        .andExpect(jsonPath("$.data.items.length()").value(1))
+        .andExpect(jsonPath("$.data.items[0].username").value("choice_101"));
+    mvc.perform(get("/api/admin/teachers").session(admin).param("collegeCode", College.INFORMATION_ENGINEERING.name())
+        .param("q", "choice_101"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1));
+  }
+
+  @Test void excelSchoolCollegeAndMajorAreValidatedPerRowWithoutGrantingScope() throws Exception {
+    majors.save(new MajorCatalog(College.EDUCATION_ARTS.name(), "学前教育"));
+    var file = workbook(Role.TEACHER, new String[][] {
+        {"row_info", "信息教师", College.SCHOOL_NAME, College.INFORMATION_ENGINEERING.displayName(), "计算机"},
+        {"row_arts", "艺术教师", College.SCHOOL_NAME, College.EDUCATION_ARTS.displayName(), "学前教育"},
+        {"row_wrong", "错误学校", "另一所学校", College.INFORMATION_ENGINEERING.displayName(), "计算机"}});
+    var admin = login("admin", "AdminPassword1"); var csrf = csrf(admin);
+    mvc.perform(multipart("/api/admin/imports/preview").file(file).param("role", "TEACHER")
+        .session(admin).header(csrf.header(), csrf.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.validRows").value(2))
+        .andExpect(jsonPath("$.data.failedCount").value(1));
+    mvc.perform(multipart("/api/admin/imports/execute").file(file).param("role", "TEACHER")
+        .session(admin).header(csrf.header(), csrf.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.successCount").value(2));
+    assertEquals("计算机", users.findByUsername("row_info").orElseThrow().getMajor());
+    assertEquals(College.EDUCATION_ARTS.name(), users.findByUsername("row_arts").orElseThrow().getCollegeCode());
+    users.save(new User("college_admin", passwords.encode("Password1"), Role.ADMIN, "院管", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    var collegeAdmin = login("college_admin", "Password1"); var collegeCsrf = csrf(collegeAdmin);
+    mvc.perform(multipart("/api/admin/imports/preview").file(file).param("role", "TEACHER")
+        .session(collegeAdmin).header(collegeCsrf.header(), collegeCsrf.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.skippedCount").value(1))
+        .andExpect(jsonPath("$.data.failedCount").value(2));
   }
 
   @Test void teacherManagementWarnsAboutAssignedStudentsAndKeepsAdministratorImmutable() throws Exception {
@@ -242,7 +319,7 @@ class AccountSecurityIntegrationTest {
     mvc.perform(get("/api/admin/users").session(session).param("role", "ADMIN"))
         .andExpect(status().isForbidden());
     mvc.perform(get("/api/admin/teachers").session(session).param("collegeCode", College.INFORMATION_ENGINEERING.name()))
-        .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(1));
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1));
     mvc.perform(get("/api/admin/teachers").session(session).param("collegeCode", College.EDUCATION_ARTS.name()))
         .andExpect(status().isForbidden());
     mvc.perform(get("/api/admin/majors").session(session).param("collegeCode", College.EDUCATION_ARTS.name()))
@@ -275,7 +352,8 @@ class AccountSecurityIntegrationTest {
         .andExpect(status().isOk()).andExpect(jsonPath("$.data.active").value(false));
     mvc.perform(post("/api/admin/users").session(session).header(csrf.header(), csrf.token())
         .contentType("application/json").content(json.writeValueAsBytes(Map.of("username", "new_student",
-            "name", "学生", "role", "STUDENT", "major", "电子信息", "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+            "name", "学生", "role", "STUDENT", "major", "电子信息", "grade", 2023,
+            "collegeCode", College.INFORMATION_ENGINEERING.name()))))
         .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_MAJOR"));
     student.updateProfile(student.getName(), "历史专业", null); users.saveAndFlush(student);
     mvc.perform(patch("/api/admin/users/" + student.getId()).session(session).header(csrf.header(), csrf.token())
@@ -328,7 +406,7 @@ class AccountSecurityIntegrationTest {
     mvc.perform(post("/api/admin/users").session(session).header(csrf.header(), csrf.token())
         .contentType("application/json").content(json.writeValueAsBytes(Map.of("username", "cross_student",
             "name", "跨院学生", "role", "STUDENT", "teacherId", artsTeacher.getId().toString(),
-            "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+            "grade", 2023, "collegeCode", College.INFORMATION_ENGINEERING.name()))))
         .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_TEACHER"));
     User infoTeacher = users.save(new User("info_teacher", passwords.encode("Password1"), Role.TEACHER, "信息教师",
         null, null, College.INFORMATION_ENGINEERING.name(), false));
@@ -394,7 +472,7 @@ class AccountSecurityIntegrationTest {
     try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
       var profile = executor.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactions).execute(status -> {
         accounts.update(CurrentUser.from(users.findByUsername("admin").orElseThrow()), student.getId(),
-            new UserService.UpdateUser("并发修改后的名字", "计算机", null, College.INFORMATION_ENGINEERING.name()));
+            new UserService.UpdateUser("并发修改后的名字", "计算机", null, College.INFORMATION_ENGINEERING.name(), null));
         updated.countDown();
         try { if (!release.await(10, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("release timed out"); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); }
@@ -419,11 +497,21 @@ class AccountSecurityIntegrationTest {
   private MockMultipartFile workbook(Role role, String[][] rows) throws Exception {
     try (var book = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
       var sheet = book.createSheet("账号"); var header = sheet.createRow(0);
-      String[] columns = role == Role.STUDENT ? new String[] {"学号", "姓名", "专业", "指导教师工号"} : new String[] {"工号", "姓名"};
+      String[] columns = role == Role.STUDENT
+          ? new String[] {"学号", "姓名", "学校", "学院", "专业", "年级", "指导教师工号"}
+          : new String[] {"工号", "姓名", "学校", "学院", "专业"};
       for (int i = 0; i < columns.length; i++) header.createCell(i).setCellValue(columns[i]);
       for (int i = 0; i < rows.length; i++) {
         var row = sheet.createRow(i + 1);
-        for (int j = 0; j < rows[i].length; j++) row.createCell(j).setCellValue(rows[i][j]);
+        String[] values = rows[i];
+        if (role == Role.STUDENT && values.length <= 4)
+          values = new String[] {values[0], values[1], College.SCHOOL_NAME,
+              College.INFORMATION_ENGINEERING.displayName(), values.length > 2 ? values[2] : "", "2023",
+              values.length > 3 ? values[3] : ""};
+        else if (role == Role.TEACHER && values.length <= 2)
+          values = new String[] {values[0], values[1], College.SCHOOL_NAME,
+              College.INFORMATION_ENGINEERING.displayName(), ""};
+        for (int j = 0; j < values.length; j++) row.createCell(j).setCellValue(values[j]);
       }
       book.write(output);
       return new MockMultipartFile("file", "users.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", output.toByteArray());
@@ -436,7 +524,7 @@ class AccountSecurityIntegrationTest {
     mvc.perform(post("/api/admin/users").session(admin).header(adminCsrf.header(), adminCsrf.token())
         .contentType("application/json").content(json.writeValueAsBytes(Map.of(
             "username", "new_student", "name", "新学生", "role", "STUDENT",
-            "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+            "grade", 2023, "collegeCode", College.INFORMATION_ENGINEERING.name()))))
         .andExpect(status().isOk()).andExpect(jsonPath("$.data.mustChangePassword").value(false));
     var session = login("new_student", "123456");
     mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())

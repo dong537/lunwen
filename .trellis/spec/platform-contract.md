@@ -6,9 +6,9 @@
 
 `common.ApiResponse<T>(data,error,requestId)` 统一envelope，成功error=null；`common.ApiException(HttpStatus status,String code,String message)`；`common.PageResponse<T>(List<T> items,long total,int page,int size)`，page从1开始，size默认20最大100。错误中文，技术细节仅日志。参数超界400。HTTP 401未登录，403无权/须改密，404不存在，409重复，413超大小。
 
-`account.Role`枚举STUDENT/TEACHER/ADMIN。`account.User` JPA实体getId/getUsername/getRole/getName/getMajor/getCollegeCode/getTeacherId/getPasswordHash/isActive/isMustChangePassword/getCreatedAt/getUpdatedAt。`account.UserRepository extends JpaRepository<User,Long>`，findByUsername、existsByUsername。`auth.CurrentUser` record(long id,String username,Role role,String name,boolean mustChangePassword)，通过@AuthenticationPrincipal注入。
+`account.Role`枚举STUDENT/TEACHER/ADMIN。`account.User` JPA实体getId/getUsername/getRole/getName/getMajor/getGrade/getCollegeCode/getTeacherId/getPasswordHash/isActive/isMustChangePassword/getCreatedAt/getUpdatedAt。`account.UserRepository extends JpaRepository<User,Long>`，findByUsername、existsByUsername。`auth.CurrentUser` record(long id,String username,Role role,String name,boolean mustChangePassword)，通过@AuthenticationPrincipal注入。
 
-`account.UserView` record(String id,String username,String name,Role role,String major,String teacherId,String teacherName,boolean active,boolean mustChangePassword,String collegeCode,String collegeName)。其它模块不暴露User实体。
+`account.UserView` 除原字段外包含 grade:number|null（仅学生）及学院名称。旧学生 grade=null 表示未登记，不能从学号推断；教师可有可选专业，管理员无专业/年级。其它模块不暴露User实体。
 
 ## API
 
@@ -19,20 +19,21 @@
 - POST /api/auth/logout → null
 - GET /api/auth/me → UserView
 - POST /api/auth/password {oldPassword,newPassword,confirmPassword} → UserView
-- GET /api/admin/users?role=STUDENT|TEACHER|ADMIN&q=&active=true|false&collegeCode=&page=1&size=20 → PageResponse<UserView>；ADMIN 仅校级管理员可查
-- POST /api/admin/users {username,name,role,collegeCode,major?,teacherId?} → UserView，初始密码123456
-- PATCH /api/admin/users/{id} {name,collegeCode,major?,teacherId?} → UserView；username/role不可修改
+- GET /api/admin/users?role=STUDENT|TEACHER|ADMIN&q=&active=true|false&collegeCode=&grade=2023|UNSET&page=1&size=20 → PageResponse<UserView>；grade 仅学生角色可用，不传含旧空值；ADMIN 仅校级管理员可查
+- POST /api/admin/users {username,name,role,collegeCode,major?,teacherId?,grade?} → UserView，初始密码123456；新学生 grade 必填、2000–2100
+- PATCH /api/admin/users/{id} {name,collegeCode,major?,teacherId?,grade?} → UserView；username/role不可修改，旧学生可补 grade
 - DELETE /api/admin/users/{id} → {outcome:DELETED|DEACTIVATED,user,message}；详见学院账号契约
 - POST /api/admin/users/{id}/active {active} → {user:UserView,assignedStudents:number,message:string|null}
 - POST /api/admin/users/{id}/reset-password → UserView
-- GET /api/admin/teachers?collegeCode=&q= → UserView[]，仅同院启用教师，可搜索至多100项
+- GET /api/admin/teachers?collegeCode=&q=&page=1&size=20 → PageResponse<UserView>，仅同院启用教师，服务端搜索分页，不静默截断候选
 - GET /api/admin/catalog → {schoolName,colleges:[{code,name}]}
 - GET /api/admin/majors?collegeCode= → [{id,collegeCode,name,active}]
 - POST /api/admin/majors {collegeCode,name} → Major；PATCH /api/admin/majors/{id}/active {active} → Major
-- GET /api/admin/dashboard → {activeStudents,activeTeachers,totalSubmissions}
+- GET /api/admin/dashboard → {activeStudents,activeTeachers,totalSubmissions,dailySubmissions:[{date,count}],statusDistribution:[{status,count}],studentsByCollege:[{collegeCode,collegeName,count}]}；日期按 Asia/Shanghai，学院范围由服务端限定
 - GET /api/admin/imports/template?role=STUDENT|TEACHER → xlsx下载
-- POST /api/admin/imports/preview multipart(file,role,collegeCode) → ImportResult
-- POST /api/admin/imports/execute multipart(file,role,collegeCode) → ImportResult
+- POST /api/admin/imports/preview multipart(file,role,collegeCode?) → ImportResult
+- POST /api/admin/imports/execute multipart(file,role,collegeCode?) → ImportResult
+- 管理员 Excel：学生列为学号、姓名、学校、学院、专业、年级、指导教师工号；教师列为工号、姓名、学校、学院、专业。校级管理员可导入多学院，学院管理员只可导本院；学校及学院逐行核对，Excel 不构成权限来源。
 - ImportResult={totalRows,validRows,successCount,skippedCount,failedCount,errors:[{row,username,message}]}；预检successCount=0，错误可由前端将响应CSV导出，执行必须重读文件/数据库，不接受前端可导入名单。
 - GET /api/submissions?page=1&size=20 → PageResponse<SubmissionView>，仅学生本人
 - POST /api/submissions multipart(file) → 202 SubmissionView
@@ -40,13 +41,15 @@
 - GET /api/submissions/{id}/files/original|marked|report → 流式DOCX下载；FAILED拒绝，marked仅SUCCESS，report仅SUCCESS且report_available=true
 - GET /api/submissions/{id}/files/{kind}/url → 短期COS预签名下载；kind同上，复用相同授权与报告可用性检查，report仅指向当前attempt的report.docx。
 - GET /api/teacher/students?q=&page=1&size=20 → PageResponse<StudentSummary>
-- POST /api/teacher/students {username,name,major?} → UserView
+- POST /api/teacher/students {username,name,major?,grade} → UserView
 - GET /api/teacher/majors → 本院启用的 Major[]
 - GET /api/teacher/students/imports/template → xlsx下载；POST /api/teacher/students/imports/preview|execute multipart(file) → ImportResult
-- GET /api/teacher/statistics → 教师名单与提交的十项实时汇总，详见教师名单接口契约
+- GET /api/teacher/statistics?grade= → 教师名单与提交的十项实时汇总，详见教师名单接口契约
+- GET /api/teacher/statistics/insights?grade=&range=30|90|365|ALL&page=1&size=20 → 真实规则榜单、问题分布、每日提交、热力图、分页学生明细与规则索引覆盖率
+- GET /api/teacher/statistics/export?grade=&range=30|90|365|ALL → 同过滤口径的 XLSX 学生明细
 - GET /api/teacher/students/{id} → UserView
 - GET /api/teacher/students/{id}/submissions?page=1&size=20 → PageResponse<SubmissionView>
-- StudentSummary={id,username,name,major,submissionCount,lastSubmittedAt,latestProblemCount}；后3项仅基于SUCCESS，最近时间与问题数来自同一条最近成功记录。
+- StudentSummary={id,username,name,major,grade,submissionCount,lastSubmittedAt,latestProblemCount}；后3项仅基于SUCCESS，最近时间与问题数来自同一条最近成功记录。
 - SubmissionView={id,studentId,submissionNumber,originalFilename,fileSize,status,problemCount,byScope,errorMessage,createdAt,startedAt,finishedAt,canDownloadOriginal,canDownloadMarked,canDownloadReport,uploadReserved}。非SUCCESS problemCount=null、byScope=null。状态枚举PENDING/PROCESSING/SUCCESS/FAILED；byScope为中文章节名→数量或null。
 - GET /api/health → {status:UP} envelope，无敏感配置。
 

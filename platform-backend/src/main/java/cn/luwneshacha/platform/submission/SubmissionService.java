@@ -36,9 +36,14 @@ public class SubmissionService {
     this.submissions=submissions; this.users=users; this.storage=storage; this.presigner=presigner;
     this.transfer=transfer; transaction=new TransactionTemplate(manager);
   }
-  public record StudentSummary(String id, String username, String name, String major,
+  public record StudentSummary(String id, String username, String name, String major, Integer grade,
       long submissionCount, Instant lastSubmittedAt, Integer latestProblemCount) {}
-  public record Dashboard(long activeStudents, long activeTeachers, long totalSubmissions) {}
+  public record DailyCount(String date, long count) {}
+  public record StatusCount(String status, long count) {}
+  public record CollegeCount(String collegeCode, String collegeName, long count) {}
+  public record Dashboard(long activeStudents, long activeTeachers, long totalSubmissions,
+      List<DailyCount> dailySubmissions, List<StatusCount> statusDistribution,
+      List<CollegeCount> studentsByCollege) {}
   public record UploadTicket(String submissionId, String url, String method,
       Map<String,String> headers, Instant expiresAt) {
     @Override public String toString() {
@@ -245,7 +250,7 @@ public class SubmissionService {
     }
     return new PageResponse<>(result.getContent().stream().map(user -> {
       Submission last=latest.get(user.getId());
-      return new StudentSummary(user.getId().toString(),user.getUsername(),user.getName(),user.getMajor(),
+      return new StudentSummary(user.getId().toString(),user.getUsername(),user.getName(),user.getMajor(),user.getGrade(),
           counts.getOrDefault(user.getId(),0L),last==null?null:last.getCreatedAt(),last==null?null:last.getProblemCount());
     }).toList(), result.getTotalElements(),page,size);
   }
@@ -259,11 +264,38 @@ public class SubmissionService {
   }
   public Dashboard dashboard(CurrentUser current) {
     User actor=actor(current); requireRole(actor,Role.ADMIN);
-    if (actor.getCollegeCode()!=null) return new Dashboard(
-        users.countByRoleAndActiveAndCollegeCode(Role.STUDENT,true,actor.getCollegeCode()),
-        users.countByRoleAndActiveAndCollegeCode(Role.TEACHER,true,actor.getCollegeCode()),
-        submissions.countByStudentCollege(actor.getCollegeCode()));
-    return new Dashboard(users.countByRoleAndActive(Role.STUDENT,true),users.countByRoleAndActive(Role.TEACHER,true),submissions.count());
+    String college=actor.getCollegeCode();
+    ZoneId zone=ZoneId.of("Asia/Shanghai");
+    LocalDate firstDay=LocalDate.now(zone).minusDays(29);
+    Instant since=firstDay.atStartOfDay(zone).toInstant();
+    List<Object[]> days=college==null?submissions.dailySubmissions(since):submissions.dailySubmissionsByCollege(since,college);
+    Map<String,Long> daily=new HashMap<>();
+    days.forEach(row->daily.put((String)row[0],((Number)row[1]).longValue()));
+    List<DailyCount> series=new ArrayList<>(30);
+    for(int i=0;i<30;i++) {
+      String day=firstDay.plusDays(i).toString();
+      series.add(new DailyCount(day,daily.getOrDefault(day,0L)));
+    }
+    List<Object[]> grouped=college==null?submissions.recentStatusCounts(since):submissions.recentStatusCountsByCollege(since,college);
+    Map<SubmissionStatus,Long> statusCounts=new EnumMap<>(SubmissionStatus.class);
+    grouped.forEach(row->statusCounts.put((SubmissionStatus)row[0],((Number)row[1]).longValue()));
+    List<StatusCount> statuses=Arrays.stream(SubmissionStatus.values())
+        .map(state->new StatusCount(state.name(),statusCounts.getOrDefault(state,0L))).toList();
+    List<CollegeCount> colleges=new ArrayList<>();
+    for(College option:College.values()) if(college==null||college.equals(option.name()))
+      colleges.add(new CollegeCount(option.name(),option.displayName(),
+          users.countByRoleAndActiveAndCollegeCode(Role.STUDENT,true,option.name())));
+    long activeStudents=college==null?users.countByRoleAndActive(Role.STUDENT,true)
+        :users.countByRoleAndActiveAndCollegeCode(Role.STUDENT,true,college);
+    if(college==null) {
+      long assigned=colleges.stream().mapToLong(CollegeCount::count).sum();
+      if(activeStudents>assigned) colleges.add(new CollegeCount(null,"待归属",activeStudents-assigned));
+    }
+    return new Dashboard(activeStudents,
+        college==null?users.countByRoleAndActive(Role.TEACHER,true)
+            :users.countByRoleAndActiveAndCollegeCode(Role.TEACHER,true,college),
+        college==null?submissions.count():submissions.countByStudentCollege(college),
+        series,statuses,List.copyOf(colleges));
   }
   private PageResponse<SubmissionView> page(long studentId,int page,int size) {
     Page<Submission> result=submissions.findByStudentIdOrderByCreatedAtDescIdDesc(studentId,pageable(page,size,Sort.unsorted()));

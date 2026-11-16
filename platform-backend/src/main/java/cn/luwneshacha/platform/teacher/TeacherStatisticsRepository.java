@@ -12,8 +12,10 @@ public interface TeacherStatisticsRepository extends Repository<User, Long> {
           coalesce(sum(case when u.active=true then 1 else 0 end), 0) as activeStudents
       from User u
       where u.teacherId=:teacherId and u.role=cn.luwneshacha.platform.account.Role.STUDENT
+          and (:year is null or u.grade=:year) and (:unset=false or u.grade is null)
       """)
-  StudentTotals studentTotals(@Param("teacherId") long teacherId);
+  StudentTotals studentTotals(@Param("teacherId") long teacherId, @Param("year") Integer year,
+      @Param("unset") boolean unset);
 
   @Query("""
       select count(distinct s.studentId) as submittedStudents,
@@ -23,21 +25,25 @@ public interface TeacherStatisticsRepository extends Repository<User, Long> {
           coalesce(sum(case when s.status=cn.luwneshacha.platform.submission.SubmissionStatus.FAILED then 1 else 0 end), 0) as failedSubmissions
       from Submission s, User u
       where s.studentId=u.id and u.teacherId=:teacherId and u.role=cn.luwneshacha.platform.account.Role.STUDENT
+          and (:year is null or u.grade=:year) and (:unset=false or u.grade is null)
       """)
-  SubmissionTotals submissionTotals(@Param("teacherId") long teacherId);
+  SubmissionTotals submissionTotals(@Param("teacherId") long teacherId, @Param("year") Integer year,
+      @Param("unset") boolean unset);
 
   @Query("""
       select count(s.id) as studentsWithSuccessfulReview,
           sum(s.problemCount) as latestSuccessfulProblemCount
       from Submission s, User u
       where s.studentId=u.id and u.teacherId=:teacherId and u.role=cn.luwneshacha.platform.account.Role.STUDENT
+          and (:year is null or u.grade=:year) and (:unset=false or u.grade is null)
           and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.SUCCESS
           and not exists (
             select newer.id from Submission newer
             where newer.studentId=s.studentId and newer.status=cn.luwneshacha.platform.submission.SubmissionStatus.SUCCESS
                 and (newer.createdAt>s.createdAt or (newer.createdAt=s.createdAt and newer.id>s.id)))
       """)
-  LatestSuccessfulTotals latestSuccessfulTotals(@Param("teacherId") long teacherId);
+  LatestSuccessfulTotals latestSuccessfulTotals(@Param("teacherId") long teacherId,
+      @Param("year") Integer year, @Param("unset") boolean unset);
 
   interface StudentTotals {
     long getTotalStudents();

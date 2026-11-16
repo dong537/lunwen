@@ -80,7 +80,7 @@ export function TeacherImportPage() {
       </Link>
       <PageHeader
         title="导入指导名单"
-        description="下载模板填写学号、姓名和专业；先预检，再确认导入。"
+        description="下载模板填写学校、学院、专业和入学年级；先预检，再确认导入。"
       />
       {!user?.collegeCode && (
         <Alert
@@ -101,7 +101,8 @@ export function TeacherImportPage() {
               下载名单模板
             </Button>
             <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
-              模板列为学号、姓名、专业。学号列请设为文本以保留前导零；新账号初始密码为 123456。
+              模板列为学号、姓名、学校、学院、专业、年级。学校填写山东石油化工学院，学院填写本院全称；学号列请设为文本以保留前导零。新账号初始密码为
+              123456。
             </Typography.Paragraph>
             <ApiAlert error={template.error} />
           </div>

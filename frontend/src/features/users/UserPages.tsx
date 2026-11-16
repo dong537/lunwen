@@ -8,6 +8,7 @@ import {
   Col,
   Empty,
   Input,
+  InputNumber,
   Row,
   Select,
   Space,
@@ -19,6 +20,7 @@ import {
 import { DeleteOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { Role, User } from '../../shared/api/contracts'
+import { DailyTrend, RankedBars } from '../../shared/AnalyticsVisuals'
 import { ApiAlert, CenterSpin, PageHeader, useDocumentTitle } from '../../shared/ui'
 import { useSession } from '../auth/session'
 import { userApi } from './api'
@@ -36,7 +38,7 @@ export function AdminDashboardPage() {
       <ApiAlert error={dashboard.error} retry={() => void dashboard.refetch()} />
       {dashboard.isPending && <CenterSpin />}
       {dashboard.data && (
-        <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           <Col xs={24} sm={8}>
             <Card>
               <Statistic title="启用学生" value={dashboard.data.activeStudents} />
@@ -53,6 +55,44 @@ export function AdminDashboardPage() {
             </Card>
           </Col>
         </Row>
+      )}
+      {dashboard.data && (
+        <>
+          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+            <Col xs={24} lg={12}>
+              <Card title="近 30 天提交趋势" style={{ height: '100%' }}>
+                <DailyTrend points={dashboard.data.dailySubmissions} label="平台每日论文提交次数" />
+              </Card>
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card title="提交状态" style={{ height: '100%' }}>
+                <RankedBars
+                  items={dashboard.data.statusDistribution.map((item) => ({
+                    key: item.status,
+                    label: {
+                      PENDING: '等待审核',
+                      PROCESSING: '审核中',
+                      SUCCESS: '审核成功',
+                      FAILED: '审核失败',
+                    }[item.status],
+                    value: item.count,
+                  }))}
+                  emptyText="暂无论文提交"
+                />
+              </Card>
+            </Col>
+          </Row>
+          <Card title="学院学生分布" style={{ marginBottom: 16 }}>
+            <RankedBars
+              items={dashboard.data.studentsByCollege.map((item) => ({
+                key: item.collegeCode ?? 'UNASSIGNED',
+                label: item.collegeName,
+                value: item.count,
+              }))}
+              emptyText="当前范围内没有启用学生"
+            />
+          </Card>
+        </>
       )}
       <Card title="账号维护">
         <p style={{ color: 'rgba(0,0,0,0.45)' }}>
@@ -79,6 +119,8 @@ export function UsersPage() {
   const [q, setQ] = useState('')
   const [active, setActive] = useState('')
   const [collegeFilter, setCollegeFilter] = useState('')
+  const [gradeDraft, setGradeDraft] = useState<number | null>(null)
+  const [grade, setGrade] = useState<number | 'UNSET' | null>(null)
   const [page, setPage] = useState(1)
   const client = useQueryClient()
   const [form, setForm] = useState<{ user: User | null } | null>(null)
@@ -87,9 +129,9 @@ export function UsersPage() {
     queryFn: ({ signal }) => userApi.catalog(signal),
   })
   const list = useQuery({
-    queryKey: ['users', currentUser?.collegeCode, role, q, active, collegeFilter, page],
+    queryKey: ['users', currentUser?.collegeCode, role, q, active, collegeFilter, grade, page],
     queryFn: ({ signal }) =>
-      userApi.list(role, q, active, page, currentUser?.collegeCode ?? collegeFilter, signal),
+      userApi.list(role, q, active, page, currentUser?.collegeCode ?? collegeFilter, grade, signal),
   })
   const remove = useMutation({
     mutationFn: (user: User) => userApi.remove(user.id),
@@ -181,13 +223,28 @@ export function UsersPage() {
             render: (value: string | null) => value || '—',
           },
           {
+            title: '年级',
+            dataIndex: 'grade',
+            key: 'grade',
+            render: (value: number | null) => (value === null ? '未填写' : value + '年'),
+          },
+          {
             title: '指导教师',
             dataIndex: 'teacherName',
             key: 'teacherName',
             render: (value: string | null) => value || '未分配',
           },
         ]
-      : []),
+      : role === 'TEACHER'
+        ? [
+            {
+              title: '专业',
+              dataIndex: 'major',
+              key: 'major',
+              render: (value: string | null) => value || '—',
+            },
+          ]
+        : []),
     {
       title: '状态',
       dataIndex: 'active',
@@ -259,6 +316,8 @@ export function UsersPage() {
           activeKey={role}
           onChange={(key) => {
             setRole(key as Role)
+            setGrade(null)
+            setGradeDraft(null)
             setPage(1)
           }}
           items={[
@@ -297,6 +356,44 @@ export function UsersPage() {
               setPage(1)
             }}
           />
+          {role === 'STUDENT' && (
+            <Space.Compact style={{ maxWidth: '100%' }}>
+              <InputNumber
+                aria-label="按入学年级筛选"
+                min={2000}
+                max={2100}
+                precision={0}
+                value={gradeDraft}
+                onChange={setGradeDraft}
+                placeholder="入学年份"
+                style={{ width: 132 }}
+              />
+              <Button
+                onClick={() => {
+                  if (gradeDraft !== null && (gradeDraft < 2000 || gradeDraft > 2100)) {
+                    void message.error('请输入 2000—2100 年的入学年份。')
+                    return
+                  }
+                  setGrade(gradeDraft)
+                  setPage(1)
+                }}
+              >
+                筛选年级
+              </Button>
+            </Space.Compact>
+          )}
+          {role === 'STUDENT' && (
+            <Button
+              type={grade === 'UNSET' ? 'primary' : 'default'}
+              onClick={() => {
+                setGradeDraft(null)
+                setGrade('UNSET')
+                setPage(1)
+              }}
+            >
+              未填写年级
+            </Button>
+          )}
           <Select
             value={active}
             style={{ width: 130, maxWidth: '100%' }}
@@ -332,7 +429,9 @@ export function UsersPage() {
               emptyText: (
                 <Empty
                   description={
-                    q || active ? '没有符合条件的账号。' : '还没有账号，可新建或批量导入。'
+                    q || active || grade !== null
+                      ? '没有符合条件的账号。'
+                      : '还没有账号，可新建或批量导入。'
                   }
                 />
               ),

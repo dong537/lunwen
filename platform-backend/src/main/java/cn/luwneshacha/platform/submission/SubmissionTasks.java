@@ -14,13 +14,20 @@ public class SubmissionTasks {
     public String attemptPrefix() { return directory + "/attempt-" + attempt + "/"; }
   }
   private final SubmissionRepository repository;
+  private final SubmissionRuleIssueRepository ruleIssues;
   private final TransactionTemplate transaction;
   private final Duration lease;
-  @Autowired public SubmissionTasks(SubmissionRepository repository, PlatformTransactionManager manager, WorkerProperties properties) {
-    this(repository, manager, properties.lease());
+  @Autowired public SubmissionTasks(SubmissionRepository repository, SubmissionRuleIssueRepository ruleIssues,
+      PlatformTransactionManager manager, WorkerProperties properties) {
+    this(repository, ruleIssues, manager, properties.lease());
   }
   public SubmissionTasks(SubmissionRepository repository, PlatformTransactionManager manager, Duration lease) {
-    this.repository = repository; transaction = new TransactionTemplate(manager); this.lease = lease;
+    this(repository, null, manager, lease);
+  }
+  public SubmissionTasks(SubmissionRepository repository, SubmissionRuleIssueRepository ruleIssues,
+      PlatformTransactionManager manager, Duration lease) {
+    this.repository = repository; this.ruleIssues = ruleIssues;
+    transaction = new TransactionTemplate(manager); this.lease = lease;
   }
   public Optional<Claim> claim(Instant now) {
     Instant cutoff = now.minus(lease);
@@ -33,6 +40,17 @@ public class SubmissionTasks {
   public boolean succeed(Claim claim, int problems, Instant now) {
     if (problems < 0) throw new IllegalArgumentException("negative problem count");
     return Boolean.TRUE.equals(transaction.execute(status -> repository.succeed(claim.id(), claim.attempt(), problems, now, now.minus(lease)) == 1));
+  }
+  /** Commits the SUCCESS state and searchable issue rows together after the engine report was validated. */
+  public boolean succeedIndexed(Claim claim, int problems, RuleIssueSummary summary, Instant now) {
+    if (problems < 0 || summary == null || summary.issues().stream().mapToInt(RuleIssueSummary.Issue::count).sum() != problems)
+      throw new IllegalArgumentException("invalid rule index summary");
+    if (ruleIssues == null) throw new IllegalStateException("rule index repository is unavailable");
+    return Boolean.TRUE.equals(transaction.execute(status -> {
+      if (repository.succeedIndexed(claim.id(), claim.attempt(), problems, now, now.minus(lease)) != 1) return false;
+      ruleIssues.saveAll(summary.issues().stream().map(issue -> new SubmissionRuleIssue(claim.id(), issue)).toList());
+      return true;
+    }));
   }
   public boolean fail(Claim claim, boolean retryable, String message, Instant now) {
     boolean retry = retryable && claim.attempt() < 3;

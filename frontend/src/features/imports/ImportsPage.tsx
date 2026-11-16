@@ -32,7 +32,7 @@ function importFile(
   const body = new FormData()
   body.append('file', file)
   body.append('role', role)
-  body.append('collegeCode', collegeCode)
+  if (collegeCode) body.append('collegeCode', collegeCode)
   return api<ImportResult>(`/admin/imports/${action}`, { method: 'POST', body })
 }
 
@@ -126,17 +126,20 @@ export function ImportsPage() {
             />
           </div>
           <div>
-            <Typography.Text>学院</Typography.Text>
+            <Typography.Text>学院范围</Typography.Text>
             <Select
               aria-label="导入所属学院"
               value={collegeCode || undefined}
-              placeholder="请选择导入所属学院"
+              placeholder="按 Excel 中的学院分别导入"
               style={{ display: 'block', maxWidth: 360, marginTop: 6 }}
               disabled={!!user?.collegeCode || busy}
               loading={catalog.isPending}
-              options={(catalog.data?.colleges ?? [])
-                .filter((college) => !user?.collegeCode || college.code === user.collegeCode)
-                .map((college) => ({ value: college.code, label: college.name }))}
+              options={[
+                ...(!user?.collegeCode ? [{ value: '', label: '按 Excel 中的学院分别导入' }] : []),
+                ...(catalog.data?.colleges ?? [])
+                  .filter((college) => !user?.collegeCode || college.code === user.collegeCode)
+                  .map((college) => ({ value: college.code, label: college.name })),
+              ]}
               onChange={(value) => {
                 setCollegeCode(value)
                 preview.reset()
@@ -169,8 +172,10 @@ export function ImportsPage() {
               下载{role === 'STUDENT' ? '学生' : '教师'}模板
             </Button>
             <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
-              {role === 'STUDENT' ? '列：学号、姓名、专业、指导教师工号。' : '列：工号、姓名。'}
-              账号列请设为文本，保留前导零。
+              {role === 'STUDENT'
+                ? '列：学号、姓名、学校、学院、专业、年级、指导教师工号。'
+                : '列：工号、姓名、学校、学院、专业。'}
+              学校须填写山东石油化工学院，学院须填写全称；账号列请设为文本，保留前导零。
             </Typography.Paragraph>
             <ApiAlert error={template.error} />
           </div>
@@ -209,10 +214,10 @@ export function ImportsPage() {
               type="primary"
               icon={<UploadOutlined />}
               loading={preview.isPending}
-              disabled={!file || !collegeCode || busy}
+              disabled={!file || busy}
               onClick={() => {
                 execute.reset()
-                if (file && collegeCode) preview.mutate({ file, role, collegeCode })
+                if (file) preview.mutate({ file, role, collegeCode })
               }}
             >
               预检文件
@@ -239,9 +244,9 @@ export function ImportsPage() {
               <Button
                 type="primary"
                 loading={execute.isPending}
-                disabled={!file || !collegeCode || busy || result.validRows === 0}
+                disabled={!file || busy || result.validRows === 0}
                 onClick={() => {
-                  if (file && collegeCode) execute.mutate({ file, role, collegeCode })
+                  if (file) execute.mutate({ file, role, collegeCode })
                 }}
               >
                 确认导入有效账号

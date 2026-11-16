@@ -9,6 +9,7 @@ import {
   Empty,
   Form,
   Input,
+  InputNumber,
   Modal,
   Select,
   Space,
@@ -33,6 +34,12 @@ const studentColumns: ColumnsType<StudentSummary> = [
     dataIndex: 'major',
     key: 'major',
     render: (value: string | null) => value || '—',
+  },
+  {
+    title: '年级',
+    dataIndex: 'grade',
+    key: 'grade',
+    render: (value: number | null) => (value === null ? '未填写' : value + '年'),
   },
   {
     title: '成功提交次数',
@@ -156,17 +163,18 @@ export function TeacherStudentsPage() {
 function TeacherCreateDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const { message } = AntdApp.useApp()
   const { user } = useSession()
-  const [form] = Form.useForm<{ username: string; name: string; major?: string }>()
+  const [form] = Form.useForm<{ username: string; name: string; major?: string; grade: number }>()
   const majors = useQuery({
     queryKey: ['teacher-majors'],
     queryFn: ({ signal }) => teacherApi.majors(signal),
     enabled: !!user?.collegeCode,
   })
   const create = useMutation({
-    mutationFn: (values: { username: string; name: string; major?: string }) =>
+    mutationFn: (values: { username: string; name: string; major?: string; grade: number }) =>
       teacherApi.createStudent({
         username: values.username.trim(),
         name: values.name.trim(),
+        grade: values.grade,
         major: values.major || null,
       }),
     onSuccess: (student) => {
@@ -218,6 +226,13 @@ function TeacherCreateDialog({ onClose, onSaved }: { onClose: () => void; onSave
         </Form.Item>
         <Form.Item label="姓名" name="name" rules={[{ required: true, message: '请填写姓名' }]}>
           <Input maxLength={64} />
+        </Form.Item>
+        <Form.Item
+          label="入学年级"
+          name="grade"
+          rules={[{ required: true, message: '请填写四位入学年份' }]}
+        >
+          <InputNumber min={2000} max={2100} precision={0} style={{ width: '100%' }} />
         </Form.Item>
         <Form.Item label="专业（选填）" name="major">
           <Select

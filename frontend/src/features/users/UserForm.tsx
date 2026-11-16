@@ -1,6 +1,6 @@
 import { useDeferredValue, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { App as AntdApp, Form, Input, Modal, Select } from 'antd'
+import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query'
+import { App as AntdApp, Form, Input, InputNumber, Modal, Select } from 'antd'
 import type { Role, User } from '../../shared/api/contracts'
 import { ApiAlert } from '../../shared/ui'
 import { useSession } from '../auth/session'
@@ -28,19 +28,24 @@ export function UserForm({
   const majors = useQuery({
     queryKey: ['majors', collegeCode],
     queryFn: ({ signal }) => userApi.majors(collegeCode!, signal),
-    enabled: role === 'STUDENT' && !!collegeCode,
+    enabled: role !== 'ADMIN' && !!collegeCode,
   })
   const [teacherSearch, setTeacherSearch] = useState('')
   const search = useDeferredValue(teacherSearch)
-  const teachers = useQuery({
+  const teachers = useInfiniteQuery({
     queryKey: ['teacher-options', collegeCode, search],
-    queryFn: ({ signal }) => userApi.teachers(collegeCode!, search, signal),
+    initialPageParam: 1,
+    queryFn: ({ signal, pageParam }) => userApi.teachers(collegeCode!, search, pageParam, signal),
+    getNextPageParam: (lastPage) =>
+      lastPage.page * lastPage.size < lastPage.total ? lastPage.page + 1 : undefined,
     enabled: role === 'STUDENT' && !!collegeCode,
   })
-  const teacherOptions = (teachers.data ?? []).map((teacher) => ({
-    value: teacher.id,
-    label: teacher.name + ' · ' + teacher.username,
-  }))
+  const teacherOptions = (teachers.data?.pages.flatMap((page) => page.items) ?? []).map(
+    (teacher) => ({
+      value: teacher.id,
+      label: teacher.name + ' · ' + teacher.username,
+    }),
+  )
   if (
     user?.teacherId &&
     user.collegeCode === collegeCode &&
@@ -57,13 +62,15 @@ export function UserForm({
       name: string
       collegeCode: string
       major?: string
+      grade?: number
       teacherId?: string
     }) => {
       const input = {
         name: values.name.trim(),
         collegeCode: values.collegeCode,
+        ...(role !== 'ADMIN' ? { major: values.major?.trim() || null } : {}),
         ...(role === 'STUDENT'
-          ? { major: values.major?.trim() || null, teacherId: values.teacherId || null }
+          ? { grade: values.grade ?? null, teacherId: values.teacherId || null }
           : {}),
       }
       return user
@@ -104,6 +111,7 @@ export function UserForm({
           name: user?.name ?? '',
           collegeCode: user?.collegeCode ?? currentUser?.collegeCode ?? undefined,
           major: user?.major ?? '',
+          grade: user?.grade ?? undefined,
           teacherId: user?.teacherId ?? undefined,
         }}
         onFinish={(values) => save.mutate(values)}
@@ -158,7 +166,7 @@ export function UserForm({
         <Form.Item label="姓名" name="name" rules={[{ required: true, message: '请填写姓名' }]}>
           <Input maxLength={64} />
         </Form.Item>
-        {role === 'STUDENT' && (
+        {role !== 'ADMIN' && (
           <>
             <Form.Item label="专业（选填）" name="major">
               <Select
@@ -180,18 +188,39 @@ export function UserForm({
                   }))}
               />
             </Form.Item>
-            <Form.Item label="指导教师（选填）" name="teacherId">
-              <Select
-                allowClear
-                showSearch
-                filterOption={false}
-                placeholder="输入工号或姓名搜索"
-                disabled={!collegeCode}
-                onSearch={setTeacherSearch}
-                loading={teachers.isPending}
-                options={teacherOptions}
-              />
-            </Form.Item>
+            {role === 'STUDENT' && (
+              <Form.Item
+                label="入学年级"
+                name="grade"
+                rules={[{ required: !user || user.grade !== null, message: '请填写四位入学年份' }]}
+              >
+                <InputNumber min={2000} max={2100} precision={0} style={{ width: '100%' }} />
+              </Form.Item>
+            )}
+            {role === 'STUDENT' && (
+              <Form.Item label="指导教师（选填）" name="teacherId">
+                <Select
+                  allowClear
+                  showSearch
+                  filterOption={false}
+                  placeholder="输入工号或姓名搜索"
+                  disabled={!collegeCode}
+                  onSearch={setTeacherSearch}
+                  loading={teachers.isPending || teachers.isFetchingNextPage}
+                  options={teacherOptions}
+                  onPopupScroll={(event) => {
+                    const element = event.currentTarget
+                    if (
+                      element.scrollTop + element.clientHeight >= element.scrollHeight - 24 &&
+                      teachers.hasNextPage &&
+                      !teachers.isFetchingNextPage
+                    ) {
+                      void teachers.fetchNextPage()
+                    }
+                  }}
+                />
+              </Form.Item>
+            )}
           </>
         )}
         <ApiAlert error={catalog.error} retry={() => void catalog.refetch()} />

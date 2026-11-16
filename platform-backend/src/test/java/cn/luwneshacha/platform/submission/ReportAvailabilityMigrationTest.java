@@ -73,14 +73,18 @@ class ReportAvailabilityMigrationTest {
       configuration.target("latest").load().migrate();
 
       assertEquals(historicalSubmission, scalar(connection,
-          "SELECT (to_jsonb(s) - 'report_available')::text FROM submission s WHERE id = 201"));
+          "SELECT (to_jsonb(s) - 'report_available' - 'rule_index_status' - 'rule_index_attempts' - 'rule_index_next_retry_at')::text FROM submission s WHERE id = 201"));
       assertEquals(historicalUser, scalar(connection,
-          "SELECT (to_jsonb(u) - 'college_code' - 'must_change_password')::text FROM sys_user u WHERE id = 101"));
+          "SELECT (to_jsonb(u) - 'college_code' - 'grade' - 'must_change_password')::text FROM sys_user u WHERE id = 101"));
       assertEquals("false", scalar(connection, "SELECT must_change_password::text FROM sys_user WHERE id = 101"));
       assertEquals("true", scalar(connection, "SELECT must_change_password::text FROM sys_user WHERE id = 102"));
       assertEquals("false", scalar(connection, "SELECT must_change_password::text FROM sys_user WHERE id = 103"));
       assertEquals("true", scalar(connection, "SELECT must_change_password::text FROM sys_user WHERE id = 104"));
       assertNull(scalar(connection, "SELECT college_code FROM sys_user WHERE id = 101"));
+      assertNull(scalar(connection, "SELECT grade::text FROM sys_user WHERE id = 101"));
+      assertEquals("PENDING", scalar(connection, "SELECT rule_index_status FROM submission WHERE id = 201"));
+      assertEquals("0", scalar(connection, "SELECT rule_index_attempts::text FROM submission WHERE id = 201"));
+      assertNull(scalar(connection, "SELECT rule_index_next_retry_at::text FROM submission WHERE id = 201"));
       try (var statement = connection.prepareStatement("""
           SELECT data_type, is_nullable, column_default
           FROM information_schema.columns

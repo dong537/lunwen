@@ -68,19 +68,21 @@ class TeacherStudentIntegrationTest {
   @Test void createsStudentForCurrentTeacherWithoutGroupingOrMandatoryPasswordChange() throws Exception {
     var auth = login("teacher01");
     mvc.perform(post("/api/teacher/students").session(auth.session()).header(auth.header(), auth.token())
-        .contentType("application/json").content("{\"username\":\"student01\",\"name\":\" 学生甲 \",\"major\":\"计算机\"}"))
+        .contentType("application/json").content("{\"username\":\"student01\",\"name\":\" 学生甲 \",\"major\":\"计算机\",\"grade\":2023}"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.data.role").value("STUDENT"))
         .andExpect(jsonPath("$.data.teacherId").value(teacher.getId().toString()))
         .andExpect(jsonPath("$.data.name").value("学生甲"))
+        .andExpect(jsonPath("$.data.grade").value(2023))
         .andExpect(jsonPath("$.data.mustChangePassword").value(false));
     var saved = users.findByUsername("student01").orElseThrow();
+    assertEquals(2023, saved.getGrade());
     assertTrue(passwords.matches("123456", saved.getPasswordHash()));
     mvc.perform(post("/api/teacher/students").session(auth.session()).header(auth.header(), auth.token())
         .contentType("application/json").content("{\"username\":\"injected01\",\"name\":\"学生\",\"teacherId\":\"" + other.getId() + "\"}"))
         .andExpect(status().isBadRequest());
     assertFalse(users.existsByUsername("injected01"));
-    for (String field : new String[] {"role", "grade", "className"}) {
+    for (String field : new String[] {"role", "collegeCode", "className"}) {
       mvc.perform(post("/api/teacher/students").session(auth.session()).header(auth.header(), auth.token())
           .contentType("application/json").content(json.writeValueAsBytes(Map.of(
               "username", "injected02", "name", "学生", field, "不允许的字段"))))
@@ -88,7 +90,7 @@ class TeacherStudentIntegrationTest {
     }
     assertFalse(users.existsByUsername("injected02"));
     mvc.perform(post("/api/teacher/students").session(auth.session()).header(auth.header(), auth.token())
-        .contentType("application/json").content("{\"username\":\"student01\",\"name\":\"覆盖\"}"))
+        .contentType("application/json").content("{\"username\":\"student01\",\"name\":\"覆盖\",\"grade\":2023}"))
         .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("USERNAME_EXISTS"));
     assertEquals("学生甲", users.findByUsername("student01").orElseThrow().getName());
   }
@@ -100,6 +102,9 @@ class TeacherStudentIntegrationTest {
           .contentType("application/json").content(body))
           .andExpect(status().isBadRequest());
     }
+    mvc.perform(post("/api/teacher/students").session(auth.session()).header(auth.header(), auth.token())
+        .contentType("application/json").content("{\"username\":\"student01\",\"name\":\"学生\"}"))
+        .andExpect(status().isBadRequest());
     var file = workbook(new String[][] {{"student01", "甲", "计算机"}, {"student02", "", ""}});
     mvc.perform(multipart("/api/teacher/students/imports/preview").file(file)
         .session(auth.session()).header(auth.header(), auth.token())).andExpect(status().isOk())
@@ -129,13 +134,16 @@ class TeacherStudentIntegrationTest {
     assertFalse(users.existsByUsername("dup001"));
   }
 
-  @Test void templateHasOnlyThreeTextColumnsAndRejectsTeacherOverrideColumns() throws Exception {
+  @Test void templateHasSixTextColumnsAndRejectsTeacherOverrideColumns() throws Exception {
     var auth = login("teacher01");
     byte[] bytes = mvc.perform(get("/api/teacher/students/imports/template").session(auth.session()))
         .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
     try (var book = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
-      assertEquals(3, book.getSheetAt(0).getRow(0).getLastCellNum());
-      assertEquals("专业", book.getSheetAt(0).getRow(0).getCell(2).getStringCellValue());
+      assertEquals(6, book.getSheetAt(0).getRow(0).getLastCellNum());
+      assertEquals("专业", book.getSheetAt(0).getRow(0).getCell(4).getStringCellValue());
+      assertEquals("年级", book.getSheetAt(0).getRow(0).getCell(5).getStringCellValue());
+      assertEquals("学校", book.getSheetAt(0).getRow(0).getCell(2).getStringCellValue());
+      assertEquals("学院", book.getSheetAt(0).getRow(0).getCell(3).getStringCellValue());
       assertEquals("@", book.getSheetAt(0).getColumnStyle(0).getDataFormatString());
     }
     mvc.perform(multipart("/api/teacher/students/imports/execute")
@@ -155,6 +163,21 @@ class TeacherStudentIntegrationTest {
     mvc.perform(multipart("/api/teacher/students/imports/execute").file(file)
         .session(auth.session()).header(auth.header(), auth.token())).andExpect(status().isUnauthorized());
     assertFalse(users.existsByUsername("student01"));
+  }
+
+  @Test void teacherImportRejectsWrongSchoolCollegeAndGradePerRow() throws Exception {
+    var auth = login("teacher01");
+    var file = workbook(new String[][] {
+        {"valid01", "有效学生", College.SCHOOL_NAME, College.INFORMATION_ENGINEERING.displayName(), "计算机", "2023年"},
+        {"wrong_school", "错误学校", "其他学校", College.INFORMATION_ENGINEERING.displayName(), "计算机", "2023"},
+        {"wrong_college", "跨院学生", College.SCHOOL_NAME, College.EDUCATION_ARTS.displayName(), "", "2023"},
+        {"wrong_grade", "错误年级", College.SCHOOL_NAME, College.INFORMATION_ENGINEERING.displayName(), "", "1999"}});
+    mvc.perform(multipart("/api/teacher/students/imports/execute").file(file)
+        .session(auth.session()).header(auth.header(), auth.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.successCount").value(1))
+        .andExpect(jsonPath("$.data.failedCount").value(3));
+    assertEquals(2023, users.findByUsername("valid01").orElseThrow().getGrade());
+    assertFalse(users.existsByUsername("wrong_college"));
   }
 
   @Test void concurrentRosterImportsCreateOneAccountWithoutChangingItsTeacher() throws Exception {
@@ -184,7 +207,7 @@ class TeacherStudentIntegrationTest {
     var principal = CurrentUser.from(teacher);
     teacher.setActive(false); users.saveAndFlush(teacher);
     var error = assertThrows(ApiException.class, () -> accounts.createStudent(principal,
-        new UserService.CreateStudent("student01", "学生", null)));
+        new UserService.CreateStudent("student01", "学生", null, 2023)));
     assertEquals(403, error.status().value());
     assertFalse(users.existsByUsername("student01"));
   }
@@ -240,11 +263,16 @@ class TeacherStudentIntegrationTest {
   private MockMultipartFile workbook(String[][] rows) throws Exception {
     try (var book = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
       var sheet = book.createSheet("学生账号"); var header = sheet.createRow(0);
-      String[] columns = {"学号", "姓名", "专业"};
+      String[] columns = {"学号", "姓名", "学校", "学院", "专业", "年级"};
       for (int i = 0; i < columns.length; i++) header.createCell(i).setCellValue(columns[i]);
       for (int i = 0; i < rows.length; i++) {
         var row = sheet.createRow(i + 1);
-        for (int j = 0; j < rows[i].length; j++) row.createCell(j).setCellValue(rows[i][j]);
+        String[] values = rows[i];
+        if (values.length == 3) values = new String[] {values[0], values[1], College.SCHOOL_NAME,
+            College.INFORMATION_ENGINEERING.displayName(), values[2], "2023"};
+        else if (values.length == 4) values = new String[] {values[0], values[1], College.SCHOOL_NAME,
+            College.INFORMATION_ENGINEERING.displayName(), values[2], "2023", values[3]};
+        for (int j = 0; j < values.length; j++) row.createCell(j).setCellValue(values[j]);
       }
       book.write(output);
       return new MockMultipartFile("file", "students.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", output.toByteArray());

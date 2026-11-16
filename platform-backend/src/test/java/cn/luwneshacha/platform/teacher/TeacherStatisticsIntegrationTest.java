@@ -16,7 +16,9 @@ import cn.luwneshacha.platform.submission.Submission;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
+import java.io.ByteArrayInputStream;
 import java.util.Map;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,6 +69,7 @@ class TeacherStatisticsIntegrationTest {
   User teacher, otherTeacher, admin, student;
 
   @BeforeEach void seed() {
+    jdbc.update("delete from submission_rule_issue");
     jdbc.update("delete from submission");
     jdbc.update("delete from sys_user where role='STUDENT'");
     users.deleteAll();
@@ -106,6 +109,129 @@ class TeacherStatisticsIntegrationTest {
     submission(reviewed, "SUCCESS", 0, Instant.parse("2026-11-01T00:00:00Z"));
     submission(reviewed, "FAILED", 0, Instant.parse("2026-11-02T00:00:00Z"));
     assertStatistics(statistics(login("teacher")), 1, 1, 1, 0, 1, 1, 0, 0, 1, 0L);
+  }
+
+  @Test void gradeFilterSeparatesKnownAndUnsetHistoricalStudents() throws Exception {
+    var known = account("known", Role.STUDENT, teacher.getId(), true);
+    var historical = account("historical", Role.STUDENT, teacher.getId(), true);
+    jdbc.update("update sys_user set grade=2023 where id=?", known.getId());
+    submission(known, "SUCCESS", 2, Instant.now());
+    submission(historical, "SUCCESS", 4, Instant.now());
+    var session = login("teacher");
+    var knownData = json.readTree(mvc.perform(get("/api/teacher/statistics").param("grade", "2023")
+        .session(session)).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()).path("data");
+    assertStatistics(knownData, 1, 1, 1, 0, 1, 1, 0, 0, 0, 2L);
+    var unknownData = json.readTree(mvc.perform(get("/api/teacher/statistics").param("grade", "UNSET")
+        .session(session)).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()).path("data");
+    assertStatistics(unknownData, 1, 1, 1, 0, 1, 1, 0, 0, 0, 4L);
+    mvc.perform(get("/api/teacher/statistics").param("grade", "abc").session(session))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_GRADE"));
+  }
+
+  @Test void insightsUseLatestSuccessfulReviewsAndExposeIndexCoverage() throws Exception {
+    var own = account("owninsight", Role.STUDENT, teacher.getId(), true);
+    var historical = account("oldinsight", Role.STUDENT, teacher.getId(), true);
+    var foreign = account("otherinsight", Role.STUDENT, otherTeacher.getId(), true);
+    jdbc.update("update sys_user set grade=2023 where id in (?,?)", own.getId(), foreign.getId());
+    Instant now = Instant.now();
+    long old = submission(own, "SUCCESS", 8, now.minusSeconds(2 * 86400));
+    index(old, "BODY-LINE", "正文行距应为1.5倍", 8);
+    long current = submission(own, "SUCCESS", 2, now.minusSeconds(86400));
+    index(current, "BODY-LINE", "正文行距应为1.5倍", 2);
+    submission(own, "FAILED", 0, now);
+    submission(historical, "SUCCESS", 0, now);
+    long other = submission(foreign, "SUCCESS", 90, now);
+    index(other, "FOREIGN", "其他教师的问题", 90);
+
+    var session = login("teacher");
+    var response = mvc.perform(get("/api/teacher/statistics/insights")
+        .param("grade", "2023").param("range", "30").session(session))
+        .andExpect(status().isOk()).andReturn();
+    var data = json.readTree(response.getResponse().getContentAsByteArray()).path("data");
+    assertEquals(1, data.path("coverage").path("eligibleReviews").asInt());
+    assertEquals(1, data.path("coverage").path("indexedReviews").asInt());
+    assertEquals("BODY-LINE", data.path("topRules").get(0).path("ruleId").asText());
+    assertEquals(2, data.path("topRules").get(0).path("count").asInt());
+    assertEquals(1, data.path("problemDistribution").get(1).path("students").asInt());
+    assertEquals(1, data.path("students").path("total").asInt());
+    assertEquals("FAILED", data.path("students").path("items").get(0).path("latestReviewStatus").asText());
+    assertEquals(2, data.path("students").path("items").get(0).path("latestProblemCount").asInt());
+    assertEquals(2, data.path("heatmap").path("students").get(0).path("counts").path("BODY-LINE").asInt());
+    assertEquals(30, data.path("dailySubmissions").size());
+  }
+
+  @Test void unknownHistoricalIndexIsNotCountedAsZeroAndExportHonorsGrade() throws Exception {
+    var unknown = account("unindexed", Role.STUDENT, teacher.getId(), true);
+    var known = account("knownexport", Role.STUDENT, teacher.getId(), true);
+    jdbc.update("update sys_user set grade=2024 where id=?", known.getId());
+    submission(unknown, "SUCCESS", 3, Instant.now());
+    long reviewed = submission(known, "SUCCESS", 0, Instant.now());
+    jdbc.update("update submission set rule_index_status='READY' where id=?", reviewed);
+    var session = login("teacher");
+    var data = json.readTree(mvc.perform(get("/api/teacher/statistics/insights")
+        .param("range", "30").session(session)).andExpect(status().isOk())
+        .andReturn().getResponse().getContentAsByteArray()).path("data");
+    assertEquals(2, data.path("coverage").path("eligibleReviews").asInt());
+    assertEquals(1, data.path("coverage").path("indexedReviews").asInt());
+    assertEquals(1, data.path("problemDistribution").get(0).path("students").asInt());
+    var file = mvc.perform(get("/api/teacher/statistics/export")
+        .param("grade", "2024").param("range", "30").session(session))
+        .andExpect(status().isOk()).andReturn().getResponse();
+    assertTrue(file.getContentType().contains("spreadsheetml"));
+    try(var workbook = new XSSFWorkbook(new ByteArrayInputStream(file.getContentAsByteArray()))) {
+      var sheet = workbook.getSheetAt(0);
+      assertEquals(2, sheet.getPhysicalNumberOfRows());
+      assertEquals("knownexport", sheet.getRow(1).getCell(0).getStringCellValue());
+      assertEquals(0, sheet.getRow(1).getCell(5).getNumericCellValue());
+    }
+    var noReview = account("withoutreview", Role.STUDENT, teacher.getId(), true);
+    jdbc.update("update sys_user set grade=2025 where id=?", noReview.getId());
+    var blankFile = mvc.perform(get("/api/teacher/statistics/export")
+        .param("grade", "2025").session(session))
+        .andExpect(status().isOk()).andReturn().getResponse();
+    try(var workbook = new XSSFWorkbook(new ByteArrayInputStream(blankFile.getContentAsByteArray()))) {
+      assertNull(workbook.getSheetAt(0).getRow(1).getCell(5),
+          "没有成功审核时，问题数单元格必须留空，不能写成0");
+    }
+    mvc.perform(get("/api/teacher/statistics/insights").param("grade", "UNSET").session(session))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.students.total").value(1));
+    mvc.perform(get("/api/teacher/statistics/insights").param("range", "7").session(session))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_RANGE"));
+    mvc.perform(get("/api/teacher/statistics/export").session(login("admin")))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test void insightsAggregateLatestRuleCountsAcrossStudentsWithoutForeignOrOlderReviews() throws Exception {
+    var first = account("insightfirst", Role.STUDENT, teacher.getId(), true);
+    var second = account("insightsecond", Role.STUDENT, teacher.getId(), true);
+    var foreign = account("insightforeign", Role.STUDENT, otherTeacher.getId(), true);
+    Instant now = Instant.now();
+    long old = submission(first, "SUCCESS", 50, now.minusSeconds(2 * 86400));
+    index(old, "BODY-LINE", "正文行距应为1.5倍", 50);
+    long current = submission(first, "SUCCESS", 3, now.minusSeconds(86400));
+    index(current, "BODY-LINE", "正文行距应为1.5倍", 2);
+    index(current, "FIG-CAPTION", "图题字号应为五号", 1);
+    long secondReview = submission(second, "SUCCESS", 7, now);
+    index(secondReview, "BODY-LINE", "正文行距应为1.5倍", 3);
+    index(secondReview, "REF-ORDER", "参考文献顺序应与引用一致", 4);
+    long foreignReview = submission(foreign, "SUCCESS", 100, now);
+    index(foreignReview, "BODY-LINE", "正文行距应为1.5倍", 100);
+
+    var data = json.readTree(mvc.perform(get("/api/teacher/statistics/insights")
+        .param("range", "30").session(login("teacher"))).andExpect(status().isOk())
+        .andReturn().getResponse().getContentAsByteArray()).path("data");
+    assertEquals(2, data.path("coverage").path("eligibleReviews").asInt());
+    assertEquals(2, data.path("coverage").path("indexedReviews").asInt());
+    assertEquals("BODY-LINE", data.path("topRules").get(0).path("ruleId").asText());
+    assertEquals(5, data.path("topRules").get(0).path("count").asInt());
+    assertEquals(1, data.path("problemDistribution").get(1).path("students").asInt());
+    assertEquals(1, data.path("problemDistribution").get(2).path("students").asInt());
+    assertEquals(second.getId().toString(), data.path("heatmap").path("students").get(0)
+        .path("studentId").asText());
+    assertEquals(3, data.path("heatmap").path("students").get(0)
+        .path("counts").path("BODY-LINE").asInt());
+    assertEquals(4, data.path("heatmap").path("students").get(0)
+        .path("counts").path("REF-ORDER").asInt());
   }
 
   @Test void currentTeacherReassignmentChangesStatisticsImmediately() throws Exception {
@@ -157,10 +283,18 @@ class TeacherStatisticsIntegrationTest {
     return users.saveAndFlush(user);
   }
 
-  private void submission(User student, String state, int problems, Instant time) {
+  private long submission(User student, String state, int problems, Instant time) {
+    String directory = "statistics/" + java.util.UUID.randomUUID();
     jdbc.update("insert into submission(student_id, original_filename, file_size, status, storage_dir, problem_count, attempts, created_at, updated_at) values (?, 'paper.docx', 1, ?, ?, ?, 0, ?, ?)",
-        student.getId(), state, "statistics/" + java.util.UUID.randomUUID(), problems,
+        student.getId(), state, directory, problems,
         java.sql.Timestamp.from(time), java.sql.Timestamp.from(time));
+    return jdbc.queryForObject("select id from submission where storage_dir=?", Long.class, directory);
+  }
+
+  private void index(long submissionId, String ruleId, String description, int count) {
+    jdbc.update("update submission set rule_index_status='READY' where id=?", submissionId);
+    jdbc.update("insert into submission_rule_issue(submission_id, rule_id, description, issue_count) values (?,?,?,?)",
+        submissionId, ruleId, description, count);
   }
 
   private JsonNode statistics(MockHttpSession session) throws Exception {

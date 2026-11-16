@@ -16,6 +16,10 @@ public class Submission {
   @Column(nullable = false, unique = true, length = 255) private String storageDir;
   @Column(nullable = false) private int problemCount;
   @Column(nullable = false) private boolean reportAvailable;
+  @Enumerated(EnumType.STRING) @Column(name = "rule_index_status", nullable = false, length = 16)
+  private RuleIndexStatus ruleIndexStatus = RuleIndexStatus.PENDING;
+  @Column(name = "rule_index_attempts", nullable = false) private int ruleIndexAttempts;
+  @Column(name = "rule_index_next_retry_at") private Instant ruleIndexNextRetryAt;
   @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition = "jsonb") private Map<String, Integer> byScope;
   @Column(length = 500) private String errorMessage;
   @Column(nullable = false) private int attempts;
@@ -40,6 +44,9 @@ public class Submission {
   public String getStorageDir() { return storageDir; }
   public int getProblemCount() { return problemCount; }
   public boolean isReportAvailable() { return reportAvailable; }
+  public RuleIndexStatus getRuleIndexStatus() { return ruleIndexStatus; }
+  public int getRuleIndexAttempts() { return ruleIndexAttempts; }
+  public Instant getRuleIndexNextRetryAt() { return ruleIndexNextRetryAt; }
   public Map<String,Integer> getByScope() { return byScope; }
   public String getErrorMessage() { return errorMessage; }
   public int getAttempts() { return attempts; }

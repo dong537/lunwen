@@ -11,6 +11,14 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
   long countByStatus(SubmissionStatus status);
   @Query("select count(s) from Submission s where s.studentId in (select u.id from User u where u.collegeCode=:collegeCode)")
   long countByStudentCollege(@Param("collegeCode") String collegeCode);
+  @Query(value = "select to_char(s.created_at at time zone 'Asia/Shanghai', 'YYYY-MM-DD'), count(*) from submission s where s.created_at>=:since group by 1 order by 1", nativeQuery = true)
+  List<Object[]> dailySubmissions(@Param("since") Instant since);
+  @Query(value = "select to_char(s.created_at at time zone 'Asia/Shanghai', 'YYYY-MM-DD'), count(*) from submission s join sys_user u on u.id=s.student_id where s.created_at>=:since and u.college_code=:collegeCode group by 1 order by 1", nativeQuery = true)
+  List<Object[]> dailySubmissionsByCollege(@Param("since") Instant since, @Param("collegeCode") String collegeCode);
+  @Query("select s.status, count(s) from Submission s where s.createdAt>=:since group by s.status")
+  List<Object[]> recentStatusCounts(@Param("since") Instant since);
+  @Query("select s.status, count(s) from Submission s, User u where s.studentId=u.id and u.collegeCode=:collegeCode and s.createdAt>=:since group by s.status")
+  List<Object[]> recentStatusCountsByCollege(@Param("since") Instant since, @Param("collegeCode") String collegeCode);
   boolean existsByStorageDir(String directory);
   boolean existsByStudentId(Long studentId);
 
@@ -41,6 +49,25 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query("update Submission s set s.status=cn.luwneshacha.platform.submission.SubmissionStatus.SUCCESS, s.problemCount=:count, s.reportAvailable=true, s.errorMessage=null, s.finishedAt=:now, s.updatedAt=:now where s.id=:id and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING and s.attempts=:attempt and s.startedAt>=:cutoff")
   int succeed(@Param("id") long id, @Param("attempt") int attempt, @Param("count") int count, @Param("now") Instant now, @Param("cutoff") Instant cutoff);
+
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
+  @Query("update Submission s set s.status=cn.luwneshacha.platform.submission.SubmissionStatus.SUCCESS, s.problemCount=:count, s.reportAvailable=true, s.ruleIndexStatus=cn.luwneshacha.platform.submission.RuleIndexStatus.READY, s.errorMessage=null, s.finishedAt=:now, s.updatedAt=:now where s.id=:id and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING and s.attempts=:attempt and s.startedAt>=:cutoff")
+  int succeedIndexed(@Param("id") long id, @Param("attempt") int attempt, @Param("count") int count, @Param("now") Instant now, @Param("cutoff") Instant cutoff);
+
+  @Query("select s from Submission s where s.status=cn.luwneshacha.platform.submission.SubmissionStatus.SUCCESS and s.ruleIndexStatus=cn.luwneshacha.platform.submission.RuleIndexStatus.PENDING and (s.ruleIndexNextRetryAt is null or s.ruleIndexNextRetryAt<=:now) order by s.id")
+  List<Submission> ruleIndexCandidates(@Param("now") Instant now, Pageable limit);
+
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
+  @Query("update Submission s set s.ruleIndexAttempts=s.ruleIndexAttempts+1, s.ruleIndexNextRetryAt=:leaseUntil where s.id=:id and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.SUCCESS and s.ruleIndexStatus=cn.luwneshacha.platform.submission.RuleIndexStatus.PENDING and (s.ruleIndexNextRetryAt is null or s.ruleIndexNextRetryAt<=:now)")
+  int claimRuleIndex(@Param("id") long id, @Param("now") Instant now, @Param("leaseUntil") Instant leaseUntil);
+
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
+  @Query("update Submission s set s.ruleIndexStatus=cn.luwneshacha.platform.submission.RuleIndexStatus.READY, s.ruleIndexNextRetryAt=null where s.id=:id and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.SUCCESS and s.ruleIndexStatus=cn.luwneshacha.platform.submission.RuleIndexStatus.PENDING and s.ruleIndexAttempts=:attempt")
+  int completeRuleIndex(@Param("id") long id, @Param("attempt") int attempt);
+
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
+  @Query("update Submission s set s.ruleIndexStatus=:status, s.ruleIndexNextRetryAt=:next where s.id=:id and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.SUCCESS and s.ruleIndexStatus=cn.luwneshacha.platform.submission.RuleIndexStatus.PENDING and s.ruleIndexAttempts=:attempt")
+  int failRuleIndex(@Param("id") long id, @Param("attempt") int attempt, @Param("status") RuleIndexStatus status, @Param("next") Instant next);
 
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query("update Submission s set s.status=:status, s.problemCount=0, s.reportAvailable=false, s.byScope=null, s.errorMessage=coalesce(nullif(trim(:message), ''), nullif(trim(s.errorMessage), ''), '审核服务异常，请重新提交或联系管理员'), s.finishedAt=:finished, s.updatedAt=:next where s.id=:id and s.status=cn.luwneshacha.platform.submission.SubmissionStatus.PROCESSING and s.attempts=:attempt and s.startedAt>=:cutoff")

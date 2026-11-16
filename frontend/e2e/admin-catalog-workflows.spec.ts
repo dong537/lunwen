@@ -54,6 +54,7 @@ test('管理员创建学生时切换学院清空专业与导师，并仅加载�
     collegeCode: 'EDUCATION_ARTS',
     collegeName: '教育与艺术学院',
     major: '学前教育',
+    grade: 2023,
     teacherId: '11',
     teacherName: '教育教师',
     mustChangePassword: false,
@@ -86,7 +87,7 @@ test('管理员创建学生时切换学院清空专业与导师，并仅加载�
         query: url.searchParams.get('q'),
       })
       const information = collegeCode === 'INFORMATION_ENGINEERING'
-      data = path.endsWith('/majors')
+      const options = path.endsWith('/majors')
         ? [
             {
               id: information ? '101' : '102',
@@ -106,6 +107,9 @@ test('管理员创建学生时切换学院清空专业与导师，并仅加载�
               collegeName: information ? '信息科学与工程学院' : '教育与艺术学院',
             },
           ]
+      data = path.endsWith('/majors')
+        ? options
+        : { items: options, total: options.length, page: 1, size: 50 }
     } else if (path === '/api/admin/users' && request.method() === 'POST') {
       createdBodies.push(request.postDataJSON())
       students.push(student)
@@ -142,6 +146,7 @@ test('管理员创建学生时切换学院清空专业与导师，并仅加载�
   expect(optionRequests).toEqual([])
   await dialog.getByLabel('学号').fill('22000002')
   await dialog.getByLabel('姓名').fill(' 学生乙 ')
+  await dialog.getByLabel('入学年级').fill('2023')
   await selectOption(page, dialog.getByLabel('学院', { exact: true }), '信息科学与工程学院')
   await selectOption(page, dialog.getByLabel('专业（选填）'), '计算机科学与技术')
   await selectOption(page, dialog.getByLabel('指导教师（选填）'), '信息教师 · teacher_info')
@@ -172,6 +177,12 @@ test('管理员创建学生时切换学院清空专业与导师，并仅加载�
   await expect(dialog).toHaveCount(0)
   await expect(page.getByRole('row', { name: /22000002/ })).toContainText('教育教师')
   await expect(page.getByText('已创建学生乙的账号，初始密码为 123456，可直接登录。')).toBeVisible()
+  await page.getByRole('button', { name: '编辑学生乙' }).click()
+  const editDialog = page.getByRole('dialog', { name: '编辑学生账号' })
+  await editDialog.getByLabel('入学年级').fill('')
+  await editDialog.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(editDialog.getByText('请填写四位入学年份')).toBeVisible()
+  await editDialog.getByRole('button', { name: '取消', exact: true }).click()
   expect(createdBodies).toEqual([
     {
       username: '22000002',
@@ -179,6 +190,7 @@ test('管理员创建学生时切换学院清空专业与导师，并仅加载�
       role: 'STUDENT',
       collegeCode: 'EDUCATION_ARTS',
       major: '学前教育',
+      grade: 2023,
       teacherId: '11',
     },
   ])
@@ -331,7 +343,7 @@ test('学院管理员的账号和专业操作固定在本学院，前端不提�
       data = [{ id: '102', collegeCode: 'EDUCATION_ARTS', name: '学前教育', active: true }]
     } else if (path === '/api/admin/teachers' && request.method() === 'GET') {
       scopedRequests.push({ path, collegeCode: url.searchParams.get('collegeCode') })
-      data = [
+      const options = [
         {
           ...scopedAdmin,
           id: '11',
@@ -340,6 +352,7 @@ test('学院管理员的账号和专业操作固定在本学院，前端不提�
           role: 'TEACHER',
         },
       ]
+      data = { items: options, total: options.length, page: 1, size: 50 }
     } else {
       unexpectedRequests.push(request.method() + ' ' + path)
       await route.fulfill({

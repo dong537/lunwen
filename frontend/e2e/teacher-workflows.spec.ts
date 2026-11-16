@@ -83,6 +83,7 @@ test('教师新增本院学生后刷新名单，并从菜单查看没有成功�
         id: '20',
         username: '22000001',
         name: '学生甲',
+        grade: 2023,
         major: '计算机科学与技术',
         submissionCount: 0,
         lastSubmittedAt: null,
@@ -94,6 +95,7 @@ test('教师新增本院学生后刷新名单，并从菜单查看没有成功�
         username: '22000001',
         name: '学生甲',
         role: 'STUDENT',
+        grade: 2023,
         major: '计算机科学与技术',
         teacherId: teacher.id,
         teacherName: teacher.name,
@@ -111,6 +113,15 @@ test('教师新增本院学生后刷新名单，并从菜单查看没有成功�
         processingSubmissions: 0,
         failedSubmissions: 0,
         latestSuccessfulProblemCount: null,
+      }
+    else if (path === '/api/teacher/statistics/insights')
+      data = {
+        coverage: { eligibleReviews: 0, indexedReviews: 0 },
+        topRules: [],
+        problemDistribution: [],
+        dailySubmissions: [],
+        heatmap: { rules: [], students: [] },
+        students: { items: students, total: students.length, page: 1, size: 10 },
       }
     else {
       unexpectedRequests.push(request.method() + ' ' + path)
@@ -141,6 +152,7 @@ test('教师新增本院学生后刷新名单，并从菜单查看没有成功�
   await expect(dialog.locator('input[readonly]').nth(1)).toHaveValue('信息科学与工程学院')
   await dialog.getByLabel('学号').fill('22000001')
   await dialog.getByLabel('姓名').fill('学生甲')
+  await dialog.getByLabel('入学年级').fill('2023')
   await dialog.getByLabel('专业（选填）').click()
   await expect(page.getByRole('option', { name: '计算机科学与技术', exact: true })).toHaveCount(1)
   await dialog.getByRole('combobox', { name: '专业（选填）' }).press('ArrowDown')
@@ -153,6 +165,7 @@ test('教师新增本院学生后刷新名单，并从菜单查看没有成功�
   expect(createdBody).toEqual({
     username: '22000001',
     name: '学生甲',
+    grade: 2023,
     major: '计算机科学与技术',
   })
   expect(listRequests).toBeGreaterThanOrEqual(2)
@@ -187,6 +200,7 @@ test('教师新增本院学生后刷新名单，并从菜单查看没有成功�
   await expect(mobileDialog).toBeVisible()
   await mobileDialog.getByLabel('学号').fill('22000002')
   await mobileDialog.getByLabel('姓名').fill('移动端学生')
+  await mobileDialog.getByLabel('入学年级').fill('2024')
   await mobileDialog.getByLabel('姓名').press('Tab')
   await expectNoPageOverflow(page)
   const dialogBox = await mobileDialog.boundingBox()

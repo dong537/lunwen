@@ -22,6 +22,10 @@ public enum College {
       throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_COLLEGE", "学院选项无效");
     }
   }
+  public static College fromDisplayName(String name) {
+    for (var college : values()) if (college.displayName.equals(name)) return college;
+    throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_COLLEGE", "请填写系统提供的学院全称");
+  }
   public static List<CollegeOption> options() {
     return Arrays.stream(values()).map(value -> new CollegeOption(value.name(), value.displayName)).toList();
   }

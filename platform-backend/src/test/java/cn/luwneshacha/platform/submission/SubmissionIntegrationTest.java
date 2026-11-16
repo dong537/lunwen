@@ -53,6 +53,7 @@ class SubmissionIntegrationTest {
     registry.add("spring.datasource.password", postgres::getPassword);
   }
   @Autowired SubmissionRepository submissions;
+  @Autowired SubmissionRuleIssueRepository ruleIssues;
   @Autowired UserRepository users;
   @Autowired PlatformTransactionManager transactions;
   @Autowired javax.sql.DataSource dataSource;
@@ -63,14 +64,14 @@ class SubmissionIntegrationTest {
   User student, other, teacher, admin;
 
   @BeforeEach void setup() {
-    submissions.deleteAllInBatch(); users.deleteAllInBatch(); storage.data.clear();
+    ruleIssues.deleteAllInBatch(); submissions.deleteAllInBatch(); users.deleteAllInBatch(); storage.data.clear();
     teacher = users.save(new User("teacher", "hash", Role.TEACHER, "教师", null, null, false));
     student = users.save(new User("student", "hash", Role.STUDENT, "学生", "计算机", teacher.getId(), false));
     other = users.save(new User("other", "hash", Role.STUDENT, "其他", null, null, false));
     admin = users.save(new User("admin", "hash", Role.ADMIN, "管理员", null, null, false));
     service = new SubmissionService(submissions, users, storage, transactions, presigner,
         new TransferProperties(TransferProperties.Mode.DIRECT,600));
-    tasks = new SubmissionTasks(submissions, transactions, Duration.ofMinutes(15));
+    tasks = new SubmissionTasks(submissions, ruleIssues, transactions, Duration.ofMinutes(15));
   }
 
   @Test void rejectsInvalidFilesWithoutRowsOrObjects() {
@@ -104,6 +105,84 @@ class SubmissionIntegrationTest {
     assertTrue(tasks.succeed(second, 7, now.plusSeconds(903)));
     assertFalse(tasks.fail(first, false, "过期尝试失败", now.plusSeconds(904)));
     assertEquals(7, service.detail(actor(student), Long.parseLong(submitted.id())).problemCount());
+  }
+
+  @Test void historicalSuccessBackfillIndexesOnlyOnceAndPreservesZeroIssueReport() {
+    long id = Long.parseLong(service.upload(actor(student), file("a.docx", new byte[]{1})).id());
+    Instant now = Instant.now();
+    var claim = tasks.claim(now).orElseThrow();
+    assertTrue(tasks.succeed(claim, 2, now.plusSeconds(1)));
+    storage.data.put(claim.attemptPrefix() + "report.json", reportWithFailures(2));
+    var backfill = new RuleIssueBackfill(submissions, ruleIssues, storage, transactions);
+    backfill.processBatch(now.plusSeconds(2));
+    var indexed = submissions.findById(id).orElseThrow();
+    assertEquals(RuleIndexStatus.READY, indexed.getRuleIndexStatus());
+    assertEquals(1, indexed.getRuleIndexAttempts());
+    var issueRows = ruleIssues.findBySubmissionIdIn(List.of(id));
+    assertEquals(1, issueRows.size());
+    assertEquals(2, issueRows.get(0).getIssueCount());
+    backfill.processBatch(now.plusSeconds(3));
+    assertEquals(1, ruleIssues.findBySubmissionIdIn(List.of(id)).size());
+    assertEquals(1, submissions.findById(id).orElseThrow().getRuleIndexAttempts());
+
+    long zeroId = Long.parseLong(service.upload(actor(other), file("b.docx", new byte[]{1})).id());
+    var zeroClaim = tasks.claim(now.plusSeconds(4)).orElseThrow();
+    assertTrue(tasks.succeed(zeroClaim, 0, now.plusSeconds(5)));
+    storage.data.put(zeroClaim.attemptPrefix() + "report.json", reportWithFailures(0));
+    backfill.processBatch(now.plusSeconds(6));
+    assertEquals(RuleIndexStatus.READY, submissions.findById(zeroId).orElseThrow().getRuleIndexStatus());
+    assertTrue(ruleIssues.findBySubmissionIdIn(List.of(zeroId)).isEmpty());
+  }
+
+  @Test void unavailableHistoricalReportNeverPretendsToHaveZeroIssues() {
+    long id = Long.parseLong(service.upload(actor(student), file("a.docx", new byte[]{1})).id());
+    Instant now = Instant.now();
+    var claim = tasks.claim(now).orElseThrow();
+    assertTrue(tasks.succeed(claim, 3, now.plusSeconds(1)));
+    var backfill = new RuleIssueBackfill(submissions, ruleIssues, storage, transactions);
+    backfill.processBatch(now.plusSeconds(2));
+    assertEquals(RuleIndexStatus.UNAVAILABLE, submissions.findById(id).orElseThrow().getRuleIndexStatus());
+    backfill.processBatch(now.plusSeconds(63));
+    backfill.processBatch(now.plusSeconds(184));
+    var unresolved = submissions.findById(id).orElseThrow();
+    assertEquals(RuleIndexStatus.UNAVAILABLE, unresolved.getRuleIndexStatus());
+    assertEquals(1, unresolved.getRuleIndexAttempts());
+    assertEquals(3, unresolved.getProblemCount());
+    assertTrue(ruleIssues.findBySubmissionIdIn(List.of(id)).isEmpty());
+  }
+
+  @Test void transientReportDownloadFailureKeepsRetryingAndEventuallyIndexes() {
+    long id = Long.parseLong(service.upload(actor(student), file("a.docx", new byte[]{1})).id());
+    Instant now = Instant.now();
+    var claim = tasks.claim(now).orElseThrow();
+    assertTrue(tasks.succeed(claim, 2, now.plusSeconds(1)));
+    storage.data.put(claim.attemptPrefix() + "report.json", reportWithFailures(2));
+    storage.failDownload = true;
+    var backfill = new RuleIssueBackfill(submissions, ruleIssues, storage, transactions);
+    for (long second : new long[]{2, 63, 184, 425}) backfill.processBatch(now.plusSeconds(second));
+    var waiting = submissions.findById(id).orElseThrow();
+    assertEquals(RuleIndexStatus.PENDING, waiting.getRuleIndexStatus());
+    assertEquals(4, waiting.getRuleIndexAttempts());
+    assertTrue(ruleIssues.findBySubmissionIdIn(List.of(id)).isEmpty());
+    storage.failDownload = false;
+    backfill.processBatch(now.plusSeconds(906));
+    assertEquals(RuleIndexStatus.READY, submissions.findById(id).orElseThrow().getRuleIndexStatus());
+    assertEquals(2, ruleIssues.findBySubmissionIdIn(List.of(id)).get(0).getIssueCount());
+  }
+
+  @Test void malformedHistoricalReportIsUnavailableWithoutReplacingProblemCount() {
+    long id = Long.parseLong(service.upload(actor(student), file("a.docx", new byte[]{1})).id());
+    Instant now = Instant.now();
+    var claim = tasks.claim(now).orElseThrow();
+    assertTrue(tasks.succeed(claim, 2, now.plusSeconds(1)));
+    storage.data.put(claim.attemptPrefix() + "report.json",
+        "not a report".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    var backfill = new RuleIssueBackfill(submissions, ruleIssues, storage, transactions);
+    backfill.processBatch(now.plusSeconds(2));
+    var unresolved = submissions.findById(id).orElseThrow();
+    assertEquals(RuleIndexStatus.UNAVAILABLE, unresolved.getRuleIndexStatus());
+    assertEquals(2, unresolved.getProblemCount());
+    assertTrue(ruleIssues.findBySubmissionIdIn(List.of(id)).isEmpty());
   }
 
   @Test void retriesServicesOnlyThreeTimesAndRejectsAllFailedDownloads() {
@@ -227,6 +306,10 @@ class SubmissionIntegrationTest {
     var dashboard = service.dashboard(actor(admin));
     assertEquals(2, dashboard.activeStudents()); assertEquals(1, dashboard.activeTeachers());
     assertEquals(3, dashboard.totalSubmissions());
+    assertEquals(30, dashboard.dailySubmissions().size());
+    assertEquals(4, dashboard.statusDistribution().size());
+    assertTrue(dashboard.studentsByCollege().stream().anyMatch(row -> row.collegeCode()==null
+        && row.collegeName().equals("待归属") && row.count()==2));
     assertThrows(ApiException.class, () -> service.dashboard(actor(teacher)));
   }
 
@@ -237,11 +320,13 @@ class SubmissionIntegrationTest {
       try {
         assertArrayEquals(new byte[]{1,2}, Files.readAllBytes(original));
         Path marked = Files.write(directory.resolve("marked.docx"), new byte[]{3,4});
-        return new AuditEngine.Result(9, marked, Files.write(directory.resolve("report.docx"), new byte[]{5,6}), "{}".getBytes());
+        return new AuditEngine.Result(9, marked, Files.write(directory.resolve("report.docx"), new byte[]{5,6}), reportWithFailures(9));
       } catch (IOException error) { throw new EngineFailure(true,"test read failed",error); }
     }).process(claim);
     var completed=service.detail(actor(student), Long.parseLong(view.id()));
     assertEquals(SubmissionStatus.SUCCESS, completed.status());
+    assertEquals(RuleIndexStatus.READY, submissions.findById(claim.id()).orElseThrow().getRuleIndexStatus());
+    assertEquals(9, ruleIssues.findBySubmissionIdIn(List.of(claim.id())).get(0).getIssueCount());
     assertTrue(completed.canDownloadReport());
     var download = service.prepareDownload(actor(teacher), claim.id(), "marked");
     assertEquals("论文.marked.docx", download.filename());
@@ -255,14 +340,14 @@ class SubmissionIntegrationTest {
   @Test void cleanupCannotDeleteCommittedSuccessWhenCompletionAcknowledgementIsLost() throws Exception {
     service.upload(actor(student), file("paper.docx", new byte[]{1}));
     var claim = tasks.claim(Instant.now()).orElseThrow();
-    SubmissionTasks lostAcknowledgement = new SubmissionTasks(submissions, transactions, Duration.ofMinutes(15)) {
-      @Override public boolean succeed(Claim value, int count, Instant now) {
-        super.succeed(value,count,now);
+    SubmissionTasks lostAcknowledgement = new SubmissionTasks(submissions, ruleIssues, transactions, Duration.ofMinutes(15)) {
+      @Override public boolean succeedIndexed(Claim value, int count, RuleIssueSummary summary, Instant now) {
+        super.succeedIndexed(value,count,summary,now);
         throw new IllegalStateException("connection lost after commit");
       }
     };
     new SubmissionWorker(lostAcknowledgement, submissions, storage, (original,directory) ->
-        new AuditEngine.Result(0,original,original,"{}".getBytes())).process(claim);
+        new AuditEngine.Result(0,original,original,reportWithFailures(0))).process(claim);
     assertEquals(SubmissionStatus.SUCCESS, submissions.findById(claim.id()).orElseThrow().getStatus());
     assertTrue(storage.data.containsKey(claim.attemptPrefix()+"marked.docx"));
   }
@@ -417,7 +502,7 @@ class SubmissionIntegrationTest {
     var second=tasks.claim(now.plusSeconds(901)).orElseThrow();
     storage.data.put(second.attemptPrefix()+"marked.docx",new byte[]{9});
     tasks.succeed(second,0,now.plusSeconds(902));
-    new SubmissionWorker(tasks,submissions,storage,(original,directory)->new AuditEngine.Result(0,original,original,new byte[]{1})).process(first);
+    new SubmissionWorker(tasks,submissions,storage,(original,directory)->new AuditEngine.Result(0,original,original,reportWithFailures(0))).process(first);
     assertArrayEquals(new byte[]{9},storage.data.get(second.attemptPrefix()+"marked.docx"));
     assertFalse(storage.data.containsKey(first.attemptPrefix()+"marked.docx"));
   }
@@ -569,7 +654,7 @@ class SubmissionIntegrationTest {
       var claim=tasks.claim(Instant.now()).orElseThrow();
       storage.failKey=claim.attemptPrefix()+artifact;
       new SubmissionWorker(tasks,submissions,storage,
-          (original,directory)->new AuditEngine.Result(0,original,original,"{}".getBytes())).process(claim);
+          (original,directory)->new AuditEngine.Result(0,original,original,reportWithFailures(0))).process(claim);
       assertEquals(SubmissionStatus.PENDING,service.detail(actor(student),id).status());
       assertReportUnavailable(id);
       assertTrue(storage.data.containsKey(claim.directory()+"/original.docx"));
@@ -602,10 +687,16 @@ class SubmissionIntegrationTest {
   private static CurrentUser actor(User user) {
     return new CurrentUser(user.getId(), user.getUsername(), user.getRole(), user.getName(), user.isMustChangePassword());
   }
+  private static byte[] reportWithFailures(int count) {
+    String failure = "{\"ruleId\":\"BODY-LINE\",\"judgement\":\"FAIL\"}";
+    String body = "{\"report\":{\"results\":[" + String.join(",", Collections.nCopies(count, failure))
+        + "],\"ruleCoverage\":[{\"ruleId\":\"BODY-LINE\",\"ruleDescription\":\"正文行距应为1.5倍\"}]}}";
+    return body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+  }
   private static MockMultipartFile file(String name, byte[] bytes) { return new MockMultipartFile("file", name, "application/octet-stream", bytes); }
   static class MemoryBoundary implements ObjectStorage {
     final Map<String, byte[]> data = new HashMap<>();
-    boolean failUpload, failDeletion;
+    boolean failUpload, failDeletion, failDownload;
     String failKey;
     int reads;
     String contentType=SubmissionService.DOCX;
@@ -617,6 +708,7 @@ class SubmissionIntegrationTest {
     }
     public StoredObject get(String key) throws IOException {
       reads++;
+      if (failDownload) throw new IOException("temporary storage failure");
       byte[] bytes = data.get(key);
       if(bytes==null) throw new FileNotFoundException("test object does not exist");
       return new StoredObject(new ByteArrayInputStream(bytes), bytes.length);
