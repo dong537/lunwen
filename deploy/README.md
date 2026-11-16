@@ -62,3 +62,13 @@ gh workflow run rollback-thesis-engine -R dong537/lunwen --ref main \
 - `backend-current-tag` 记录最近一次单服务回滚成功的目标；后续整站部署可能再次更新引擎，因此实际运行版本以容器的镜像为准。
 - 验收时查看 Actions 日志中的实际镜像与容器状态，并检查公网 `/api/health`。镜像回退不代表规则源码有差异，应另行比较对应提交中的 `backend`。
 - 修改脚本后运行 `bash -n deploy/rollback-engine.sh` 和 `bash deploy/test-rollback-engine.sh`；后者使用隔离的命令替身验证成功及失败恢复路径，不连接生产服务。
+
+### 仅发布前端
+
+暂时隐藏页面等前端变更不能使用整站 deploy-production，否则会覆盖单独回退过的审核引擎。等 build-images 为目标提交构建好前端镜像后，使用：
+
+    gh workflow run deploy-frontend-only -R dong537/lunwen --ref main -f image_tag=sha-<40位完整提交号>
+
+该工作流复用生产 SSH Secrets、已登记的主机指纹、部署并发组和服务器 deploy.lock，只拉取与重建 frontend。它验证前端镜像 ID、健康检查、前端反向代理到平台的 /api/health，并断言 backend、platform、postgres 的容器 ID 不变。失败时优先从本机实际运行过的镜像恢复前端，不修改 release.env、current-tag、backend-current-tag 或数据库；成功后单独记录 frontend-current-tag。实际运行镜像以容器状态为准。发布后核对公网首页和 /api/health，以及审核引擎仍是已回退的镜像。
+
+改动脚本时运行 bash -n deploy/deploy-frontend.sh 与 bash deploy/test-deploy-frontend.sh。隔离测试不连接生产 Docker 或服务器。
