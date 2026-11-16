@@ -46,3 +46,19 @@ gh workflow run deploy-production -R dong537/lunwen --ref main -f image_tag=sha-
 cd /opt/docx-check
 ./deploy.sh "$(cat previous-tag)"
 ```
+
+### 仅回退论文审核引擎
+
+账号、统计或其他平台功能需要保留时，使用独立工作流 `.github/workflows/rollback-engine.yml`，不要使用上面的整站回退命令：
+
+```bash
+gh workflow run rollback-thesis-engine -R dong537/lunwen --ref main \
+  -f image_tag=sha-<40位完整提交号>
+```
+
+- 只接受从 `main` 触发，目标镜像必须已存在；沿用已登记的 SSH 主机指纹、部署密钥和生产并发锁。
+- 仅拉取并替换 `backend`，不重建 `platform`、`frontend`、`postgres`，不改数据库及整站版本文件 `release.env`、`current-tag`。
+- 检查引擎健康、平台到引擎的连接和其他容器是否保持不变；失败时尝试恢复操作前实际运行的引擎镜像。回退失败会明确报错，不能当作成功。
+- `backend-current-tag` 记录最近一次单服务回滚成功的目标；后续整站部署可能再次更新引擎，因此实际运行版本以容器的镜像为准。
+- 验收时查看 Actions 日志中的实际镜像与容器状态，并检查公网 `/api/health`。镜像回退不代表规则源码有差异，应另行比较对应提交中的 `backend`。
+- 修改脚本后运行 `bash -n deploy/rollback-engine.sh` 和 `bash deploy/test-rollback-engine.sh`；后者使用隔离的命令替身验证成功及失败恢复路径，不连接生产服务。
