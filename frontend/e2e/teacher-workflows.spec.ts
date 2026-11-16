@@ -43,7 +43,10 @@ const teacher = {
   mustChangePassword: false,
 }
 
-test('教师新增本院学生后刷新名单，并从菜单查看没有成功审核的统计', async ({ page }, testInfo) => {
+// 临时隐藏教师新增和统计入口；恢复功能时启用原流程用例。
+test.skip('教师新增本院学生后刷新名单，并从菜单查看没有成功审核的统计', async ({
+  page,
+}, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   const errors: string[] = []
   const unexpectedRequests: string[] = []
@@ -218,7 +221,8 @@ test('教师新增本院学生后刷新名单，并从菜单查看没有成功�
   expect(errors).toEqual([])
 })
 
-test('教师从名单进入导入页面，预检成功后才能确认导入', async ({ page }, testInfo) => {
+// 临时隐藏教师导入入口；恢复功能时启用原流程用例。
+test.skip('教师从名单进入导入页面，预检成功后才能确认导入', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   const errors: string[] = []
   const unexpectedRequests: string[] = []

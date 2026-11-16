@@ -122,7 +122,8 @@ test('管理员概览展示真实聚合，账号可筛未填写年级', async ({
   expect(errors).toEqual([])
 })
 
-test('教师统计筛选、规则覆盖和导出使用同一条件', async ({ page }, testInfo) => {
+// 教师统计页面临时隐藏；恢复时启用原筛选和导出流程用例。
+test.skip('教师统计筛选、规则覆盖和导出使用同一条件', async ({ page }, testInfo) => {
   const errors: string[] = []
   const insightRequests: string[] = []
   const exportRequests: string[] = []
@@ -262,7 +263,8 @@ test('教师统计筛选、规则覆盖和导出使用同一条件', async ({ pa
   expect(errors).toEqual([])
 })
 
-test('教师统计空态在 375px 可阅读且没有整页横向溢出', async ({ page }, testInfo) => {
+// 教师统计页面临时隐藏；恢复时启用原窄屏空态用例。
+test.skip('教师统计空态在 375px 可阅读且没有整页横向溢出', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 375, height: 812 })
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))

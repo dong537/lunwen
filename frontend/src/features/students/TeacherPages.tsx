@@ -26,6 +26,9 @@ import { useSession } from '../auth/session'
 import { SubmissionList } from '../submissions/SubmissionPages'
 import { teacherApi } from './api'
 
+// 暂时隐藏教师新增和导入入口，保留实现供后续恢复。
+const studentCreationEnabled = false
+
 const studentColumns: ColumnsType<StudentSummary> = [
   { title: '学号', dataIndex: 'username', key: 'username' },
   { title: '姓名', dataIndex: 'name', key: 'name' },
@@ -92,17 +95,19 @@ export function TeacherStudentsPage() {
         title="我的学生"
         description="按指导名单管理学生；提交次数与最近结果仅统计审核成功的记录。"
         extra={
-          <Space wrap>
-            <Link to="/teacher/students/import">
-              <Button icon={<ImportOutlined />}>导入名单</Button>
-            </Link>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-              新增学生
-            </Button>
-          </Space>
+          studentCreationEnabled ? (
+            <Space wrap>
+              <Link to="/teacher/students/import">
+                <Button icon={<ImportOutlined />}>导入名单</Button>
+              </Link>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+                新增学生
+              </Button>
+            </Space>
+          ) : undefined
         }
       />
-      {!user?.collegeCode && (
+      {studentCreationEnabled && !user?.collegeCode && (
         <Alert
           type="warning"
           showIcon
@@ -146,7 +151,7 @@ export function TeacherStudentsPage() {
           />
         )}
       </Card>
-      {creating && (
+      {studentCreationEnabled && creating && (
         <TeacherCreateDialog
           onClose={() => setCreating(false)}
           onSaved={() => {
