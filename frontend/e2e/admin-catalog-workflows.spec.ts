@@ -199,8 +199,7 @@ test('管理员创建学生时切换学院清空专业与导师，并仅加载�
   expect(errors).toEqual([])
 })
 
-// 专业目录页面临时隐藏；恢复页面时启用原维护流程用例。
-test.skip('管理员按学院创建专业，保存失败可重试，并确认停用后保留专业记录', async ({
+test('管理员按学院创建专业，保存失败可重试，并确认停用后保留专业记录', async ({
   page,
 }, testInfo) => {
   const errors: string[] = []
@@ -312,7 +311,7 @@ test.skip('管理员按学院创建专业，保存失败可重试，并确认停
   expect(errors).toEqual([])
 })
 
-test('学院管理员的新建账号操作固定在本学院，专业目录入口暂时隐藏', async ({ page }, testInfo) => {
+test('学院管理员的账号和专业操作固定在本学院，前端不提供跨院入口', async ({ page }, testInfo) => {
   const errors: string[] = []
   const unexpectedRequests: string[] = []
   const scopedRequests: { path: string; collegeCode: string | null }[] = []
@@ -387,8 +386,12 @@ test('学院管理员的新建账号操作固定在本学院，专业目录入�
   await selectOption(page, dialog.getByLabel('指导教师（选填）'), '教育教师 · teacher_edu')
   await page.screenshot({ path: testInfo.outputPath('college-admin-student.png'), fullPage: true })
   await dialog.getByRole('button', { name: '取消', exact: true }).click()
-  await expect(page.getByRole('menuitem', { name: /专业目录/ })).toHaveCount(0)
-  expect(scopedRequests.length).toBeGreaterThanOrEqual(2)
+  await page.getByRole('menuitem', { name: /专业目录/ }).click()
+  await expect(page).toHaveTitle(/专业目录/)
+  await expect(page.getByLabel('专业所属学院')).toBeDisabled()
+  await expect(page.getByText('教育与艺术学院', { exact: true })).toBeVisible()
+  await expect(page.getByRole('row', { name: /学前教育/ })).toBeVisible()
+  expect(scopedRequests.length).toBeGreaterThanOrEqual(3)
   expect(scopedRequests.every((request) => request.collegeCode === 'EDUCATION_ARTS')).toBe(true)
   expect(unexpectedRequests).toEqual([])
   expect(errors).toEqual([])
