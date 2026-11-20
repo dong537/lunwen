@@ -1,0 +1,14 @@
+docx-check.test.chatgqt.top {
+	encode zstd gzip
+
+	request_body {
+		max_size 52MB
+	}
+
+	reverse_proxy 127.0.0.1:18090 {
+		transport http {
+			read_timeout 360s
+			write_timeout 360s
+		}
+	}
+}

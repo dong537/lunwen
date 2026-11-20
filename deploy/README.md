@@ -1,6 +1,6 @@
 # 生产部署
 
-目标服务器：`docx-check.test.chatgqt.top`（`101.35.223.219`），部署目录 `/opt/docx-check`。
+目标服务器：`docx-check.test.chatgqt.top`（`106.54.224.201`），部署目录 `/srv/docx-check`。
 
 ## CI
 
@@ -23,27 +23,26 @@ gh workflow run deploy-production -R dong537/lunwen --ref main -f image_tag=sha-
 ```
 
 - 工作流会把 `deploy/compose.prod.yaml` 和 `deploy/deploy.sh` 传到服务器，然后执行 `deploy.sh`。
-- 发布流程：拉取镜像 → 启动 postgres → 启动 backend → 启动 platform → 强制重建 frontend（刷新 Nginx 对 platform 的 DNS 解析）→ 容器健康检查 → 本地和公网 HTTP 检查。
+- 发布流程：拉取镜像 → 启动 postgres → 启动 backend → 启动 platform → 强制重建 frontend（刷新前端对 platform 的 DNS 解析）→ 容器健康检查 → 本地和公网 HTTP 检查。
 - 失败时自动回退到 `current-tag` 记录的上一版本；首次部署没有上一版本时保留现场。
 - 当前没有数据库 schema 迁移步骤，Flyway 由 platform 启动时自动执行。
 
 ## 服务器一次性初始化
 
-1. 安装 Docker、Compose、Nginx、Certbot、curl。
-2. 创建 `/opt/docx-check`，创建 `.env`（权限 600），内容参考仓库根目录 `.env.example`，其中：
+1. 安装 Docker、Compose、Caddy、curl。
+2. 创建 `/srv/docx-check`，创建 `.env`（权限 600），内容参考仓库根目录 `.env.example`，其中：
    - `PLATFORM_HTTP_PORT=18090`
    - `SESSION_COOKIE_SECURE=true`
    - 当前生产使用 `TRANSFER_MODE=direct`、`COS_REGION=ap-shanghai`、`COS_ENDPOINT=cos-internal.ap-shanghai.myqcloud.com`、`COS_PUBLIC_ENDPOINT=cos.ap-shanghai.myqcloud.com`
    - COS CORS 允许 `https://docx-check.test.chatgqt.top` 的 `PUT/GET/HEAD`，并允许 `Content-Type` 请求头；新环境未配置 CORS 前先保持 `proxy`
-3. 安装 `deploy/nginx.conf` 到 `/etc/nginx/sites-available/docx-check`，启用站点。
-4. 执行 `certbot --nginx -d docx-check.test.chatgqt.top --redirect`。
-5. 确保 `ubuntu` 用户可免密 `sudo`，并且 `/opt/docx-check` 可写。
+3. 安装 `deploy/Caddyfile` 到 `/etc/caddy/sites.d/docx-check.caddy`（系统级 Caddy 统一监听 80/443 并自动签发证书），执行 `caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy`。
+4. 确保 `ubuntu` 用户可免密 `sudo`，并且 `/srv/docx-check` 可写。
 
 ## 回退
 
 ```bash
 # 服务器上直接回退到记录的上一个 tag
-cd /opt/docx-check
+cd /srv/docx-check
 ./deploy.sh "$(cat previous-tag)"
 ```
 
