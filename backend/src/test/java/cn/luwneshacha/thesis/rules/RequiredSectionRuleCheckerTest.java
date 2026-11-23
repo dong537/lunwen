@@ -1,5 +1,6 @@
 package cn.luwneshacha.thesis.rules;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
@@ -15,6 +16,35 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class RequiredSectionRuleCheckerTest {
+  @Test
+  void recordsACompleteThesisAsOneStructureAndOneCoverCandidate() {
+    var document = document(List.of(
+        "山东石油化工学院", "本科生毕业设计（论文）", "题目：毕业论文", "学生姓名：张三", "学号：20260001",
+        "院系：信息工程学院", "专业年级：计算机科学与技术", "指导教师：李四", "2026年6月",
+        "摘要", "关键词：格式；检查", "ABSTRACT", "Keywords: format; check", "目录",
+        "第一章 绪论", "第五章 结论", "参考文献", "致谢"));
+    var checker = new RequiredSectionRuleChecker();
+
+    var evaluation = checker.evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(checker.check(document), evaluation.results());
+    assertEquals(List.of(
+        new RuleRun("SECTION-REQUIRED", "RequiredSectionRuleChecker", 1, 1, 0, null),
+        new RuleRun("COVER-05", "RequiredSectionRuleChecker", 1, 1, 0, null)),
+        evaluation.ruleRuns());
+  }
+
+  @Test
+  void keepsUncertainClassificationUnknownAndDoesNotInventCoverEvidence() {
+    var document = document(List.of("项目说明", "这是一个简短文档"));
+
+    var evaluation = new RequiredSectionRuleChecker().evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(List.of(new RuleRun("SECTION-REQUIRED", "RequiredSectionRuleChecker",
+        1, 0, 1, null)), evaluation.ruleRuns());
+    assertTrue(evaluation.results().stream().anyMatch(result -> result.judgement() == Judgement.REVIEW));
+  }
+
   @Test
   void reportsMissingRequiredSectionsAndCoverFieldsForAThesisDocument() {
     var document = document(List.of(
@@ -179,13 +209,18 @@ class RequiredSectionRuleCheckerTest {
     var document = new ParsedDocument("source", paragraphs, List.of(), List.of(), List.of(), List.of(),
         List.of(), List.of(image), List.of(), List.of(), List.of());
 
-    var findings = new RequiredSectionRuleChecker().check(document);
+    var evaluation = new RequiredSectionRuleChecker().evaluate(document, RuleSet.schoolV1());
+    var findings = evaluation.results();
 
     assertTrue(findings.stream().noneMatch(result -> result.expected().equals("学校名称")
         && result.judgement() == Judgement.FAIL), findings.toString());
     assertTrue(findings.stream().anyMatch(result -> result.expected().equals("学校名称")
         && result.reasonCode().equals("COVER_SCHOOL_NAME_IMAGE_UNCONFIRMED")
         && result.judgement() == Judgement.REVIEW), findings.toString());
+    assertEquals(List.of(
+        new RuleRun("SECTION-REQUIRED", "RequiredSectionRuleChecker", 1, 1, 0, null),
+        new RuleRun("COVER-05", "RequiredSectionRuleChecker", 1, 0, 1, null)),
+        evaluation.ruleRuns());
   }
 
   @Test

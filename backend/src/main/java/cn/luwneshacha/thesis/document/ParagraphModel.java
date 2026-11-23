@@ -29,7 +29,30 @@ public record ParagraphModel(
     String paragraphStyleId,
     boolean lineSpacingEvidenceInvalid,
     boolean insideTextBox,
-    String paragraphStyleName) {
+    String paragraphStyleName,
+    RunModel blankParagraphMarkFormat,
+    boolean structurallyBlankParagraph) {
+  /** Callers without separate paragraph-mark evidence retain their existing model contract. */
+  public ParagraphModel(List<RunModel> runs, Integer firstLineIndentTwips,
+      Integer leftIndentTwips, Integer leftIndentChars, Integer rightIndentTwips,
+      Integer lineTwips, String lineRule, SourceAddress source, Integer firstLineChars,
+      Integer outlineLevel, String alignment, String numberingLabel,
+      Integer numberingSeparatorSpaces, Integer numberingFormatTrailingSpaces,
+      boolean generatedTocField, Integer hangingIndentTwips, Integer hangingIndentChars,
+      boolean automaticNumberingActive, boolean firstLineEvidenceInvalid,
+      boolean hangingEvidenceInvalid, boolean leftEvidenceInvalid,
+      Integer beforeSpacingTwips, Integer afterSpacingTwips, String paragraphStyleId,
+      boolean lineSpacingEvidenceInvalid, boolean insideTextBox, String paragraphStyleName) {
+    this(runs, firstLineIndentTwips, leftIndentTwips, leftIndentChars, rightIndentTwips,
+        lineTwips, lineRule, source, firstLineChars, outlineLevel, alignment, numberingLabel,
+        numberingSeparatorSpaces, numberingFormatTrailingSpaces, generatedTocField,
+        hangingIndentTwips, hangingIndentChars, automaticNumberingActive,
+        firstLineEvidenceInvalid, hangingEvidenceInvalid, leftEvidenceInvalid,
+        beforeSpacingTwips, afterSpacingTwips, paragraphStyleId, lineSpacingEvidenceInvalid,
+        insideTextBox, paragraphStyleName, null,
+        !runs.isEmpty() && runs.stream().allMatch(run -> run.text().isBlank()));
+  }
+
   public ParagraphModel(List<RunModel> runs, Integer firstLineIndentTwips, Integer leftIndentTwips,
       Integer leftIndentChars, Integer rightIndentTwips, Integer lineTwips, String lineRule,
       SourceAddress source, Integer firstLineChars, Integer outlineLevel, String alignment,

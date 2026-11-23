@@ -12,12 +12,17 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.UUID;
 import java.util.zip.ZipFile;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
@@ -45,6 +50,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -66,6 +72,125 @@ class InspectionApiTest {
     if (!Files.exists(STORAGE_ROOT)) return;
     try (var paths = Files.walk(STORAGE_ROOT)) {
       for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+    }
+  }
+
+  @Test
+  void controlledLayoutWithoutProvenMemoryLimitKeepsOpaqueFormulaUnverified() throws Exception {
+    Object originalMode = ReflectionTestUtils.getField(inspectionService, "layoutAnalysisEnabled");
+    String originalLimiter = System.getProperty("thesis.prlimit");
+    ReflectionTestUtils.setField(inspectionService, "layoutAnalysisEnabled", true);
+    System.setProperty("thesis.prlimit", temp.resolve("missing-prlimit").toString());
+    try {
+      String response = mvc.perform(multipart("/api/inspections")
+          .file(new MockMultipartFile("file", "opaque.docx",
+              MediaType.APPLICATION_OCTET_STREAM_VALUE, validDocxWithOpaqueFormula()))
+          .param("annotate", "false"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.report.layoutEvidence.status").value("unavailable"))
+          .andExpect(jsonPath("$.report.equations[0].type").value("OLE"))
+          .andReturn().getResponse().getContentAsString();
+      var report = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response).path("report");
+      assertEquals(report.path("sourceSha256").asText(),
+          report.path("layoutEvidence").path("sourceSha256").asText());
+      boolean unknownFormula = false;
+      for (var run : report.path("ruleExecution").path("ruleRuns"))
+        if ("EQ-06".equals(run.path("ruleId").asText()) && run.path("unknownCount").asInt() > 0)
+          unknownFormula = true;
+      assertTrue(unknownFormula, "opaque formula internals must remain unknown");
+    } finally {
+      ReflectionTestUtils.setField(inspectionService, "layoutAnalysisEnabled", originalMode);
+      if (originalLimiter == null) System.clearProperty("thesis.prlimit");
+      else System.setProperty("thesis.prlimit", originalLimiter);
+    }
+  }
+
+  @Test
+  void ordinaryModeStillInspectsWithoutAProcessLimiter() throws Exception {
+    Object originalMode = ReflectionTestUtils.getField(inspectionService, "layoutAnalysisEnabled");
+    String originalLimiter = System.getProperty("thesis.prlimit");
+    ReflectionTestUtils.setField(inspectionService, "layoutAnalysisEnabled", false);
+    System.setProperty("thesis.prlimit", temp.resolve("missing-prlimit").toString());
+    try {
+      mvc.perform(multipart("/api/inspections")
+          .file(new MockMultipartFile("file", "ordinary.docx",
+              MediaType.APPLICATION_OCTET_STREAM_VALUE, validDocx()))
+          .param("annotate", "false"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.report.ruleSetId").value("school-v1"));
+    } finally {
+      ReflectionTestUtils.setField(inspectionService, "layoutAnalysisEnabled", originalMode);
+      if (originalLimiter == null) System.clearProperty("thesis.prlimit");
+      else System.setProperty("thesis.prlimit", originalLimiter);
+    }
+  }
+
+  @Test
+  void ordinaryModeWithOpaqueFormulaUsesOriginalAndNeverStartsConverter() throws Exception {
+    Object originalMode = ReflectionTestUtils.getField(inspectionService, "layoutAnalysisEnabled");
+    String originalLimiter = System.getProperty("thesis.prlimit");
+    String originalOffice = System.getProperty("thesis.soffice");
+    ReflectionTestUtils.setField(inspectionService, "layoutAnalysisEnabled", false);
+    System.setProperty("thesis.prlimit", temp.resolve("missing-prlimit").toString());
+    System.setProperty("thesis.soffice", temp.resolve("missing-office").toString());
+    try {
+      byte[] original = validDocxWithOpaqueFormula();
+      String response = mvc.perform(multipart("/api/inspections")
+          .file(new MockMultipartFile("file", "opaque-ordinary.docx",
+              MediaType.APPLICATION_OCTET_STREAM_VALUE, original))
+          .param("annotate", "false"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.report.equations[0].type").value("OLE"))
+          .andReturn().getResponse().getContentAsString();
+      var identity = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response);
+      String hash = java.util.HexFormat.of().formatHex(
+          java.security.MessageDigest.getInstance("SHA-256").digest(original));
+      assertEquals(hash, identity.path("sourceSha256").asText());
+      assertEquals(hash, identity.path("report").path("sourceSha256").asText());
+      assertFalse(Files.exists(STORAGE_ROOT.resolve(identity.path("requestId").asText())
+          .resolve("formula-memory-limit.log")), "normal inspection must not start formula conversion");
+      boolean unknownFormula = false;
+      for (var run : new com.fasterxml.jackson.databind.ObjectMapper().readTree(response)
+          .path("report").path("ruleExecution").path("ruleRuns"))
+        if ("EQ-06".equals(run.path("ruleId").asText()) && run.path("unknownCount").asInt() > 0)
+          unknownFormula = true;
+      assertTrue(unknownFormula);
+    } finally {
+      ReflectionTestUtils.setField(inspectionService, "layoutAnalysisEnabled", originalMode);
+      if (originalLimiter == null) System.clearProperty("thesis.prlimit");
+      else System.setProperty("thesis.prlimit", originalLimiter);
+      if (originalOffice == null) System.clearProperty("thesis.soffice");
+      else System.setProperty("thesis.soffice", originalOffice);
+    }
+  }
+
+  @Test
+  void opaqueFormulaKeepsOriginalStylingWithoutRunningAConverter() throws Exception {
+    byte[] original = validDocxWithOpaqueFormula();
+    String priorLimiter = System.getProperty("thesis.prlimit");
+    System.setProperty("thesis.prlimit", temp.resolve("missing-prlimit").toString());
+    try {
+      String response = mvc.perform(multipart("/api/inspections")
+          .file(new MockMultipartFile("file", "opaque-original.docx",
+              MediaType.APPLICATION_OCTET_STREAM_VALUE, original))
+          .param("annotate", "true"))
+          .andExpect(status().isOk())
+          .andReturn().getResponse().getContentAsString();
+      var result = new com.fasterxml.jackson.databind.ObjectMapper().readTree(response);
+      String originalSha = java.util.HexFormat.of().formatHex(
+          java.security.MessageDigest.getInstance("SHA-256").digest(original));
+      assertEquals(originalSha, result.path("sourceSha256").asText());
+      assertEquals(originalSha, result.path("report").path("sourceSha256").asText());
+      String requestId = result.path("requestId").asText();
+      assertEquals(originalSha, inspectionService.report(requestId).sourceSha256());
+      assertFalse(Files.exists(STORAGE_ROOT.resolve(requestId).resolve("formula-memory-limit.log")));
+      assertFalse(Files.exists(STORAGE_ROOT.resolve(requestId).resolve("formula-conversion-odt")));
+      byte[] marked = Files.readAllBytes(STORAGE_ROOT.resolve(requestId).resolve("annotated.docx"));
+      String documentXml = partText(marked, "word/document.xml");
+      assertTrue(documentXml.contains("黑体"), "annotated copy must retain original run styling");
+    } finally {
+      if (priorLimiter == null) System.clearProperty("thesis.prlimit");
+      else System.setProperty("thesis.prlimit", priorLimiter);
     }
   }
 
@@ -332,6 +457,42 @@ class InspectionApiTest {
     Path source = temp.resolve("source.docx");
     pkg.save(source.toFile());
     return java.nio.file.Files.readAllBytes(source);
+  }
+
+  private byte[] validDocxWithOpaqueFormula() throws Exception {
+    byte[] plain = validDocx();
+    var output = new ByteArrayOutputStream();
+    try (var input = new ZipInputStream(new ByteArrayInputStream(plain));
+         var zip = new ZipOutputStream(output)) {
+      ZipEntry entry;
+      while ((entry = input.getNextEntry()) != null) {
+        zip.putNextEntry(new ZipEntry(entry.getName()));
+        byte[] content = input.readAllBytes();
+        if (entry.getName().equals("word/document.xml")) {
+          String xml = new String(content, StandardCharsets.UTF_8);
+          String ole = "<w:p><w:r><w:object><o:OLEObject "
+              + "xmlns:o=\"urn:schemas-microsoft-com:office:office\" "
+              + "ProgID=\"Equation.3\"/></w:object></w:r></w:p>";
+          assertTrue(xml.contains("<w:sectPr"));
+          content = xml.replaceFirst("<w:sectPr", ole + "<w:sectPr")
+              .getBytes(StandardCharsets.UTF_8);
+        }
+        zip.write(content);
+        zip.closeEntry();
+      }
+    }
+    return output.toByteArray();
+  }
+
+  private static String partText(byte[] packageBytes, String partName) throws IOException {
+    try (var input = new ZipInputStream(new ByteArrayInputStream(packageBytes))) {
+      ZipEntry entry;
+      while ((entry = input.getNextEntry()) != null) {
+        if (partName.equals(entry.getName()))
+          return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+      }
+    }
+    throw new IOException("missing package part: " + partName);
   }
 
   private byte[] docxWithReviewOnlyImage() throws Exception {

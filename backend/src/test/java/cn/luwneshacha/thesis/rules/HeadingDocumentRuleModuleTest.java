@@ -8,11 +8,103 @@ import cn.luwneshacha.thesis.document.ParsedDocument;
 import cn.luwneshacha.thesis.document.RunModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.document.TableModel;
+import cn.luwneshacha.thesis.document.Docx4jDocumentParser;
+import cn.luwneshacha.thesis.document.DocxReader;
+import java.nio.file.Path;
 import java.util.List;
+import org.docx4j.XmlUtils;
+import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
+import org.docx4j.wml.Document;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class HeadingDocumentRuleModuleTest {
   private static final RuleSet RULES = RuleSet.schoolV1();
+  private static final String NO_APPENDIX_REASON = "OPTIONAL_APPENDIX_ABSENT_AFTER_END_MATTER_SCAN";
+  @TempDir Path temp;
+
+  @Test
+  void recordsNotApplicableAppendixTitleFormattingOnlyWithCompleteEndMatterEvidence() {
+    var evaluation = module().evaluate(verifiedNoTableDocument(
+        paragraph("\u7b2c\u4e00\u7ae0 \u7eea\u8bba", List.of(0, 1)),
+        paragraph("\u53c2\u8003\u6587\u732e", List.of(0, 2)),
+        paragraph("\u81f4\u8c22", List.of(0, 3)),
+        paragraph("\u611f\u8c22\u6307\u5bfc\u8001\u5e08", List.of(0, 4))), RULES);
+
+    for (String ruleId : List.of("APP-02-SPACING", "APP-02-ALIGNMENT",
+        "APP-02-FONT", "APP-02-SIZE"))
+      assertEquals(new RuleRun(ruleId, "HeadingDocumentRuleModule", 0, 0, 0, NO_APPENDIX_REASON),
+          run(evaluation, ruleId));
+  }
+
+  @Test
+  void keepsAppendixTitleFormattingUnknownWhenTheEndMatterBoundaryIsMissing() {
+    var evaluation = module().evaluate(document(
+        paragraph("\u7b2c\u4e00\u7ae0 \u7eea\u8bba", List.of(0, 1)),
+        paragraph("\u53c2\u8003\u6587\u732e", List.of(0, 2))), RULES);
+
+    assertTrue(evaluation.ruleRuns().stream().noneMatch(run -> NO_APPENDIX_REASON.equals(
+        run.notApplicableReason())));
+  }
+
+  @Test
+  void keepsAppendixTitleFormattingUnknownForMalformedAppendixHeading() {
+    var evaluation = module().evaluate(document(
+        paragraph("\u7b2c\u4e00\u7ae0 \u7eea\u8bba", List.of(0, 1)),
+        paragraph("\u53c2\u8003\u6587\u732e", List.of(0, 2)),
+        paragraph("\u81f4\u8c22", List.of(0, 3)),
+        paragraph("\u9644\u5f55a \u8865\u5145\u6750\u6599", List.of(0, 4))), RULES);
+
+    assertTrue(evaluation.ruleRuns().stream().noneMatch(run -> NO_APPENDIX_REASON.equals(
+        run.notApplicableReason())));
+  }
+
+  @Test
+  void recordsActualChapterAndSubheadingCandidatesWithoutCountingBodyText() {
+    var chapter = paragraph("第一章  绪论", List.of(0, 0));
+    var blank = paragraph("", List.of(0, 1));
+    var second = paragraph("1.1 研究背景", List.of(0, 2));
+    var third = paragraph("1.1.1 研究意义", List.of(0, 3));
+    var body = paragraph("正文内容", List.of(0, 4));
+
+    var evaluation = module().evaluate(document(chapter, blank, second, third, body), RULES);
+
+    assertEquals(new RuleRun("HEAD-02-BLANK", "HeadingDocumentRuleModule", 1, 1, 0, null),
+        run(evaluation, "HEAD-02-BLANK"));
+    assertEquals(new RuleRun("HEAD-01-SPACING", "HeadingDocumentRuleModule", 1, 1, 0, null),
+        run(evaluation, "HEAD-01-SPACING"));
+    assertEquals(new RuleRun("HEAD-02-SPACING", "HeadingDocumentRuleModule", 1, 1, 0, null),
+        run(evaluation, "HEAD-02-SPACING"));
+    assertEquals(new RuleRun("HEAD-03-SPACING", "HeadingDocumentRuleModule", 1, 1, 0, null),
+        run(evaluation, "HEAD-03-SPACING"));
+    assertEquals(new RuleRun("HEADING-FONT", "HeadingDocumentRuleModule", 3, 3, 0, null),
+        run(evaluation, "HEADING-FONT"));
+    assertEquals(new RuleRun("HEADING-SIZE", "HeadingDocumentRuleModule", 3, 3, 0, null),
+        run(evaluation, "HEADING-SIZE"));
+  }
+
+  @Test
+  void keepsUnknownNamedTitleFormattingAsUnknownCandidates() {
+    var source = new SourceAddress("word/document.xml", List.of(0, 0), 0, 3);
+    var title = new ParagraphModel(List.of(new RunModel("摘 要", null, null,
+        null, null, false, source)), null, null, null, null, null, source, null, null, null);
+
+    var evaluation = module().evaluate(document(title), RULES);
+
+    for (String ruleId : List.of("ZH-01-FONT", "ZH-01-SIZE", "ZH-01-ALIGNMENT")) {
+      assertEquals(new RuleRun(ruleId, "HeadingDocumentRuleModule", 1, 0, 1, null),
+          run(evaluation, ruleId));
+    }
+  }
+
+  @Test
+  void recordsEnglishAbstractTitleCaseEvenWhenItProducesNoFinding() {
+    var evaluation = module().evaluate(document(paragraph("ABSTRACT", List.of(0, 0))), RULES);
+
+    assertTrue(evaluation.results().stream().noneMatch(item -> "EN-01-TEXT".equals(item.ruleId())));
+    assertEquals(new RuleRun("EN-01-TEXT", "HeadingDocumentRuleModule", 1, 1, 0, null),
+        run(evaluation, "EN-01-TEXT"));
+  }
 
   @Test
   void reportsMissingBlankLineBeforeTheFirstBodyParagraph() {
@@ -39,6 +131,132 @@ class HeadingDocumentRuleModuleTest {
   }
 
   @Test
+  void checksActualFontAndSizeOfTheBlankLineAfterAChapter() {
+    var chapter = paragraph("第一章  绪论", List.of(0, 0));
+    var source = new SourceAddress("word/document.xml", List.of(0, 1), 0, 1);
+    var wrongBlankRun = new RunModel(" ", "Arial", "宋体", null, 24, false, source);
+    var blank = new ParagraphModel(List.of(wrongBlankRun), 0, null, null, null, null, source, 0);
+    var body = paragraph("正文内容", List.of(0, 2));
+
+    var findings = module().check(document(chapter, blank, body), RULES);
+
+    assertTrue(findings.stream().anyMatch(result ->
+        "HEAD-02-BLANK-FONT".equals(result.ruleId()) && result.judgement() == Judgement.FAIL));
+    assertTrue(findings.stream().anyMatch(result ->
+        "HEAD-02-BLANK-SIZE".equals(result.ruleId()) && result.judgement() == Judgement.FAIL));
+    assertTrue(findings.stream().noneMatch(result ->
+        "HEAD-02-BLANK".equals(result.ruleId()) && result.judgement() == Judgement.FAIL));
+  }
+
+  @Test
+  void checksTheParagraphMarkOfAnActuallyEmptyChapterBlankLine() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:body><w:p><w:r><w:t>第一章  绪论</w:t></w:r></w:p>"
+            + "<w:p><w:pPr><w:rPr><w:rFonts w:ascii='Arial' w:eastAsia='宋体'/>"
+            + "<w:sz w:val='24'/></w:rPr></w:pPr></w:p>"
+            + "<w:p><w:r><w:t>正文内容</w:t></w:r></w:p>"
+            + "<w:sectPr/></w:body></w:document>"));
+    Path file = temp.resolve("chapter-blank-mark.docx");
+    pkg.save(file.toFile());
+
+    var document = new Docx4jDocumentParser().parse(new DocxReader().read(file));
+    var findings = module().check(document, RULES);
+
+    assertTrue(document.paragraphs().get(1).runs().isEmpty());
+    assertTrue(findings.stream().anyMatch(result ->
+        "HEAD-02-BLANK-FONT".equals(result.ruleId()) && result.judgement() == Judgement.FAIL));
+    assertTrue(findings.stream().anyMatch(result ->
+        "HEAD-02-BLANK-SIZE".equals(result.ruleId()) && result.judgement() == Judgement.FAIL));
+  }
+
+  @Test
+  void alsoChecksBlankLineTypographyAfterNamedFirstLevelTitles() {
+    var heading = paragraph("参考文献", List.of(0, 0));
+    var source = new SourceAddress("word/document.xml", List.of(0, 1), 0, 1);
+    var blank = new ParagraphModel(List.of(new RunModel(" ", "Arial", "宋体", null,
+        24, false, source)), 0, null, null, null, null, source, 0);
+    var entry = paragraph("[1] 文献", List.of(0, 2));
+
+    var findings = module().check(document(heading, blank, entry), RULES);
+
+    assertTrue(findings.stream().anyMatch(result ->
+        "HEAD-02-BLANK-FONT".equals(result.ruleId()) && result.judgement() == Judgement.FAIL));
+    assertTrue(findings.stream().anyMatch(result ->
+        "HEAD-02-BLANK-SIZE".equals(result.ruleId()) && result.judgement() == Judgement.FAIL));
+  }
+
+  @Test
+  void doesNotApplyChineseChapterBlankFontToTheEnglishAbstract() {
+    var headingSource = new SourceAddress("word/document.xml", List.of(0, 0), 0, 8);
+    var heading = new ParagraphModel(List.of(new RunModel("ABSTRACT", "Times New Roman",
+        "宋体", null, 32, true, headingSource)), 0, null, null, null, null, headingSource, 0);
+    var blankSource = new SourceAddress("word/document.xml", List.of(0, 1), 0, 1);
+    var blank = new ParagraphModel(List.of(new RunModel(" ", "Times New Roman",
+        "宋体", null, 32, false, blankSource)), 0, null, null, null, null, blankSource, 0);
+    var body = paragraph("English summary", List.of(0, 2));
+
+    var findings = module().check(document(heading, blank, body), RULES);
+
+    assertTrue(findings.stream().noneMatch(result ->
+        result.ruleId().startsWith("HEAD-02-BLANK-") && result.judgement() == Judgement.FAIL));
+  }
+
+  @Test
+  void checksBlankLineAfterAnUnnumberedTitleWithFirstLevelEvidence() {
+    var heading = paragraphWithOutline("结论与展望", 0);
+    var source = new SourceAddress("word/document.xml", List.of(0, 1), 0, 1);
+    var blank = new ParagraphModel(List.of(new RunModel(" ", "Arial", "宋体", null,
+        24, false, source)), 0, null, null, null, null, source, 0);
+    var body = paragraph("正文内容", List.of(0, 2));
+
+    var findings = module().check(document(heading, blank, body), RULES);
+
+    assertTrue(findings.stream().anyMatch(result ->
+        "HEAD-02-BLANK-SIZE".equals(result.ruleId()) && result.judgement() == Judgement.FAIL));
+  }
+
+  @Test
+  void checksTheRunThatCreatesAVisualBlankLineUsingManualBreaks() {
+    var headingSource = new SourceAddress("word/document.xml", List.of(0, 0), 0, 10);
+    var breakSource = new SourceAddress("word/document.xml", List.of(0, 0), 10, 12);
+    var chapter = new ParagraphModel(List.of(
+        new RunModel("第一章  绪论", "Times New Roman", "黑体", null, 32, true, headingSource),
+        new RunModel("\n\n", "Arial", "宋体", null, 24, false, breakSource)),
+        0, null, null, null, null, headingSource, 0);
+    var body = paragraph("正文内容", List.of(0, 1));
+
+    var findings = module().check(document(chapter, body), RULES);
+
+    assertTrue(findings.stream().anyMatch(result ->
+        "HEAD-02-BLANK-FONT".equals(result.ruleId()) && result.judgement() == Judgement.FAIL));
+    assertTrue(findings.stream().anyMatch(result ->
+        "HEAD-02-BLANK-SIZE".equals(result.ruleId()) && result.judgement() == Judgement.FAIL));
+    assertTrue(findings.stream().noneMatch(result ->
+        "HEAD-02-BLANK".equals(result.ruleId()) && result.judgement() == Judgement.FAIL));
+  }
+
+  @Test
+  void keepsUnknownPureBlankLineFormattingForReviewWithoutGuessing() {
+    var chapter = paragraph("第一章  绪论", List.of(0, 0));
+    var source = new SourceAddress("word/document.xml", List.of(0, 1), 0, 0);
+    var blank = new ParagraphModel(List.of(), null, null, null, null, null, null,
+        source, null, null, null, null, null, null, false, null, null, false,
+        false, false, false, null, null, null, false, false, null, null, true);
+    var body = paragraph("正文内容", List.of(0, 2));
+
+    var evaluation = module().evaluate(document(chapter, blank, body), RULES);
+
+    assertTrue(evaluation.results().stream().anyMatch(result ->
+        "HEAD-02-BLANK-FONT".equals(result.ruleId()) && result.judgement() == Judgement.REVIEW));
+    assertTrue(evaluation.results().stream().anyMatch(result ->
+        "HEAD-02-BLANK-SIZE".equals(result.ruleId()) && result.judgement() == Judgement.REVIEW));
+    assertEquals(new RuleRun("HEAD-02-BLANK-FONT", "HeadingDocumentRuleModule", 1, 0, 1, null),
+        run(evaluation, "HEAD-02-BLANK-FONT"));
+  }
+
+  @Test
   void blankParagraphInsideATableDoesNotCountAsTheRequiredChapterGap() {
     var chapter = paragraph("第一章 绪论", List.of(0, 0));
     var tableParagraph = paragraph("", List.of(0, 1, 0));
@@ -56,12 +274,47 @@ class HeadingDocumentRuleModuleTest {
   }
 
   @Test
+  void objectOnlyParagraphDoesNotCountAsTheRequiredChapterBlankLine() {
+    var chapter = paragraph("第一章  绪论", List.of(0, 0));
+    var objectSource = new SourceAddress("word/document.xml", List.of(0, 1), 0, 0);
+    var object = new ParagraphModel(List.of(), 0, null, null, null, null, objectSource, 0);
+    var body = paragraph("正文内容", List.of(0, 2));
+
+    var findings = module().check(document(chapter, object, body), RULES);
+
+    assertTrue(findings.stream().anyMatch(result ->
+        "CHAPTER_BODY_BLANK_LINE_MISSING".equals(result.reasonCode())));
+  }
+
+  @Test
+  void doesNotTreatAWhitespaceParagraphAfterATableAsTheChaptersOwnBlankLine() {
+    var chapter = paragraph("第一章  绪论", List.of(0, 0));
+    var tableParagraph = paragraph("表内数据", List.of(0, 1, 0));
+    var blankSource = new SourceAddress("word/document.xml", List.of(0, 2), 0, 1);
+    var blank = new ParagraphModel(List.of(new RunModel(" ", "Arial", "宋体", null,
+        24, false, blankSource)), 0, null, null, null, null, blankSource, 0);
+    var body = paragraph("正文内容", List.of(0, 3));
+    var table = new TableModel(new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+        null, null, 1, 1, false, false, false, false, true, false);
+    var document = new ParsedDocument("source", List.of(chapter, tableParagraph, blank, body),
+        List.of(), List.of(), List.of(table), List.of(), List.of(), List.of());
+
+    var findings = module().check(document, RULES);
+
+    assertTrue(findings.stream().noneMatch(result ->
+        result.ruleId().startsWith("HEAD-02-BLANK-") && result.judgement() == Judgement.FAIL));
+  }
+
+  @Test
   void doesNotReportAnUnresolvedBlankLineWhenDocumentEndsWithAChapterTitle() {
     var chapter = paragraph("第一章 绪论", List.of(0, 0));
 
-    var findings = module().check(document(chapter), RULES);
+    var evaluation = module().evaluate(document(chapter), RULES);
+    var findings = evaluation.results();
 
     assertTrue(findings.stream().noneMatch(result -> result.ruleId().equals("HEAD-02-BLANK")));
+    assertEquals(new RuleRun("HEAD-02-BLANK", "HeadingDocumentRuleModule", 1, 0, 1, null),
+        run(evaluation, "HEAD-02-BLANK"));
   }
 
   @Test
@@ -320,10 +573,13 @@ class HeadingDocumentRuleModuleTest {
     var document = new ParsedDocument("source", List.of(tableCell), List.of(), List.of(),
         List.of(table), List.of(), List.of(), List.of());
 
-    var findings = module().check(document, RULES);
+    var evaluation = module().evaluate(document, RULES);
+    var findings = evaluation.results();
 
     assertTrue(findings.stream().noneMatch(result -> result.ruleId().startsWith("END-01-")),
         findings.toString());
+    assertTrue(evaluation.ruleRuns().stream().noneMatch(run -> run.ruleId().startsWith("END-01-")),
+        evaluation.ruleRuns().toString());
   }
 
   private static HeadingDocumentRuleModule module() {
@@ -331,8 +587,19 @@ class HeadingDocumentRuleModuleTest {
     return new HeadingDocumentRuleModule(new HeadingRuleChecker(formatChecker), formatChecker);
   }
 
+  private static RuleRun run(RuleModule.Evaluation evaluation, String ruleId) {
+    return evaluation.ruleRuns().stream().filter(item -> ruleId.equals(item.ruleId()))
+        .findFirst().orElseThrow();
+  }
+
   private static ParsedDocument document(ParagraphModel... paragraphs) {
     return new ParsedDocument("source", List.of(paragraphs), List.of(), List.of());
+  }
+
+  private static ParsedDocument verifiedNoTableDocument(ParagraphModel... paragraphs) {
+    return new ParsedDocument("source", List.of(paragraphs), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(), true);
   }
 
   private static ParagraphModel paragraph(String text, List<Integer> path) {

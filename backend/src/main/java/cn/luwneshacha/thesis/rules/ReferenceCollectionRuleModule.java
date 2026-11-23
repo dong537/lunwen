@@ -31,6 +31,26 @@ final class ReferenceCollectionRuleModule implements RuleModule {
     return List.copyOf(results);
   }
 
+  @Override
+  public Evaluation evaluate(ParsedDocument document, RuleSet rules) {
+    var findings = check(document, rules);
+    var references = document.references();
+    if (references.isEmpty()) return new Evaluation(findings, List.of());
+    int uncertainEntries = (int) references.stream().filter(reference -> reference.needsReview()).count();
+    int uncertainNumbers = (int) references.stream()
+        .filter(reference -> reference.needsReview() || reference.number() == null
+            || reference.number().isBlank())
+        .count();
+    String moduleId = getClass().getSimpleName();
+    return new Evaluation(findings, List.of(
+        new RuleRun("REF-05", moduleId, 1, uncertainEntries == 0 ? 1 : 0,
+            uncertainEntries == 0 ? 0 : 1, null),
+        new RuleRun("REF-02", moduleId, references.size(),
+            references.size() - uncertainEntries, uncertainEntries, null),
+        new RuleRun("REF-03", moduleId, references.size(),
+            references.size() - uncertainNumbers, uncertainNumbers, null)));
+  }
+
   private static CheckResult result(String ruleId, String expected, String actual, String reason,
       SourceAddress source) {
     return new CheckResult(ruleId, Applicability.APPLICABLE, ExecutionStatus.EXECUTED,

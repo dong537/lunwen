@@ -1,6 +1,7 @@
 package cn.luwneshacha.thesis.rules;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.luwneshacha.thesis.document.ImageModel;
@@ -15,6 +16,207 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ImageRuleModuleTest {
+  @Test
+  void recordsFigureAndCaptionCandidatesActuallyVisited() {
+    var chapter = paragraph("第一章 绪论", List.of(0, 0), "黑体", 32, "center");
+    var caption = paragraph("图1-1 系统结构图", List.of(0, 2), "宋体", 21, "center");
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+        caption.source(), caption.runs().getFirst().text(), 100, 100, true, true, true);
+
+    var evaluation = new ImageRuleChecker().evaluate(document(List.of(chapter, caption), image),
+        RuleSet.schoolV1());
+
+    for (String id : List.of("FIG-02", "FIG-03", "FIG-05", "CAPTION-FONT", "CAPTION-SIZE")) {
+      assertEquals(new RuleRun(id, "ImageRuleChecker", 1, 1, 0, null), run(evaluation, id));
+    }
+  }
+
+  @Test
+  void missingCaptionLeavesLayoutSequenceAndTypographyUnknown() {
+    var chapter = paragraph("第一章 绪论", List.of(0, 0), "黑体", 32, "center");
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+        null, null, 100, 100, true, true, null);
+
+    var evaluation = new ImageRuleChecker().evaluate(document(List.of(chapter), image),
+        RuleSet.schoolV1());
+
+    assertEquals(new RuleRun("FIG-03", "ImageRuleChecker", 1, 1, 0, null),
+        run(evaluation, "FIG-03"));
+    for (String id : List.of("FIG-02", "FIG-05", "CAPTION-FONT", "CAPTION-SIZE")) {
+      assertEquals(new RuleRun(id, "ImageRuleChecker", 1, 0, 1, null), run(evaluation, id));
+    }
+  }
+
+  @Test
+  void uncaptainedBodyImageKeepsPlacementReviewInsideRuleEvidenceButCoverImageDoesNot() {
+    var chapter = paragraph("第一章 绪论", List.of(0, 2), "黑体", 32, "center");
+    var coverSource = new SourceAddress("word/document.xml", List.of(0, 0), 0, 0);
+    var bodySource = new SourceAddress("word/document.xml", List.of(0, 3), 0, 0);
+    var cover = new ImageModel(coverSource, null, null, 100, 100, true, true, null);
+    var body = new ImageModel(bodySource, null, null, 100, 100, true, true, null);
+    var document = new ParsedDocument("sha", List.of(chapter), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(cover, body));
+
+    var evaluation = new ImageRuleChecker().evaluate(document, RuleSet.schoolV1());
+
+    var layoutResults = evaluation.results().stream()
+        .filter(result -> result.ruleId().equals("FIG-02")).toList();
+    assertEquals(1, layoutResults.size(), layoutResults.toString());
+    assertEquals(bodySource, layoutResults.getFirst().source());
+    assertEquals(Judgement.REVIEW, layoutResults.getFirst().judgement());
+    assertEquals("FIGURE_LAYOUT_REVIEW", layoutResults.getFirst().reasonCode());
+    assertEquals(new RuleRun("FIG-02", "ImageRuleChecker", 1, 0, 1, null),
+        run(evaluation, "FIG-02"));
+    assertTrue(evaluation.results().stream().noneMatch(result -> coverSource.equals(result.source())));
+  }
+
+  @Test
+  void uncaptainedImageWithoutKnownBodyBoundaryIsNotAHardFigureError() {
+    var coverText = paragraph("本科生毕业设计（论文）", List.of(0, 0), "宋体", 24, "center");
+    var imageSource = new SourceAddress("word/document.xml", List.of(0, 1), 0, 0);
+    var image = new ImageModel(imageSource, null, null, 100, 100, true, true, null);
+
+    var evaluation = new ImageRuleChecker().evaluate(document(List.of(coverText), image),
+        RuleSet.schoolV1());
+
+    var caption = evaluation.results().stream()
+        .filter(result -> result.ruleId().equals("FIG-03")).findFirst().orElseThrow();
+    assertEquals(Judgement.REVIEW, caption.judgement());
+    assertEquals("FIGURE_SCOPE_UNRESOLVED", caption.reasonCode());
+    assertEquals(new RuleRun("FIG-03", "ImageRuleChecker", 1, 0, 1, null),
+        run(evaluation, "FIG-03"));
+    assertTrue(evaluation.results().stream().noneMatch(result -> result.judgement() == Judgement.FAIL));
+  }
+
+  @Test
+  void unknownBodyBoundaryCannotProveFigureRuleCoverage() {
+    var caption = paragraph("图1-1 系统结构图", List.of(0, 2), "宋体", 21, "center");
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+        caption.source(), caption.runs().getFirst().text(), 100, 100, true, true, true);
+
+    var evaluation = new ImageRuleChecker().evaluate(document(List.of(caption), image),
+        RuleSet.schoolV1());
+
+    for (String id : List.of("FIG-01", "FIG-02", "FIG-03", "FIG-05",
+        "CAPTION-FONT", "CAPTION-SIZE")) {
+      assertEquals(new RuleRun(id, "ImageRuleChecker", 1, 0, 1, null), run(evaluation, id));
+    }
+  }
+
+  @Test
+  void doesNotClaimFigureCoverageWhenNoImagesWereParsed() {
+    var body = paragraph("第一章 绪论", List.of(0, 0), "黑体", 32, "center");
+    var document = new ParsedDocument("sha", List.of(body), List.of(), List.of());
+
+    var evaluated = new ImageRuleChecker().evaluate(document, RuleSet.schoolV1());
+
+    assertTrue(evaluated.results().isEmpty());
+    assertTrue(evaluated.ruleRuns().isEmpty());
+  }
+
+  @Test
+  void recordsOnlyActualFigureReferenceCandidatesAndUnknownCaptions() {
+    var chapter = paragraph("第一章 绪论", List.of(0, 0), "黑体", 32, "center");
+    var reference = paragraph("如图1-1所示。", List.of(0, 1), "宋体", 24, "left");
+    var caption = paragraph("图1-1 系统结构图", List.of(0, 3), "宋体", 21, "center");
+    var cited = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 2), 0, 0),
+        caption.source(), caption.runs().getFirst().text(), 100, 100, true, true, true);
+    var uncaptained = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 4), 0, 0),
+        null, null, 100, 100, true, true, null);
+    var document = new ParsedDocument("sha", List.of(chapter, reference, caption), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(cited, uncaptained));
+
+    var evaluated = new ImageRuleChecker().evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(new RuleRun("FIG-01", "ImageRuleChecker", 2, 1, 1, null),
+        run(evaluated, "FIG-01"));
+    assertTrue(evaluated.results().stream().anyMatch(result -> result.ruleId().equals("FIG-01")
+        && result.judgement() == Judgement.PASS));
+  }
+
+  @Test
+  void ambiguousFigureNumberContributesUnknownReferenceEvidence() {
+    var chapter = paragraph("第一章 绪论", List.of(0, 0), "黑体", 32, "center");
+    var caption = paragraph("图1-1 系统结构图", List.of(0, 2), "宋体", 21, "center");
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+        caption.source(), caption.runs().getFirst().text(), 100, 100,
+        true, true, true, 0, 0, false, false, true, true);
+
+    var evaluated = new ImageRuleChecker().evaluate(document(List.of(chapter, caption), image),
+        RuleSet.schoolV1());
+
+    assertEquals(new RuleRun("FIG-01", "ImageRuleChecker", 1, 0, 1, null),
+        run(evaluated, "FIG-01"));
+    assertTrue(evaluated.results().stream().anyMatch(result -> result.ruleId().equals("FIG-01")
+        && result.judgement() == Judgement.REVIEW));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {" ", "\u3000", "\u00a0"})
+  void horizontalSpaceAfterFigureLabelStillAllowsSequenceButFailsCaptionFormat(String separator) {
+    var chapter = paragraph("第四章 设计", List.of(0, 0), "黑体", 32, "center");
+    var first = paragraph("图" + separator + "4-1 第一幅图", List.of(0, 2), "宋体", 21, "center");
+    var second = paragraph("图" + separator + "4-2 第二幅图", List.of(0, 4), "宋体", 21, "center");
+    var images = List.of(
+        new ImageModel(new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+            first.source(), first.runs().getFirst().text(), 100, 100, true, true, true),
+        new ImageModel(new SourceAddress("word/document.xml", List.of(0, 3), 0, 0),
+            second.source(), second.runs().getFirst().text(), 100, 100, true, true, true));
+    var document = new ParsedDocument("sha", List.of(chapter, first, second), List.of(),
+        List.of(), List.of(), List.of(), List.of(), images);
+
+    var evaluation = new ImageRuleChecker().evaluate(document, RuleSet.schoolV1());
+    var sequence = evaluation.results().stream()
+        .filter(result -> result.ruleId().equals("FIG-05")).toList();
+    var captionFormat = evaluation.results().stream()
+        .filter(result -> result.ruleId().equals("FIG-03")).toList();
+
+    assertEquals(2, sequence.size(), sequence.toString());
+    assertTrue(sequence.stream().allMatch(result -> result.judgement() == Judgement.PASS), sequence.toString());
+    assertEquals(new RuleRun("FIG-05", "ImageRuleChecker", 2, 2, 0, null), run(evaluation, "FIG-05"));
+    assertEquals(2, captionFormat.size(), captionFormat.toString());
+    assertTrue(captionFormat.stream().allMatch(result -> result.judgement() == Judgement.FAIL
+        && "FIGURE_CAPTION_NUMBER_FORMAT".equals(result.reasonCode())), captionFormat.toString());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {" 四", "\n4", "\u20284"})
+  void anUnrecognizableOrVerticallySplitFigureNumberRemainsUnknown(String numberPrefix) {
+    var chapter = paragraph("第四章 设计", List.of(0, 0), "黑体", 32, "center");
+    var caption = paragraph("图" + numberPrefix + "-1 第一幅图", List.of(0, 2), "宋体", 21, "center");
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+        caption.source(), caption.runs().getFirst().text(), 100, 100, true, true, true);
+
+    var evaluation = new ImageRuleChecker().evaluate(document(List.of(chapter, caption), image),
+        RuleSet.schoolV1());
+
+    assertTrue(evaluation.results().stream().noneMatch(result -> result.ruleId().equals("FIG-05")));
+    assertEquals(new RuleRun("FIG-05", "ImageRuleChecker", 1, 0, 1, null), run(evaluation, "FIG-05"));
+  }
+
+  @Test
+  void anUnrecognizableFigureNumberDoesNotAdvanceTheNextValidNumber() {
+    var chapter = paragraph("第四章 设计", List.of(0, 0), "黑体", 32, "center");
+    var unclear = paragraph("图 四-1 不可辨认图号", List.of(0, 2), "宋体", 21, "center");
+    var valid = paragraph("图4-1 正常图题", List.of(0, 4), "宋体", 21, "center");
+    var images = List.of(
+        new ImageModel(new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+            unclear.source(), unclear.runs().getFirst().text(), 100, 100, true, true, true),
+        new ImageModel(new SourceAddress("word/document.xml", List.of(0, 3), 0, 0),
+            valid.source(), valid.runs().getFirst().text(), 100, 100, true, true, true));
+    var document = new ParsedDocument("sha", List.of(chapter, unclear, valid), List.of(),
+        List.of(), List.of(), List.of(), List.of(), images);
+
+    var evaluation = new ImageRuleChecker().evaluate(document, RuleSet.schoolV1());
+    var sequence = evaluation.results().stream()
+        .filter(result -> result.ruleId().equals("FIG-05")).toList();
+
+    assertEquals(1, sequence.size(), sequence.toString());
+    assertEquals(Judgement.PASS, sequence.getFirst().judgement());
+    assertEquals(valid.source(), sequence.getFirst().source());
+    assertEquals(new RuleRun("FIG-05", "ImageRuleChecker", 2, 1, 1, null), run(evaluation, "FIG-05"));
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"", "  ", "\u3000", "\u00a0", "\t", "\u200b", "\n"})
   void captionSpacingFailureDoesNotRemoveItsNumberFromTheSequence(String separator) {
@@ -82,6 +284,128 @@ class ImageRuleModuleTest {
     assertTrue(findings.stream().anyMatch(f -> "FIG-05".equals(f.ruleId()) && f.judgement() == Judgement.PASS));
     assertTrue(findings.stream().anyMatch(f -> "CAPTION-FONT".equals(f.ruleId())));
     assertTrue(findings.stream().anyMatch(f -> "CAPTION-SIZE".equals(f.ruleId())));
+  }
+
+  @Test
+  void figureReferenceInAnotherTextBoxCountsButAGroupLabelDoesNot() {
+    var chapter = paragraph("第一章 绪论", List.of(0, 0), "黑体", 32, "center");
+    var groupedOuter = paragraph("", List.of(0, 2), "宋体", 24, "left");
+    var caption = textBoxParagraph("图1-1 系统结构图", List.of(0, 2, 1, 0));
+    var groupLabel = textBoxParagraph("如图1-1所示", List.of(0, 2, 2, 0));
+    var independentOuter = paragraph("", List.of(0, 4), "宋体", 24, "left");
+    var independentReference = textBoxParagraph("如图1-1所示", List.of(0, 4, 1, 0));
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+        caption.source(), "图1-1 系统结构图", 100, 100, true, true, true);
+
+    var groupOnly = new ImageRuleChecker().check(document(
+        List.of(chapter, groupedOuter, caption, groupLabel), image), RuleSet.schoolV1());
+    var withIndependentReference = new ImageRuleChecker().check(document(
+        List.of(chapter, groupedOuter, caption, groupLabel, independentOuter, independentReference), image),
+        RuleSet.schoolV1());
+
+    assertTrue(groupOnly.stream().anyMatch(f -> "FIG-01".equals(f.ruleId())
+        && f.judgement() == Judgement.FAIL), groupOnly.toString());
+    assertTrue(withIndependentReference.stream().anyMatch(f -> "FIG-01".equals(f.ruleId())
+        && f.judgement() == Judgement.PASS), withIndependentReference.toString());
+  }
+
+  @Test
+  void keepsFigureNumberAndCitationChecksButReviewsASeparatedTextBoxCaption() {
+    var chapter = paragraph("第四章 设计", List.of(0, 0), "黑体", 32, "center");
+    var reference = paragraph("如图4-1所示。", List.of(0, 1), "宋体", 24, "left");
+    var number = paragraph("图4-1", List.of(0, 3, 0, 0), "宋体", 21, "left");
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 2), 0, 0),
+        number.source(), "图4-1", 100, 100, false, null, false, 0, 0, false, false, true);
+
+    var findings = new ImageRuleChecker().check(document(List.of(chapter, reference, number), image),
+        RuleSet.schoolV1());
+
+    assertTrue(findings.stream().anyMatch(f -> "FIG-01".equals(f.ruleId()) && f.judgement() == Judgement.PASS));
+    assertTrue(findings.stream().anyMatch(f -> "FIG-05".equals(f.ruleId()) && f.judgement() == Judgement.PASS));
+    assertTrue(findings.stream().anyMatch(f -> "FIG-03".equals(f.ruleId())
+        && f.judgement() == Judgement.REVIEW && f.source().equals(number.source())), findings.toString());
+    assertTrue(findings.stream().anyMatch(f -> "FIG-02".equals(f.ruleId())
+        && f.judgement() == Judgement.REVIEW && f.source().equals(number.source())), findings.toString());
+    assertTrue(findings.stream().noneMatch(f -> f.judgement() == Judgement.FAIL), findings.toString());
+  }
+
+  @Test
+  void aFragmentedCaptionDoesNotEraseIndependentImageCenteringEvidence() {
+    var imageSource = new SourceAddress("word/document.xml", List.of(0, 2), 0, 0);
+    var number = paragraph("图1-1", List.of(0, 3, 0, 0), "宋体", 21, "center");
+    var image = new ImageModel(imageSource, number.source(), "图1-1", 100, 100,
+        true, true, true, 0, 0, false, false, true);
+
+    assertFalse(image.placementNeedsReview());
+    var findings = new ImageRuleChecker().check(document(List.of(
+        paragraph("第一章 绪论", List.of(0, 0), "黑体", 32, "center"), number), image), RuleSet.schoolV1());
+    assertTrue(findings.stream().anyMatch(f -> "FIG-02".equals(f.ruleId())
+        && f.judgement() == Judgement.REVIEW && f.source().equals(number.source())), findings.toString());
+  }
+
+  @Test
+  void ambiguousTextBoxCaptionsDoNotCreateHardCitationOrSequenceErrors() {
+    var number = paragraph("图4-1 第一候选", List.of(0, 3, 0, 0), "宋体", 21, "center");
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 2), 0, 0),
+        number.source(), number.runs().get(0).text(), 100, 100,
+        false, null, true, 0, 0, false, false, true, true);
+    var findings = new ImageRuleChecker().check(document(List.of(
+        paragraph("第四章 设计", List.of(0, 0), "黑体", 32, "center"), number), image), RuleSet.schoolV1());
+
+    assertTrue(findings.stream().anyMatch(f -> "FIG-01".equals(f.ruleId())
+        && f.judgement() == Judgement.REVIEW && f.source().equals(number.source())), findings.toString());
+    assertTrue(findings.stream().anyMatch(f -> "FIG-03".equals(f.ruleId())
+        && f.judgement() == Judgement.REVIEW && f.source().equals(number.source())), findings.toString());
+    assertTrue(findings.stream().noneMatch(f -> "FIG-05".equals(f.ruleId())
+        || f.judgement() == Judgement.FAIL), findings.toString());
+  }
+
+  @Test
+  void ambiguousTextBoxCandidateDoesNotTriggerHardCaptionTypographyErrors() {
+    var candidate = paragraph("图4-1 第一候选", List.of(0, 2, 0, 0), "楷体", 24, "left");
+    var image = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+        candidate.source(), candidate.runs().get(0).text(), 100, 100,
+        false, null, false, 0, 0, false, false, true, true);
+    var findings = new ImageRuleChecker().check(document(List.of(
+        paragraph("第四章 设计", List.of(0, 0), "黑体", 32, "center"), candidate), image), RuleSet.schoolV1());
+
+    assertTrue(findings.stream().anyMatch(f -> "CAPTION-FONT".equals(f.ruleId())
+        && f.judgement() == Judgement.REVIEW), findings.toString());
+    assertTrue(findings.stream().anyMatch(f -> "CAPTION-SIZE".equals(f.ruleId())
+        && f.judgement() == Judgement.REVIEW), findings.toString());
+    assertTrue(findings.stream().noneMatch(f -> f.judgement() == Judgement.FAIL), findings.toString());
+  }
+
+  @Test
+  void aFigureAfterAmbiguousCaptionsIsReviewedOnlyInAffectedChapters() {
+    var ambiguousCaption = paragraph("图4-1 第一候选", List.of(0, 2, 0, 0), "宋体", 21, "center");
+    var laterCaption = paragraph("图4-2 后续图", List.of(0, 4), "宋体", 21, "center");
+    var otherAffectedCaption = paragraph("图5-2 候选章后续图", List.of(0, 7), "宋体", 21, "center");
+    var unaffectedCaption = paragraph("图6-2 跳号图", List.of(0, 10), "宋体", 21, "center");
+    var ambiguous = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+        ambiguousCaption.source(), "图4-1 第一候选", 100, 100,
+        false, null, true, 0, 0, false, false, true, true, List.of("4", "5"));
+    var later = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 3), 0, 0),
+        laterCaption.source(), "图4-2 后续图", 100, 100, true, true, true);
+    var other = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 6), 0, 0),
+        otherAffectedCaption.source(), "图5-2 候选章后续图", 100, 100, true, true, true);
+    var unaffected = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 9), 0, 0),
+        unaffectedCaption.source(), "图6-2 跳号图", 100, 100, true, true, true);
+    var paragraphs = List.of(paragraph("第四章 设计", List.of(0, 0), "黑体", 32, "center"),
+        ambiguousCaption, laterCaption, paragraph("第五章 结论", List.of(0, 5), "黑体", 32, "center"),
+        otherAffectedCaption, paragraph("第六章 总结", List.of(0, 8), "黑体", 32, "center"),
+        unaffectedCaption);
+    var document = new ParsedDocument("sha", paragraphs, List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(ambiguous, later, other, unaffected));
+
+    var findings = new ImageRuleChecker().check(document, RuleSet.schoolV1());
+
+    assertTrue(findings.stream().anyMatch(f -> "FIG-05".equals(f.ruleId())
+        && f.source().equals(laterCaption.source()) && f.judgement() == Judgement.REVIEW), findings.toString());
+    assertTrue(findings.stream().anyMatch(f -> "FIG-05".equals(f.ruleId())
+        && f.source().equals(otherAffectedCaption.source()) && f.judgement() == Judgement.REVIEW), findings.toString());
+    assertTrue(findings.stream().anyMatch(f -> "FIG-05".equals(f.ruleId())
+        && f.source().equals(unaffectedCaption.source()) && f.judgement() == Judgement.FAIL), findings.toString());
   }
 
   @ParameterizedTest
@@ -171,10 +495,24 @@ class ImageRuleModuleTest {
     return new ParsedDocument("sha", paragraphs, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(image));
   }
 
+  private static RuleRun run(RuleModule.Evaluation evaluation, String ruleId) {
+    return evaluation.ruleRuns().stream().filter(item -> item.ruleId().equals(ruleId))
+        .findFirst().orElseThrow();
+  }
+
   private static ParagraphModel paragraph(String text, List<Integer> path, String font, int size, String alignment) {
     var source = new SourceAddress("word/document.xml", path, 0, text.length());
     var run = new RunModel(text, "Times New Roman", "Times New Roman", font, null, size, null,
         false, null, source);
     return new ParagraphModel(List.of(run), null, null, null, 360, "auto", source, null, null, alignment);
+  }
+
+  private static ParagraphModel textBoxParagraph(String text, List<Integer> path) {
+    var source = new SourceAddress("word/document.xml", path, 0, text.length());
+    var run = new RunModel(text, "Times New Roman", "Times New Roman", "宋体", null, 21, null,
+        false, null, source);
+    return new ParagraphModel(List.of(run), null, null, null, null, 360, "auto", source,
+        null, null, "center", null, null, null, false, null, null, false,
+        false, false, false, null, null, null, false, true, null);
   }
 }

@@ -3,13 +3,12 @@ package cn.luwneshacha.thesis.api;
 import cn.luwneshacha.thesis.inspection.InspectionException;
 import cn.luwneshacha.thesis.inspection.InspectionKernel;
 import cn.luwneshacha.thesis.inspection.InspectionReport;
-import cn.luwneshacha.thesis.conversion.FormulaConversionService;
+import cn.luwneshacha.thesis.rendering.RenderedLayoutAdapter;
+import cn.luwneshacha.thesis.rendering.RenderedLayoutEvidence;
 import cn.luwneshacha.thesis.reporting.AnnotationReport;
 import cn.luwneshacha.thesis.reporting.AnnotationFindings;
 import cn.luwneshacha.thesis.reporting.CommentWriter;
 import cn.luwneshacha.thesis.report.WordReportWriter;
-import cn.luwneshacha.thesis.rules.CheckResult;
-import cn.luwneshacha.thesis.rules.Judgement;
 import cn.luwneshacha.thesis.rules.RuleSet;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -38,7 +37,6 @@ public final class InspectionService {
   private static final Logger LOG = LoggerFactory.getLogger(InspectionService.class);
   private final InspectionKernel kernel = new InspectionKernel();
   private final CommentWriter commentWriter = new CommentWriter();
-  private final FormulaConversionService formulaConversionService = new FormulaConversionService();
   private final Map<String, StoredAnnotation> annotations = new ConcurrentHashMap<>();
   private final Map<String, StoredReport> reports = new ConcurrentHashMap<>();
   private final WordReportWriter reportWriter = new WordReportWriter();
@@ -47,6 +45,10 @@ public final class InspectionService {
   private final Path storageRoot;
   private final long maxUploadBytes;
   private final Duration annotationRetention;
+  @Value("${thesis.layout-analysis-enabled:false}")
+  private boolean layoutAnalysisEnabled;
+  @Value("${thesis.layout-max-address-space-bytes:1073741824}")
+  private long layoutMaxAddressSpaceBytes;
 
   public InspectionService(
       @Value("${thesis.storage-root}") String storageRoot,
@@ -78,20 +80,28 @@ public final class InspectionService {
       catch (IOException error) { throw new InspectionException("STORAGE_FAILED", "cannot store uploaded DOCX", error); }
       // Validate package expansion and external relationships before invoking an office process.
       new cn.luwneshacha.thesis.document.DocxReader().read(source);
-      Path inspectionSource;
-      try {
-        inspectionSource = formulaConversionService.convertIfNeeded(source, requestDir);
-      } catch (IllegalStateException error) {
-        throw new InspectionException("FORMULA_CONVERSION_FAILED", error.getMessage(), error);
+      // A converted formula document can silently rewrite paragraph/run formatting.
+      // Until formula objects have a proven one-to-one source map, all checks and
+      // comment anchors must use the exact uploaded document.
+      RenderedLayoutEvidence layout = null;
+      if (layoutAnalysisEnabled) {
+        layout = new RenderedLayoutAdapter(System.getProperty("thesis.soffice", "soffice"),
+              Duration.ofSeconds(90), maxUploadBytes, 25L * 1024 * 1024, 200,
+              new RenderedLayoutAdapter.RenderSafety(
+                  System.getProperty("thesis.prlimit", "/usr/bin/prlimit"),
+                  System.getProperty("thesis.fc-list", "/usr/bin/fc-list"),
+                  layoutMaxAddressSpaceBytes,
+                  List.of("Times New Roman", "宋体", "黑体", "仿宋", "方正小标宋简体")))
+              .render(source, requestDir);
       }
-      InspectionReport report = preserveUncertainImagePlacement(kernel.inspect(inspectionSource, RuleSet.schoolV1()));
+      InspectionReport report = kernel.inspect(source, RuleSet.schoolV1(), layout);
       boolean available = false;
       AnnotationReport annotationReport = new AnnotationReport(List.of(), false);
       if (annotate) {
         Path target = requestDir.resolve("annotated.docx");
         // 保留同一段落中不同实际值/原因的 FAIL；只去掉同一运行重复产生的完全相同结果。
         // CommentWriter 会按段落合并批注正文，避免为同一段落生成多条批注。
-        annotationReport = commentWriter.writeCopy(inspectionSource, target, report.sourceSha256(),
+        annotationReport = commentWriter.writeCopy(source, target, report.sourceSha256(),
             AnnotationFindings.select(report.results()).representatives());
         available = annotationReport.outputWritten();
         if (available) annotations.put(requestId, new StoredAnnotation(requestId, report.sourceSha256(), target));
@@ -173,20 +183,6 @@ public final class InspectionService {
     if (!parsed.toString().equalsIgnoreCase(requestedRequestId))
       throw new InspectionException("INVALID_REQUEST_ID", "X-Request-Id must be a canonical UUID");
     return parsed.toString();
-  }
-
-  private static InspectionReport preserveUncertainImagePlacement(InspectionReport report) {
-    var results = new java.util.ArrayList<>(report.results());
-    for (var image : report.images()) {
-      if (image.captionText() != null || !image.placementNeedsReview()) continue;
-      results.add(new CheckResult("FIG-02", cn.luwneshacha.thesis.rules.Applicability.APPLICABLE,
-          cn.luwneshacha.thesis.rules.ExecutionStatus.EXECUTED, Judgement.REVIEW,
-          "inline image and centered caption", null, "FIGURE_LAYOUT_REVIEW", image.source()));
-    }
-    var coverage = new cn.luwneshacha.thesis.inspection.RuleCoverageAnalyzer().analyzeWithCatalog(results);
-    return new InspectionReport(report.sourceSha256(), report.ruleSetId(), results, report.diagnostics(),
-        report.tables(), report.equations(), report.references(), report.images(), report.pageNumbers(), report.chapterBreaks(),
-        coverage, report.uncheckedRegions());
   }
 
   private Path createRequestDir(String requestId) {

@@ -1,6 +1,7 @@
 package cn.luwneshacha.thesis.rules;
 
 import cn.luwneshacha.thesis.document.ReferenceEntryModel;
+import cn.luwneshacha.thesis.document.ParsedDocument;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,13 +10,36 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class ReferenceRuleChecker implements RuleModule {
-  private static final Pattern TEXTUAL_REFERENCE_NUMBER = Pattern.compile("^\\s*\\[(\\d+)\\](.*)$", Pattern.DOTALL);
+  private static final Pattern JOURNAL_ISSUE = Pattern.compile(
+      "((?:19|20)\\d{2})\\s*[,，]\\s*(?:\\d+\\s*)?[（(]\\s*\\d+\\s*[）)]\\s*[:：]");
+  private static final Pattern JOURNAL_CATEGORY = Pattern.compile("[\\[［]J[\\]］]", Pattern.CASE_INSENSITIVE);
+  private static final Pattern TEXTUAL_REFERENCE_NUMBER = Pattern.compile("^\\s*[\\[［](\\d+)[\\]］](.*)$", Pattern.DOTALL);
   private static final Pattern PAGE_RANGE_SPACING = Pattern.compile(
       "\\d+(?:[\\s\\p{Zs}]+[-－]|[-－][\\s\\p{Zs}]+)\\d+");
 
   @Override
-  public List<CheckResult> check(cn.luwneshacha.thesis.document.ParsedDocument document, RuleSet rules) {
+  public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
     return check(document.references());
+  }
+
+  @Override
+  public Evaluation evaluate(ParsedDocument document, RuleSet rules) {
+    var references = document.references();
+    var findings = check(references);
+    if (references.isEmpty()) return new Evaluation(findings, List.of());
+    int unknownFields = (int) references.stream()
+        .filter(reference -> reference.category() == null || reference.category().isBlank()
+            || reference.needsReview())
+        .count();
+    int unknownNumbers = (int) references.stream()
+        .filter(reference -> reference.needsReview() || matchedTextualNumber(reference) == null)
+        .count();
+    String moduleId = getClass().getSimpleName();
+    return new Evaluation(findings, List.of(
+        new RuleRun("REF-04", moduleId, references.size(), references.size() - unknownFields,
+            unknownFields, null),
+        new RuleRun("REF-07", moduleId, references.size(), references.size() - unknownNumbers,
+            unknownNumbers, null)));
   }
 
   List<CheckResult> check(List<ReferenceEntryModel> references) {
@@ -42,16 +66,22 @@ final class ReferenceRuleChecker implements RuleModule {
 
   /** A bibliography label must be followed by exactly one ordinary U+0020 space. */
   private static void checkNumberSpacing(List<CheckResult> results, ReferenceEntryModel reference) {
-    if (reference.number() == null || reference.number().isBlank() || reference.text() == null) return;
     // Only a literal [n] in the original text has a separator to inspect. Generated
     // labels remain available for sequence checks and the document-wide numbering policy.
-    Matcher matcher = TEXTUAL_REFERENCE_NUMBER.matcher(reference.text());
-    if (!matcher.matches() || !reference.number().equals(matcher.group(1))) return;
+    Matcher matcher = matchedTextualNumber(reference);
+    if (matcher == null) return;
     String separatorAndContent = matcher.group(2);
     if (!hasExactlyOneOrdinarySpace(separatorAndContent)) {
       results.add(fail("REF-07", "编号后一个普通半角空格", describeSpacing(separatorAndContent),
           "REFERENCE_NUMBER_SPACING_MISMATCH", spacingSource(reference, matcher, separatorAndContent)));
     }
+  }
+
+  private static Matcher matchedTextualNumber(ReferenceEntryModel reference) {
+    if (reference.number() == null || reference.number().isBlank() || reference.text() == null)
+      return null;
+    Matcher matcher = TEXTUAL_REFERENCE_NUMBER.matcher(reference.text());
+    return matcher.matches() && reference.number().equals(matcher.group(1)) ? matcher : null;
   }
 
   private static SourceAddress spacingSource(ReferenceEntryModel reference, Matcher matcher,
@@ -125,13 +155,46 @@ final class ReferenceRuleChecker implements RuleModule {
     } else {
       require(missing, "出版来源", reference.sourceText());
       require(missing, "出版年份", reference.yearText());
-      if (category.startsWith("J") || category.startsWith("N"))
+      if (category.equals("J") || category.equals("N")
+          || category.equals("M") || category.equals("D")
+          || category.equals("C") || category.equals("R"))
         require(missing, "页码", reference.pagesText());
+      if (category.equals("M") || category.equals("D")
+          || category.equals("C") || category.equals("R")) {
+        if (reference.sourceText() != null && !hasPublicationPlaceSourceStructure(reference.sourceText()))
+          missing.add("出版地：出版者或授予单位的著录结构");
+      } else if (category.equals("J") && reference.yearText() != null
+          && !hasJournalIssue(reference)) {
+        missing.add("期号（写成年份，卷号(期号)：页码；无卷号可写年份，(期号)：页码）");
+      }
     }
 
     if (!missing.isEmpty())
-      results.add(fail("REF-04", "文献类别对应字段完整", reference.text() + "；缺少" + String.join("、", missing),
+      results.add(fail("REF-04", "文献类别对应字段和著录结构完整", reference.text() + "；缺少" + String.join("、", missing),
           "REFERENCE_FIELDS_MISSING", reference.source()));
+  }
+
+  /** Verifies the two nonempty fields and their separator, not the actual geographic name. */
+  private static boolean hasPublicationPlaceSourceStructure(String source) {
+    int separator = source.indexOf('：');
+    if (separator < 0) separator = source.indexOf(':');
+    return separator > 0 && separator < source.length() - 1
+        && hasLetterOrDigit(source.substring(0, separator))
+        && hasLetterOrDigit(source.substring(separator + 1));
+  }
+
+  private static boolean hasLetterOrDigit(String text) {
+    return text.codePoints().anyMatch(Character::isLetterOrDigit);
+  }
+
+  private static boolean hasJournalIssue(ReferenceEntryModel reference) {
+    String text = reference.text();
+    if (text == null) return false;
+    Matcher marker = JOURNAL_CATEGORY.matcher(text);
+    if (!marker.find()) return false;
+    Matcher issue = JOURNAL_ISSUE.matcher(text.substring(marker.end()));
+    while (issue.find()) if (issue.group(1).equals(reference.yearText())) return true;
+    return false;
   }
 
   private static void checkPageRangeSpacing(List<CheckResult> results, ReferenceEntryModel reference) {

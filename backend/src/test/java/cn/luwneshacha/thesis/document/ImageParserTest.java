@@ -6,8 +6,37 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ImageParserTest {
+  @Test
+  void reportsAnUnrecognizedDrawingAsIncompleteImageInventory() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><w:body>"
+        + "<w:p><w:r><w:drawing><a:graphic><a:graphicData uri=\"urn:unrecognized-shape\"/>"
+        + "</a:graphic></w:drawing></w:r></w:p></w:body></w:document>";
+
+    var inventory = new ImageParser().parseInventory(xml.getBytes(StandardCharsets.UTF_8), null);
+
+    assertTrue(inventory.images().isEmpty());
+    assertFalse(inventory.complete());
+  }
+
+  @Test
+  void confirmsInventoryForARecognizedPictureAndIgnoredDeletedShape() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body>"
+        + "<w:p><w:r><w:drawing><pic:pic/></w:drawing></w:r></w:p>"
+        + "<w:p><w:del><w:r><w:drawing/></w:r></w:del></w:p>"
+        + "</w:body></w:document>";
+
+    var inventory = new ImageParser().parseInventory(xml.getBytes(StandardCharsets.UTF_8), null);
+
+    assertEquals(1, inventory.images().size());
+    assertTrue(inventory.complete());
+  }
+
   @Test
   void readsDrawingSizeAndFollowingFigureCaption() {
     String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
@@ -229,6 +258,119 @@ class ImageParserTest {
   }
 
   @Test
+  void doesNotJoinGroupedTextBoxesIntoOneCaptionOrCountTheirEmptyVmlShapesAsPictures() {
+    String xml = """
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <w:body>
+            <w:p><w:r><w:drawing><wp:anchor><pic:pic/></wp:anchor></w:drawing></w:r></w:p>
+            <w:p>
+              <w:r><w:pict><v:shape><v:imagedata o:title=""/>
+                <v:textbox><w:txbxContent><w:p><w:r><w:t>图4-1</w:t></w:r></w:p></w:txbxContent></v:textbox>
+              </v:shape></w:pict></w:r>
+              <w:r><w:pict><v:shape><v:imagedata o:title=""/>
+                <v:textbox><w:txbxContent><w:p><w:r><w:t>标签 20% 资料来源及题名</w:t></w:r></w:p></w:txbxContent></v:textbox>
+              </v:shape></w:pict></w:r>
+            </w:p>
+          </w:body>
+        </w:document>
+        """;
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    var image = images.get(0);
+    assertEquals("图4-1", image.captionText());
+    assertTrue(image.captionFragment());
+    assertEquals(4, image.captionSource().end());
+    assertTrue(image.captionSource().elementPath().size() > image.source().elementPath().size());
+    assertFalse(image.captionSource().elementPath().equals(java.util.List.of(0, 1)));
+  }
+
+  @Test
+  void preservesAnIndependentCompleteCaptionInsideOneTextBox() {
+    String xml = """
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:v="urn:schemas-microsoft-com:vml"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <w:body>
+            <w:p><w:r><w:drawing><wp:anchor><pic:pic/></wp:anchor></w:drawing></w:r></w:p>
+            <w:p><w:r><w:pict><v:shape><v:textbox><w:txbxContent>
+              <w:p><w:r><w:t>图4-1 完整图题</w:t></w:r></w:p>
+            </w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>
+          </w:body>
+        </w:document>
+        """;
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    assertEquals("图4-1 完整图题", images.get(0).captionText());
+    assertFalse(images.get(0).captionFragment());
+    assertEquals("图4-1 完整图题".length(), images.get(0).captionSource().end());
+  }
+
+  @Test
+  void keepsAnInternalAnchorButDoesNotChooseBetweenMultipleTextBoxCaptions() {
+    String xml = """
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:v="urn:schemas-microsoft-com:vml"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <w:body>
+            <w:p><w:r><w:drawing><wp:anchor><pic:pic/></wp:anchor></w:drawing></w:r></w:p>
+            <w:p><w:r><w:pict><v:shape><v:textbox><w:txbxContent>
+              <w:p><w:r><w:t>图4-1 第一候选</w:t></w:r></w:p>
+              <w:p><w:r><w:t>图5-1 第二候选</w:t></w:r></w:p>
+            </w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>
+          </w:body>
+        </w:document>
+        """;
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    assertEquals("图4-1 第一候选", images.get(0).captionText());
+    assertTrue(images.get(0).captionFragment());
+    assertTrue(images.get(0).captionNumberAmbiguous());
+    assertEquals(java.util.List.of("4", "5"), images.get(0).ambiguousCaptionChapters());
+    assertEquals("图4-1 第一候选".length(), images.get(0).captionSource().end());
+    assertTrue(images.get(0).captionSource().elementPath().size() > images.get(0).source().elementPath().size());
+  }
+
+  @Test
+  void recognizesVmlImagesWithAlternativeMediaReferences() {
+    for (String mediaReference : java.util.List.of("o:relid=\"rId5\"", "src=\"image.png\"")) {
+      String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+          + "xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\">"
+          + "<w:body><w:p><w:r><w:pict><v:shape><v:imagedata " + mediaReference
+          + "/></v:shape></w:pict></w:r></w:p></w:body></w:document>";
+      assertEquals(1, new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8)).size(), mediaReference);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"\u200B", "\u200C", "\u200D", "\u2060", "\uFEFF"})
+  void invisibleSpacingAfterASeparatedFigureNumberDoesNotCreateAHardCaptionError(String separator) {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:v=\"urn:schemas-microsoft-com:vml\" "
+        + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body>"
+        + "<w:p><w:r><w:drawing><wp:anchor><pic:pic/></wp:anchor></w:drawing></w:r></w:p>"
+        + "<w:p><w:r><w:pict><v:shape><v:textbox><w:txbxContent><w:p><w:r><w:t>图4-1"
+        + separator + "</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>"
+        + "</w:body></w:document>";
+
+    var image = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8)).get(0);
+
+    assertEquals("图4-1" + separator, image.captionText());
+    assertTrue(image.captionFragment());
+  }
+
+  @Test
   void ignoresVmlPreviewOwnedByEmbeddedEquationObject() {
     String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
         + "xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\" "
@@ -418,5 +560,88 @@ class ImageParserTest {
     assertEquals("图1-2 锚定图表", images.get(1).captionText());
     assertEquals(java.util.List.of(0, 2), images.get(1).source().elementPath());
     assertEquals(java.util.List.of(0, 3), images.get(1).captionSource().elementPath());
+  }
+
+  @Test
+  void doesNotTreatMultipleImageChoicesAsMultipleFigures() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" "
+        + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+        + "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body>"
+        + "<w:p><w:r><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"c\"><w:drawing><wp:inline><wp:extent cx=\"100\" cy=\"100\"/>"
+        + "<a:graphic><c:chart/></a:graphic></wp:inline></w:drawing></mc:Choice>"
+        + "<mc:Choice Requires=\"c\"><w:drawing><wp:inline><wp:extent cx=\"200\" cy=\"200\"/>"
+        + "<a:graphic><c:chart/></a:graphic></wp:inline></w:drawing></mc:Choice>"
+        + "<mc:Fallback><w:drawing><wp:inline><wp:extent cx=\"300\" cy=\"300\"/>"
+        + "<a:graphic><pic:pic/></a:graphic></wp:inline></w:drawing></mc:Fallback>"
+        + "</mc:AlternateContent></w:r></w:p></w:body></w:document>";
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    assertEquals(100L, images.get(0).widthEmu());
+  }
+
+  @Test
+  void doesNotModelAnUnknownPictureBranchAsVisible() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" "
+        + "xmlns:future=\"urn:example:future-office\" "
+        + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body>"
+        + "<w:p><w:r><mc:AlternateContent><mc:Choice Requires=\"future\">"
+        + "<w:drawing><wp:inline><a:graphic><pic:pic/></a:graphic></wp:inline></w:drawing>"
+        + "</mc:Choice><mc:Fallback><w:drawing><wp:inline><wp:extent cx=\"300\" cy=\"300\"/>"
+        + "<a:graphic><pic:pic/></a:graphic></wp:inline></w:drawing></mc:Fallback>"
+        + "</mc:AlternateContent></w:r></w:p></w:body></w:document>";
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertTrue(images.isEmpty());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"del", "moveFrom"})
+  void ignoresAllImageAlternativesInsideRemovedRevisions(String revision) {
+    String drawing = "<w:drawing><wp:inline><wp:extent cx=\"100\" cy=\"100\"/>"
+        + "<a:graphic><pic:pic/></a:graphic></wp:inline></w:drawing>";
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" "
+        + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body><w:p>"
+        + "<w:" + revision + "><w:r><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"pic\">" + drawing + "</mc:Choice>"
+        + "<mc:Fallback>" + drawing + "</mc:Fallback>"
+        + "</mc:AlternateContent></w:r></w:" + revision + ">"
+        + "<w:r>" + drawing + "</w:r></w:p></w:body></w:document>";
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+  }
+
+  @Test
+  void skipsDeletedTextBoxAndFindsCurrentCaption() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body>"
+        + "<w:p><w:r><w:drawing><wp:inline><a:graphic><pic:pic/></a:graphic>"
+        + "</wp:inline></w:drawing></w:r></w:p>"
+        + "<w:p><w:del><w:r><w:drawing><wp:inline><w:txbxContent>"
+        + "<w:p><w:r><w:t>\u56fe1-1 deleted caption</w:t></w:r></w:p>"
+        + "</w:txbxContent></wp:inline></w:drawing></w:r></w:del></w:p>"
+        + "<w:p><w:r><w:t>\u56fe1-1 current caption</w:t></w:r></w:p>"
+        + "</w:body></w:document>";
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    assertEquals("\u56fe1-1 current caption", images.get(0).captionText());
   }
 }

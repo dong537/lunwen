@@ -44,40 +44,73 @@ public final class TableParser {
   }
 
   public List<TableModel> parse(byte[] xml, byte[] stylesXml, WordprocessingMLPackage pkg) {
+    return parseInventory(xml, stylesXml, pkg).tables();
+  }
+
+  public TableInventory parseInventory(byte[] xml, byte[] stylesXml, WordprocessingMLPackage pkg) {
     try {
       var result = new ArrayList<TableModel>();
       var tableElements = new ArrayList<Element>();
       Element styles = stylesXml == null ? null : XmlPartSupport.parse(stylesXml).getDocumentElement();
-      Element root = XmlPartSupport.parse(xml).getDocumentElement();
+      var document = XmlPartSupport.parse(xml);
+      Element root = document.getDocumentElement();
+      var rawTablePaths = new ArrayList<List<Integer>>();
+      collectRawTablePaths(root, List.of(), rawTablePaths);
       List<ConditionalStyleBorders> conditionalBorders = pkg == null
-          ? List.of() : resolveConditionalStyleBorders(pkg, countTables(root));
+          ? List.of() : resolveConditionalStyleBorders(pkg, rawTablePaths.size());
       collect(root, List.of(), result, tableElements, styles, conditionalBorders, pkg != null, new int[] {0});
       linkSplitFragments(result, tableElements);
-      return List.copyOf(result);
+      linkAdjacentFloatingDataFragments(result, tableElements);
+      List<List<Integer>> modeledPaths = result.stream()
+          .map(table -> table.source().elementPath()).toList();
+      boolean complete = XmlPartSupport.compatibilityGaps(document).isEmpty()
+          && rawTablePaths.size() == tableElements.size()
+          && rawTablePaths.equals(modeledPaths);
+      return new TableInventory(List.copyOf(result), complete);
     } catch (Exception e) { throw new IllegalArgumentException("unable to parse tables", e); }
+  }
+
+  public record TableInventory(List<TableModel> tables, boolean complete) {
+    public TableInventory { tables = List.copyOf(tables); }
+  }
+
+  private static void collectRawTablePaths(Element element, List<Integer> path,
+      List<List<Integer>> paths) {
+    if (isInactiveRevision(element)) return;
+    if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "tbl".equals(element.getLocalName()))
+      paths.add(path);
+    int index = 0;
+    for (Element child : XmlPartSupport.children(element)) {
+      var childPath = new ArrayList<>(path);
+      childPath.add(index++);
+      collectRawTablePaths(child, List.copyOf(childPath), paths);
+    }
   }
 
   private void collect(Element element, List<Integer> path, List<TableModel> result,
       List<Element> tableElements, Element styles,
       List<ConditionalStyleBorders> conditionalBorders, boolean packageEvidenceAvailable, int[] tableIndex) {
+    if (isInactiveRevision(element)) return;
     if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "tbl".equals(element.getLocalName())) {
       tableElements.add(element);
       int currentTableIndex = tableIndex[0]++;
       ConditionalStyleBorders conditional = currentTableIndex < conditionalBorders.size()
           ? conditionalBorders.get(currentTableIndex) : ConditionalStyleBorders.empty();
+      var rows = tableRows(element);
+      int columns = rows.stream().mapToInt(row -> rowCells(row).size()).max().orElse(0);
+      Caption inTableCaption = findInTableCaption(rows, gridColumnCount(element, rows));
       var caption = findCaption(element);
+      if (caption == null) caption = inTableCaption;
       boolean captionBefore = caption != null;
       if (caption == null) caption = findFollowingCaption(element);
       Element unitParagraph = findSharedUnitParagraph(element);
       String sharedUnitText = unitParagraph == null ? null : XmlPartSupport.text(unitParagraph).trim();
       boolean sharedUnitRightAligned = unitParagraph != null && isRightAligned(unitParagraph, styles);
-      var rows = tableRows(element);
       var repeatingHeaderRowIndexes = new ArrayList<Integer>();
       for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
         if (repeatsAsHeader(rows.get(rowIndex))) repeatingHeaderRowIndexes.add(rowIndex);
       }
-      int columns = rows.stream().mapToInt(row -> rowCells(row).size()).max().orElse(0);
-      int headerRowIndex = findHeaderRowIndex(rows, columns);
+      int headerRowIndex = findHeaderRowIndex(rows, columns, inTableCaption == null ? 0 : 1);
       boolean xmlNumericValuesValid = tableNumericValuesValid(element) && tableGeometryFitsInt(rows);
       var columnWidths = XmlPartSupport.children(element).stream()
           .filter(e -> XmlPartSupport.W.equals(e.getNamespaceURI()) && "tblGrid".equals(e.getLocalName()))
@@ -90,6 +123,36 @@ public final class TableParser {
       boolean merged = rows.stream().flatMap(row -> rowCells(row).stream()).anyMatch(TableParser::hasMerge);
       var headerTexts = headerRowIndex < 0 ? List.<String>of()
           : rowCells(rows.get(headerRowIndex)).stream().map(XmlPartSupport::text).toList();
+      // A column label belongs to a data cell only when every relevant row
+      // has a one-to-one cell mapping. Merged/offset/nested structures remain
+      // unclassified instead of borrowing a possibly unrelated header.
+      boolean stableColumns = headerRowIndex >= 0 && countTables(element) == 1
+          && rows.stream().skip(headerRowIndex).flatMap(row -> rowCells(row).stream())
+              .noneMatch(TableParser::hasMerge)
+          && rows.stream().skip(headerRowIndex).allMatch(row ->
+              direct(direct(row, "trPr"), "gridBefore") == null
+              && direct(direct(row, "trPr"), "gridAfter") == null)
+          && rows.stream().skip(headerRowIndex + 1L).allMatch(row ->
+              rowCells(row).size() == headerTexts.size());
+      var cellEvidence = new ArrayList<TableModel.CellEvidence>();
+      int gridColumns = gridColumnCount(element, rows);
+      for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+        List<Element> cells = rowCells(rows.get(rowIndex));
+        for (int cellIndex = 0; cellIndex < cells.size(); cellIndex++) {
+          Element cell = cells.get(cellIndex);
+          String header = stableColumns && rowIndex > headerRowIndex
+              ? headerTexts.get(cellIndex).strip() : null;
+          int paragraphs = (int) XmlPartSupport.children(cell).stream()
+              .filter(child -> XmlPartSupport.W.equals(child.getNamespaceURI())
+                  && "p".equals(child.getLocalName()) && !isInactiveRevision(child)
+                  && !XmlPartSupport.isBlankText(XmlPartSupport.text(child)))
+              .count();
+          cellEvidence.add(new TableModel.CellEvidence(
+              new SourceAddress("word/document.xml", pathOf(cell), 0, 0), rowIndex,
+              header, cells.size() == 1 && gridColumns > 0
+                  && cellGridSpan(cell) >= gridColumns, paragraphs));
+        }
+      }
       var note = findFollowingNote(element);
       boolean hasTableStyle = direct(direct(element, "tblPr"), "tblStyle") != null;
       Element borders = first(element, "tblBorders");
@@ -116,16 +179,11 @@ public final class TableParser {
            sharedUnitText, sharedUnitRightAligned, styleResolved, xmlNumericValuesValid,
            isCodeLayout(rows, columns, caption, vertical),
            // Description rows can be merged; only the header and data region determine column mapping.
-           headerRowIndex >= 0 && countTables(element) == 1
-               && rows.stream().skip(headerRowIndex).flatMap(row -> rowCells(row).stream())
-                   .noneMatch(TableParser::hasMerge)
-               && rows.stream().skip(headerRowIndex + 1L)
-                   .allMatch(row -> rowCells(row).size() == headerTexts.size()
-                   && direct(direct(row, "trPr"), "gridBefore") == null
-                   && direct(direct(row, "trPr"), "gridAfter") == null)
+           stableColumns
                ? rows.stream().skip(headerRowIndex + 1L)
                    .map(row -> rowCells(row).stream().map(XmlPartSupport::text).toList()).toList()
-               : List.of(), repeatingHeaderRowIndexes));
+               : List.of(), repeatingHeaderRowIndexes, null, flowPosition(element))
+           .withCellEvidence(cellEvidence));
     }
     int index = 0;
     for (Element child : XmlPartSupport.children(element)) {
@@ -135,8 +193,8 @@ public final class TableParser {
     }
   }
 
-  private static int findHeaderRowIndex(List<Element> rows, int columns) {
-    for (int index = 0; index < rows.size(); index++) {
+  private static int findHeaderRowIndex(List<Element> rows, int columns, int firstCandidate) {
+    for (int index = firstCandidate; index < rows.size(); index++) {
       Element row = rows.get(index);
       List<Element> cells = rowCells(row);
       String text = cells.stream().map(XmlPartSupport::text).reduce("", String::concat).strip();
@@ -166,9 +224,21 @@ public final class TableParser {
   }
 
   private static int countTables(Element element) {
+    if (isInactiveRevision(element)) return 0;
     int count = XmlPartSupport.W.equals(element.getNamespaceURI()) && "tbl".equals(element.getLocalName()) ? 1 : 0;
     for (Element child : XmlPartSupport.children(element)) count += countTables(child);
     return count;
+  }
+
+  private static TableModel.FlowPosition flowPosition(Element table) {
+    if (direct(direct(table, "tblPr"), "tblpPr") != null)
+      return TableModel.FlowPosition.FLOATING;
+    Node parent = table.getParentNode();
+    if (parent instanceof Element parentElement
+        && XmlPartSupport.W.equals(parentElement.getNamespaceURI())
+        && "body".equals(parentElement.getLocalName()))
+      return TableModel.FlowPosition.INLINE_BODY;
+    return TableModel.FlowPosition.UNKNOWN;
   }
 
   private static List<Element> tableRows(Element table) {
@@ -176,7 +246,7 @@ public final class TableParser {
     var result = new ArrayList<Element>(rows.getLength());
     for (int index = 0; index < rows.getLength(); index++) {
       Element row = (Element) rows.item(index);
-      if (owningTable(row) == table) result.add(row);
+      if (owningTable(row) == table && !hasInactiveRevisionAncestor(row, table)) result.add(row);
     }
     return List.copyOf(result);
   }
@@ -194,9 +264,24 @@ public final class TableParser {
     var result = new ArrayList<Element>(cells.getLength());
     for (int index = 0; index < cells.getLength(); index++) {
       Element cell = (Element) cells.item(index);
-      if (owningRow(cell) == row) result.add(cell);
+      if (owningRow(cell) == row && !hasInactiveRevisionAncestor(cell, row)) result.add(cell);
     }
     return List.copyOf(result);
+  }
+
+  private static boolean hasInactiveRevisionAncestor(Element element, Element owner) {
+    for (Node current = element; current != owner; current = current.getParentNode()) {
+      if (!(current instanceof Element parent)) return false;
+      if (isInactiveRevision(parent)) return true;
+    }
+    return false;
+  }
+
+  private static boolean isInactiveRevision(Element element) {
+    if (!XmlPartSupport.W.equals(element.getNamespaceURI())) return false;
+    String name = element.getLocalName();
+    return "del".equals(name) || "moveFrom".equals(name)
+        || "delInstrText".equals(name) || name.endsWith("PrChange");
   }
 
   private static List<ConditionalStyleBorders> resolveConditionalStyleBorders(
@@ -339,6 +424,21 @@ public final class TableParser {
       return CAPTION.matcher(text).find() ? new Caption(text, pathOf(previous)) : null;
     }
     return null;
+  }
+
+  private static Caption findInTableCaption(List<Element> rows, int columns) {
+    if (rows.isEmpty() || columns == 0) return null;
+    List<Element> cells = rowCells(rows.get(0));
+    if (cells.size() != 1 || cellGridSpan(cells.get(0)) != columns) return null;
+    List<Element> paragraphs = XmlPartSupport.children(cells.get(0)).stream()
+        .filter(child -> XmlPartSupport.W.equals(child.getNamespaceURI())
+            && "p".equals(child.getLocalName()))
+        .filter(paragraph -> !XmlPartSupport.isBlankText(XmlPartSupport.text(paragraph)))
+        .toList();
+    if (paragraphs.size() != 1) return null;
+    Element paragraph = paragraphs.get(0);
+    String text = XmlPartSupport.text(paragraph);
+    return CAPTION.matcher(text).find() ? new Caption(text, pathOf(paragraph)) : null;
   }
 
   private Caption findFollowingCaption(Element table) {
@@ -688,6 +788,102 @@ public final class TableParser {
           continuation.source(), repeatedHeader ? TableFragmentEvidence.Kind.REPEATED_HEADER
               : TableFragmentEvidence.Kind.DATA_ROW)));
     }
+  }
+
+  /** A floating table can be serialized as two adjacent physical tables without a 续表 label. */
+  private static void linkAdjacentFloatingDataFragments(List<TableModel> tables, List<Element> elements) {
+    for (int index = 1; index < tables.size(); index++) {
+      TableModel original = tables.get(index - 1);
+      TableModel tail = tables.get(index);
+      Element originalXml = elements.get(index - 1);
+      Element tailXml = elements.get(index);
+      if (original.fragmentEvidence() != null || tail.fragmentEvidence() != null
+          || original.captionText() == null || !original.captionBefore()
+          || original.rows() < 2 || original.headerTexts().isEmpty()
+          || tail.captionText() != null || tail.rows() < 1
+          || original.headerTexts().equals(tail.headerTexts())
+          || original.bottomBorder() || tail.topBorder() || tail.middleBorder()
+          || !original.tableStyleBorderEvidenceResolved() || !tail.tableStyleBorderEvidenceResolved()
+          || original.mergedCells() || tail.mergedCells()
+          || countTables(originalXml) != 1 || countTables(tailXml) != 1
+          || tableRows(originalXml).stream().anyMatch(TableParser::hasGridOmissions)
+          || tableRows(tailXml).stream().anyMatch(TableParser::hasGridOmissions)
+          || !adjacentForSplit(originalXml, tailXml, null)
+          || !sameFloatingColumnEdges(original, tail, originalXml, tailXml)) continue;
+      tables.set(index, tail.withFragmentEvidence(new TableFragmentEvidence(
+          original.source(), null, TableFragmentEvidence.Kind.DATA_ROW)));
+    }
+  }
+
+  private static boolean hasGridOmissions(Element row) {
+    Element properties = direct(row, "trPr");
+    return direct(properties, "gridBefore") != null || direct(properties, "gridAfter") != null;
+  }
+
+  private static boolean sameFloatingColumnEdges(TableModel original, TableModel tail,
+      Element originalXml, Element tailXml) {
+    if (!original.xmlNumericValuesValid() || !tail.xmlNumericValuesValid()
+        || original.columns() < 2 || original.columns() != tail.columns()
+        || original.columnWidthsTwips().size() != original.columns()
+        || tail.columnWidthsTwips().size() != tail.columns()
+        || original.columnWidthsTwips().stream().anyMatch(width -> width <= 0)
+        || tail.columnWidthsTwips().stream().anyMatch(width -> width <= 0)) return false;
+    Element originalPr = direct(originalXml, "tblPr");
+    Element tailPr = direct(tailXml, "tblPr");
+    Element originalPosition = direct(originalPr, "tblpPr");
+    Element tailPosition = direct(tailPr, "tblpPr");
+    Integer originalX = integerAttribute(originalPosition, "tblpX");
+    Integer tailX = integerAttribute(tailPosition, "tblpX");
+    if (originalX == null || tailX == null
+        || attribute(originalPosition, "tblpXSpec") != null
+        || attribute(tailPosition, "tblpXSpec") != null
+        || !sameFloatingPositionExceptX(originalPosition, tailPosition)
+        || !java.util.Objects.equals(attribute(direct(originalPr, "tblStyle"), "val"),
+            attribute(direct(tailPr, "tblStyle"), "val"))
+        || !sameProperty(originalPr, tailPr, "tblLayout")
+        || !sameProperty(originalPr, tailPr, "tblOverlap")
+        || !sameProperty(originalPr, tailPr, "tblInd")
+        || !sameProperty(originalPr, tailPr, "tblCellMar")
+        || !sameProperty(originalPr, tailPr, "tblBorders")
+        || !tableWidthMatchesGrid(originalPr, original.columnWidthsTwips())
+        || !tableWidthMatchesGrid(tailPr, tail.columnWidthsTwips())) return false;
+    long originalBoundary = originalX;
+    long tailBoundary = tailX;
+    for (int column = 0; column < original.columns(); column++) {
+      originalBoundary += original.columnWidthsTwips().get(column);
+      tailBoundary += tail.columnWidthsTwips().get(column);
+      if (originalBoundary != tailBoundary) return false;
+    }
+    return true;
+  }
+
+  private static boolean tableWidthMatchesGrid(Element properties, List<Integer> grid) {
+    Element width = direct(properties, "tblW");
+    Integer value = integerAttribute(width, "w");
+    return value != null && "dxa".equals(attribute(width, "type"))
+        && grid.stream().mapToLong(Integer::longValue).sum() == value.longValue();
+  }
+
+  private static boolean sameProperty(Element left, Element right, String name) {
+    Element leftChild = direct(left, name);
+    Element rightChild = direct(right, name);
+    return leftChild == null ? rightChild == null : leftChild.isEqualNode(rightChild);
+  }
+
+  private static boolean sameFloatingPositionExceptX(Element left, Element right) {
+    if (left == null || right == null || attribute(left, "tblpY") == null
+        || attribute(left, "horzAnchor") == null || attribute(left, "vertAnchor") == null)
+      return false;
+    org.w3c.dom.NamedNodeMap leftAttributes = left.getAttributes();
+    org.w3c.dom.NamedNodeMap rightAttributes = right.getAttributes();
+    if (leftAttributes.getLength() != rightAttributes.getLength()) return false;
+    for (int index = 0; index < leftAttributes.getLength(); index++) {
+      Node attribute = leftAttributes.item(index);
+      if ("tblpX".equals(attribute.getLocalName())) continue;
+      Node other = rightAttributes.getNamedItemNS(attribute.getNamespaceURI(), attribute.getLocalName());
+      if (other == null || !attribute.getNodeValue().equals(other.getNodeValue())) return false;
+    }
+    return true;
   }
 
   private static boolean sameGeometry(TableModel left, TableModel right) {

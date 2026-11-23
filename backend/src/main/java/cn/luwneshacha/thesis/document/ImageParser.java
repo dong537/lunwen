@@ -15,41 +15,67 @@ public final class ImageParser {
   private static final String CHART = "http://schemas.openxmlformats.org/drawingml/2006/chart";
   private static final String VML = "urn:schemas-microsoft-com:vml";
   private static final String OFFICE = "urn:schemas-microsoft-com:office:office";
+  private static final String RELATIONSHIPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  private static final String CAPTION_SPACE = "[\\s\\p{Zs}\\u200B\\u200C\\u200D\\u2060\\uFEFF]";
   private static final Pattern CAPTION = Pattern.compile(
-      "^[\\s\\p{Zs}\\u200B\\u200C\\u200D\\u2060\\uFEFF]*图(?=[0-9A-Z\\s\\p{Zs}])");
+      "^" + CAPTION_SPACE + "*图(?=[0-9A-Z]|" + CAPTION_SPACE + ")");
+  private static final Pattern CAPTION_NUMBER_ONLY = Pattern.compile(
+      "^" + CAPTION_SPACE + "*图" + CAPTION_SPACE
+          + "*(?:\\d+[-－]\\d+|[A-Z]\\d+)" + CAPTION_SPACE + "*$");
+  private static final Pattern CAPTION_CHAPTER = Pattern.compile(
+      "^" + CAPTION_SPACE + "*图" + CAPTION_SPACE + "*(\\d+)[-－]\\d+");
 
   public List<ImageModel> parse(byte[] xml) {
     return parse(xml, null);
   }
 
   public List<ImageModel> parse(byte[] xml, byte[] stylesXml) {
+    return parseInventory(xml, stylesXml).images();
+  }
+
+  public record Inventory(List<ImageModel> images, boolean complete) {
+    public Inventory { images = List.copyOf(images); }
+  }
+
+  public Inventory parseInventory(byte[] xml, byte[] stylesXml) {
     try {
       var result = new ArrayList<ImageModel>();
       Element styles = stylesXml == null ? null : XmlPartSupport.parse(stylesXml).getDocumentElement();
-      collect(XmlPartSupport.parse(xml).getDocumentElement(), styles, List.of(), result);
-      return List.copyOf(result);
+      var document = XmlPartSupport.parse(xml);
+      boolean[] complete = {true};
+      collect(document.getDocumentElement(), styles, List.of(), result, complete);
+      return new Inventory(result, complete[0] && XmlPartSupport.compatibilityGaps(document).isEmpty());
     } catch (Exception e) {
       throw new IllegalArgumentException("unable to parse images", e);
     }
   }
 
-  private void collect(Element element, Element styles, List<Integer> path, List<ImageModel> result) {
-    if ("http://schemas.openxmlformats.org/markup-compatibility/2006".equals(element.getNamespaceURI())
-        && "Fallback".equals(element.getLocalName())) return;
-    boolean drawingPicture = XmlPartSupport.W.equals(element.getNamespaceURI())
-        && "drawing".equals(element.getLocalName()) && first(element, PICTURE, "pic") != null;
-    boolean drawingChart = XmlPartSupport.W.equals(element.getNamespaceURI())
-        && "drawing".equals(element.getLocalName()) && first(element, CHART, "chart") != null;
-    boolean vmlPicture = XmlPartSupport.W.equals(element.getNamespaceURI()) && "pict".equals(element.getLocalName())
-        && element.getElementsByTagNameNS(VML, "imagedata").getLength() > 0;
+  private void collect(Element element, Element styles, List<Integer> path, List<ImageModel> result,
+      boolean[] complete) {
+    if (excludedFromCurrentDocument(element)) return;
+    boolean wordElement = XmlPartSupport.W.equals(element.getNamespaceURI());
+    boolean drawing = wordElement && "drawing".equals(element.getLocalName());
+    boolean pict = wordElement && "pict".equals(element.getLocalName());
+    boolean object = wordElement && "object".equals(element.getLocalName());
+    boolean drawingPicture = drawing && first(element, PICTURE, "pic") != null;
+    boolean drawingChart = drawing && first(element, CHART, "chart") != null;
+    boolean vmlMedia = (pict || object) && hasVmlImageMediaReference(element);
+    boolean vmlPicture = pict && vmlMedia;
+    boolean objectPreview = object && (vmlMedia
+        || first(element, PICTURE, "pic") != null || first(element, CHART, "chart") != null);
     // Visio may place its VML preview directly inside w:object. Wrapped
     // previews are collected from their pict/drawing node to avoid duplicates.
-    boolean directVmlObject = XmlPartSupport.W.equals(element.getNamespaceURI())
-        && "object".equals(element.getLocalName())
-        && element.getElementsByTagNameNS(VML, "imagedata").getLength() > 0
+    boolean directVmlObject = object && vmlMedia
         && element.getElementsByTagNameNS(XmlPartSupport.W, "pict").getLength() == 0
         && element.getElementsByTagNameNS(XmlPartSupport.W, "drawing").getLength() == 0;
-    if ((drawingPicture || drawingChart || vmlPicture || directVmlObject) && !isEquationPreview(element)) {
+    boolean equationPreview = (drawing || pict || object) && isEquationPreview(element);
+    // A shape, SmartArt object or OLE body can consume a page even when it
+    // cannot be represented as an ImageModel. Do not certify a complete image
+    // inventory merely because every recognized picture was parsed.
+    if ((drawing || pict || object)
+        && !(drawingPicture || drawingChart || vmlPicture || objectPreview || equationPreview))
+      complete[0] = false;
+    if ((drawingPicture || drawingChart || vmlPicture || directVmlObject) && !equationPreview) {
       Element paragraph = ancestor(element, XmlPartSupport.W, "p");
       if (paragraph != null) {
         Element extent = drawingPicture || drawingChart ? first(element, DRAW, "extent") : null;
@@ -66,14 +92,16 @@ public final class ImageParser {
             centered(paragraph, styles), caption == null ? null : centered(caption.paragraph(), styles),
             transformWidthValue.value(), transformHeightValue.value(),
             widthValue.invalid() || heightValue.invalid(),
-            transformWidthValue.invalid() || transformHeightValue.invalid()));
-      }
+            transformWidthValue.invalid() || transformHeightValue.invalid(),
+            caption != null && caption.fragment(), caption != null && caption.numberAmbiguous(),
+            caption == null ? List.of() : caption.candidateChapters()));
+      } else complete[0] = false;
     }
     int index = 0;
     for (Element child : XmlPartSupport.children(element)) {
       var childPath = new ArrayList<>(path);
       childPath.add(index++);
-      collect(child, styles, List.copyOf(childPath), result);
+      collect(child, styles, List.copyOf(childPath), result, complete);
     }
   }
 
@@ -87,10 +115,77 @@ public final class ImageParser {
       Element next = siblings.get(i);
       if (isIgnorableBetween(next)) continue;
       if (!XmlPartSupport.W.equals(next.getNamespaceURI()) || !"p".equals(next.getLocalName())) return null;
-      String text = XmlPartSupport.text(next);
-      return CAPTION.matcher(text).find() ? new Caption(text, pathOf(next), next) : null;
+      String text = paragraphOwnText(next);
+      if (CAPTION.matcher(text).find())
+        return new Caption(text, pathOf(next), next,
+            hasTextBoxes(next) && CAPTION_NUMBER_ONLY.matcher(text).matches(), false, List.of());
+      if (!XmlPartSupport.isBlankText(text)) return null;
+      return textBoxCaption(next);
     }
     return null;
+  }
+
+  private static Caption textBoxCaption(Element outerParagraph) {
+    Caption candidate = null;
+    boolean ambiguous = false;
+    var chapters = new ArrayList<String>();
+    var boxes = outerParagraph.getElementsByTagNameNS(XmlPartSupport.W, "txbxContent");
+    for (int boxIndex = 0; boxIndex < boxes.getLength(); boxIndex++) {
+      Element box = (Element) boxes.item(boxIndex);
+      if (insideExcludedRevision(box, outerParagraph)) continue;
+      var paragraphs = box.getElementsByTagNameNS(XmlPartSupport.W, "p");
+      for (int paragraphIndex = 0; paragraphIndex < paragraphs.getLength(); paragraphIndex++) {
+        Element innerParagraph = (Element) paragraphs.item(paragraphIndex);
+        if (insideExcludedRevision(innerParagraph, box)) continue;
+        String text = paragraphOwnText(innerParagraph);
+        if (!CAPTION.matcher(text).find()) continue;
+        var chapter = CAPTION_CHAPTER.matcher(text);
+        if (chapter.find() && !chapters.contains(chapter.group(1))) chapters.add(chapter.group(1));
+        if (candidate != null) {
+          ambiguous = true;
+          continue;
+        }
+        candidate = new Caption(text, pathOf(innerParagraph), innerParagraph,
+            CAPTION_NUMBER_ONLY.matcher(text).matches(), false, List.of());
+      }
+    }
+    return candidate == null || !ambiguous ? candidate
+        : new Caption(candidate.text(), candidate.path(), candidate.paragraph(), true, true, chapters);
+  }
+
+  private static boolean hasTextBoxes(Element paragraph) {
+    return hasVisibleElement(paragraph, "txbxContent");
+  }
+
+  private static String paragraphOwnText(Element paragraph) {
+    StringBuilder text = new StringBuilder();
+    appendOwnText(paragraph, paragraph, text);
+    return text.toString();
+  }
+
+  private static void appendOwnText(Element root, Element element, StringBuilder text) {
+    if (excludedFromCurrentDocument(element)) return;
+    if (element != root && XmlPartSupport.W.equals(element.getNamespaceURI())) {
+      String local = element.getLocalName();
+      if ("p".equals(local) || "pict".equals(local) || "drawing".equals(local)
+          || "object".equals(local) || "txbxContent".equals(local)) return;
+      if ("t".equals(local)) {
+        text.append(element.getTextContent());
+        return;
+      }
+    }
+    for (Element child : XmlPartSupport.children(element)) appendOwnText(root, child, text);
+  }
+
+  private static boolean hasVmlImageMediaReference(Element element) {
+    var images = element.getElementsByTagNameNS(VML, "imagedata");
+    for (int index = 0; index < images.getLength(); index++) {
+      Element image = (Element) images.item(index);
+      if (!image.getAttributeNS(RELATIONSHIPS, "id").isBlank()
+          || !image.getAttributeNS(OFFICE, "relid").isBlank()
+          || !image.getAttribute("src").isBlank()) return true;
+    }
+    return false;
   }
 
   private static boolean isIgnorableBetween(Element element) {
@@ -98,10 +193,27 @@ public final class ImageParser {
     String local = element.getLocalName();
     if ("bookmarkStart".equals(local) || "bookmarkEnd".equals(local)
         || "proofErr".equals(local) || "permStart".equals(local) || "permEnd".equals(local)) return true;
-    return "p".equals(local) && XmlPartSupport.isBlankText(XmlPartSupport.text(element))
-        && element.getElementsByTagNameNS(XmlPartSupport.W, "drawing").getLength() == 0
-        && element.getElementsByTagNameNS(XmlPartSupport.W, "pict").getLength() == 0
-        && element.getElementsByTagNameNS(XmlPartSupport.W, "object").getLength() == 0;
+    return "p".equals(local) && XmlPartSupport.isBlankText(paragraphOwnText(element))
+        && !hasVisibleElement(element, "drawing")
+        && !hasVisibleElement(element, "pict")
+        && !hasVisibleElement(element, "object");
+  }
+
+  private static boolean hasVisibleElement(Element root, String localName) {
+    var nodes = root.getElementsByTagNameNS(XmlPartSupport.W, localName);
+    for (int index = 0; index < nodes.getLength(); index++) {
+      if (!insideExcludedRevision((Element) nodes.item(index), root)) return true;
+    }
+    return false;
+  }
+
+  private static boolean insideExcludedRevision(Element element, Element boundary) {
+    Node node = element;
+    while (node instanceof Element current && current != boundary) {
+      if (excludedFromCurrentDocument(current)) return true;
+      node = current.getParentNode();
+    }
+    return false;
   }
 
   private static Boolean centered(Element paragraph, Element styles) {
@@ -166,6 +278,13 @@ public final class ImageParser {
       current = parent.getParentNode();
     }
     return null;
+  }
+
+  private static boolean excludedFromCurrentDocument(Element element) {
+    if (!XmlPartSupport.W.equals(element.getNamespaceURI())) return false;
+    String localName = element.getLocalName();
+    return "del".equals(localName) || "moveFrom".equals(localName)
+        || "delInstrText".equals(localName) || localName.endsWith("PrChange");
   }
 
   private static Element first(Element root, String namespace, String localName) {
@@ -249,5 +368,6 @@ public final class ImageParser {
     return List.copyOf(reversed);
   }
 
-  private record Caption(String text, List<Integer> path, Element paragraph) {}
+  private record Caption(String text, List<Integer> path, Element paragraph,
+      boolean fragment, boolean numberAmbiguous, List<String> candidateChapters) {}
 }

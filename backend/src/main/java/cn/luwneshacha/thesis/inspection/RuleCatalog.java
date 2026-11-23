@@ -45,8 +45,8 @@ public final class RuleCatalog {
       specs("图表题", "图题和表题", "图题和表题字体与字号", "图题、表题段落和运行属性", true,
           "图题和表题的最终分页位置不能仅由静态 XML 证明", ""),
       specs("表格", "正文表格", "表号、表题、三线表、单位、表注、续表和正文引用",
-          "表格 XML、表题段落和正文引用", true,
-          "单元格字体、字号、对齐、列宽、行高、合并布局和单元格边框未检查；是否实际跨页及最终打印分页不能仅由静态 XML 证明",
+          "表格 XML、表题段落、正文引用及可用时的同源 PDF 版面证据", true,
+          "单元格字体、字号、对齐、列宽、行高、合并布局和单元格边框未检查；无可用版面证据时续表行位无法确认；当前页首位置只核对已识别续表标记的正文文字行，尚不能发现跨页后完全漏写续表标记或上方的非文字图形",
           ""),
       specs("公式", "正文公式", "公式编号、编号格式、引用、连续性和变量说明", "OMML/公式对象 XML、公式编号段落和正文引用", true,
           "MathType/OLE 或图片公式的内部字体、变量斜体、上下标和内部结构不能从当前 DOCX XML 完整证明",
@@ -80,6 +80,61 @@ public final class RuleCatalog {
 
   public static RuleSpec find(String ruleId) { return INDEX.get(ruleId); }
 
+  /** The actual pipeline modules whose completed execution is required for this catalog rule. */
+  public static List<String> ownerModuleIds(String ruleId) {
+    if (find(ruleId) == null) return List.of();
+    return switch (ruleId) {
+      case "NUMBERING-01" -> List.of("AutomaticNumberingRuleModule");
+      case "COVER-05", "SECTION-REQUIRED" -> List.of("RequiredSectionRuleChecker");
+      case "COVER-01-FONT", "COVER-01-SIZE", "COVER-01-ALIGNMENT",
+          "COVER-02-FONT", "COVER-02-SIZE", "COVER-03-FONT", "COVER-03-SIZE",
+          "COVER-03-BOLD", "COVER-03-LABEL", "COVER-04-FONT", "COVER-04-SIZE",
+          "COVER-04-BOLD", "COVER-04-CONSISTENCY" -> List.of("CoverRuleChecker");
+      case "ZH-01-SPACING", "ZH-02-BLANK", "ZH-04-BLANK", "ABSTRACT-FONT",
+          "ABSTRACT-SIZE", "ABSTRACT-INDENT", "ABSTRACT-LINE", "ABSTRACT-KEYWORD-BOLD",
+          "ABSTRACT-KEYWORD-FORMAT", "ABSTRACT-KEYWORD-ALIGN", "EN-01-BLANK",
+          "EN-03-BOLD", "EN-03-FORMAT", "EN-03-BLANK", "EN-03-ALIGNMENT" ->
+          List.of("AbstractRuleChecker");
+      case "ZH-01-FONT", "ZH-01-SIZE", "ZH-01-ALIGNMENT", "EN-01-TEXT",
+          "EN-01-BOLD", "EN-01-FONT", "EN-01-SIZE", "EN-01-ALIGNMENT",
+          "HEAD-01-SPACING", "HEAD-01-ALIGNMENT", "HEAD-02-BLANK", "HEAD-03-INDENT",
+          "HEAD-05-MARKER", "HEAD-05-FONT", "HEAD-05-SIZE", "HEAD-05-LINE",
+          "HEAD-05-INDENT", "HEADING-LINE", "REF-01-SPACING", "REF-01-FONT",
+          "REF-01-SIZE", "REF-01-ALIGNMENT", "END-01-SPACING", "END-01-FONT",
+          "END-01-SIZE", "END-01-ALIGNMENT", "APP-02-SPACING", "APP-02-FONT",
+          "APP-02-SIZE", "APP-02-ALIGNMENT" -> List.of("HeadingDocumentRuleModule");
+      case "TOC-01-SPACING", "TOC-01-BLANK", "TOC-01-LINE", "TOC-01-FONT",
+          "TOC-01-SIZE", "TOC-01-ALIGNMENT", "TOC-SPACING", "TOC-02",
+          "TOC-02-ORDER", "TOC-ENTRY-FONT", "TOC-ENTRY-SIZE", "TOC-ENTRY-LINE",
+          "TOC-ENTRY-INDENT", "TOC-ENTRY-PAGE", "TOC-REQUIRED-ENTRY",
+          "EN-TOC-01-BOLD", "EN-TOC-01-ALIGNMENT", "EN-TOC-01-FONT",
+          "EN-TOC-01-SIZE", "EN-TOC-01-LINE" -> List.of("ContentsRuleChecker");
+      case "HEAD-EMBEDDED", "BODY-FONT", "BODY-SIZE", "BODY-INDENT", "BODY-LINE",
+          "BODY-SCOPE" -> List.of("BodyFormatRuleChecker");
+      case "HEAD-02-SPACING", "HEAD-03-SPACING", "HEADING-FONT", "HEADING-SIZE" ->
+          List.of("BodyFormatRuleChecker", "HeadingDocumentRuleModule");
+      case "HEAD-02-BLANK-FONT", "HEAD-02-BLANK-SIZE" ->
+          List.of("HeadingDocumentRuleModule");
+      case "PAGE-01", "PAGE-03", "PAGE-04", "PAGE-05" -> List.of("SectionLayoutRuleChecker");
+      case "HEADER-01-SCOPE", "HEADER-01-MISSING", "HEADER-01-TEXT", "HEADER-01-FONT",
+          "HEADER-01-SIZE", "HEADER-01-ALIGNMENT" -> List.of("HeaderRuleModule");
+      case "FIG-01", "FIG-02", "FIG-03", "FIG-05" -> List.of("ImageRuleChecker");
+      case "CAPTION-FONT", "CAPTION-SIZE" -> List.of("ImageRuleChecker", "TableRuleModule");
+      case "TAB-01", "TAB-02", "TAB-03", "TAB-04", "TAB-05", "TAB-06", "TAB-07",
+          "TAB-08", "TAB-09" -> List.of("TableRuleModule");
+      case "EQ-01", "EQ-02", "EQ-03", "EQ-04", "EQ-05", "EQ-06", "EQ-07" ->
+          List.of("EquationRuleModule");
+      case "REF-02", "REF-05" -> List.of("ReferenceCollectionRuleModule");
+      case "REF-03" -> List.of("CitationRuleModule", "ReferenceCollectionRuleModule");
+      case "REF-04", "REF-07" -> List.of("ReferenceRuleChecker");
+      case "REF-FONT", "REF-LINE", "REF-SIZE" -> List.of("ReferenceFormatRuleChecker");
+      case "REF-01-BLANK", "END-01-BLANK" -> List.of("EndMatterRuleChecker");
+      case "APP-01", "APP-02-BLANK", "APP-03" -> List.of("AppendixRuleModule");
+      case "CITE-01" -> List.of("CitationRuleModule");
+      default -> throw new IllegalStateException("catalog rule lacks execution owner: " + ruleId);
+    };
+  }
+
   private static Map<String, RuleSpec> buildIndex() {
     var index = new LinkedHashMap<String, RuleSpec>();
     for (RuleSpec group : SCHOOL_V1) {
@@ -110,6 +165,7 @@ public final class RuleCatalog {
           "EN-TOC-01-BOLD", "EN-TOC-01-ALIGNMENT", "EN-TOC-01-FONT",
           "EN-TOC-01-SIZE", "EN-TOC-01-LINE");
       case "正文标题" -> List.of("HEAD-01-SPACING", "HEAD-01-ALIGNMENT", "HEAD-02-SPACING", "HEAD-03-SPACING", "HEAD-02-BLANK",
+          "HEAD-02-BLANK-FONT", "HEAD-02-BLANK-SIZE",
           "HEAD-03-INDENT", "HEAD-05-MARKER", "HEAD-05-FONT", "HEAD-05-SIZE", "HEAD-05-LINE", "HEAD-05-INDENT",
           "HEADING-FONT", "HEADING-SIZE", "HEADING-LINE", "HEAD-EMBEDDED");
       case "正文格式" -> List.of("BODY-FONT", "BODY-SIZE", "BODY-INDENT", "BODY-LINE", "BODY-SCOPE");
@@ -118,7 +174,7 @@ public final class RuleCatalog {
       case "页眉" -> List.of("HEADER-01-SCOPE", "HEADER-01-MISSING", "HEADER-01-TEXT", "HEADER-01-FONT", "HEADER-01-SIZE", "HEADER-01-ALIGNMENT");
       case "插图" -> List.of("FIG-01", "FIG-02", "FIG-03", "FIG-05");
       case "图表题" -> List.of("CAPTION-FONT", "CAPTION-SIZE");
-      case "表格" -> List.of("TAB-01", "TAB-02", "TAB-03", "TAB-04", "TAB-05", "TAB-06", "TAB-07", "TAB-08");
+      case "表格" -> List.of("TAB-01", "TAB-02", "TAB-03", "TAB-04", "TAB-05", "TAB-06", "TAB-07", "TAB-08", "TAB-09");
       case "公式" -> List.of("EQ-01", "EQ-02", "EQ-03", "EQ-04", "EQ-05", "EQ-06", "EQ-07");
       case "参考文献" -> List.of("REF-01-SPACING", "REF-01-BLANK", "REF-01-FONT", "REF-01-SIZE",
           "REF-01-ALIGNMENT",

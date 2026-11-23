@@ -20,6 +20,12 @@ public final class EquationParser {
           + "[\\s\\p{Zs}\\u200B\\u200C\\u200D\\u2060\\uFEFF]*(?:\\d+-\\d+|[A-Z]\\d+)");
   private record TableNumber(String number, SourceAddress source, boolean formulaCentered,
       boolean rightAligned, boolean borderless) {}
+  /** Parsed equations and visual/OLE nodes whose formula status is not provable from XML. */
+  public record PossibleObject(SourceAddress source, String kind) {}
+  public record Inventory(List<EquationModel> equations, List<PossibleObject> possibleObjects,
+      boolean complete) {
+    public Inventory { equations = List.copyOf(equations); possibleObjects = List.copyOf(possibleObjects); }
+  }
 
   public List<EquationModel> parse(byte[] xml) {
     return parse(xml, null);
@@ -30,19 +36,29 @@ public final class EquationParser {
   }
 
   public List<EquationModel> parse(byte[] xml, byte[] stylesXml, java.util.Map<String, String> themeFonts) {
+    return parseInventory(xml, stylesXml, themeFonts).equations();
+  }
+
+  public Inventory parseInventory(byte[] xml, byte[] stylesXml,
+      java.util.Map<String, String> themeFonts) {
     try {
       Element stylesRoot = stylesXml == null ? null : XmlPartSupport.parse(stylesXml).getDocumentElement();
       var result = new ArrayList<EquationModel>();
-      Element documentRoot = XmlPartSupport.parse(xml).getDocumentElement();
-      collect(documentRoot, List.of(), null, result, stylesRoot, themeFonts, documentRoot);
-      return List.copyOf(result);
+      var possibleObjects = new ArrayList<PossibleObject>();
+      var document = XmlPartSupport.parse(xml);
+      Element documentRoot = document.getDocumentElement();
+      collect(documentRoot, List.of(), null, result, possibleObjects, stylesRoot, themeFonts, documentRoot);
+      return new Inventory(result, possibleObjects,
+          XmlPartSupport.compatibilityGaps(document).isEmpty());
     } catch (Exception e) { throw new IllegalArgumentException("unable to parse equations", e); }
   }
 
   private void collect(Element element, List<Integer> path, String paragraphText, List<EquationModel> result,
-      Element stylesRoot, java.util.Map<String, String> themeFonts, Element documentRoot) {
+      List<PossibleObject> possibleObjects, Element stylesRoot,
+      java.util.Map<String, String> themeFonts, Element documentRoot) {
+    if (excludedFromCurrentDocument(element)) return;
     String currentText = "p".equals(element.getLocalName()) && XmlPartSupport.W.equals(element.getNamespaceURI())
-        ? XmlPartSupport.text(element) : paragraphText;
+        ? visibleWordText(element) : paragraphText;
     List<Integer> paragraphPath = "p".equals(element.getLocalName()) && XmlPartSupport.W.equals(element.getNamespaceURI())
         ? path : null;
     if (paragraphPath == null) paragraphPath = findParagraphPath(element, path);
@@ -69,10 +85,12 @@ public final class EquationParser {
     } else if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "object".equals(element.getLocalName())) {
       Element ole = firstDescendant(element, "OLEObject");
       String progId = ole == null ? "" : ole.getAttribute("ProgID");
-      if (progId.equalsIgnoreCase("Equation.3") || progId.toLowerCase(java.util.Locale.ROOT).contains("mathtype")) {
+      if (isEquationProgId(progId)) {
         result.add(model(element, paragraphPath, "OLE", "嵌入公式对象", currentText,
             numberIndex(element, paragraphPath, currentText), stylesRoot, themeFonts, documentRoot, progId));
-      }
+      } else if (ancestor(element, "drawing") == null)
+        possibleObjects.add(new PossibleObject(new SourceAddress("word/document.xml",
+            paragraphPath == null ? path : paragraphPath, 0, 0), "OLE"));
     } else if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "drawing".equals(element.getLocalName())
         && embeddedEquationProgId(element) != null) {
       result.add(model(element, paragraphPath, "OLE", "宓屽叆鍏紡瀵硅薄", currentText,
@@ -80,15 +98,27 @@ public final class EquationParser {
           embeddedEquationProgId(element)));
       return;
     } else if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "drawing".equals(element.getLocalName())
-        && hasPicture(element) && ((isStandalone(currentText) && NUMBER.matcher(currentText == null ? "" : currentText).find())
+        && hasPicture(element) && !hasOleContainer(element)
+        && ((isStandalone(currentText) && NUMBER.matcher(currentText == null ? "" : currentText).find())
             || findSiblingCellNumber(element) != null)) {
         result.add(model(element, paragraphPath, "PICTURE", "图片公式（内部结构不可解析）", currentText,
           numberIndex(element, paragraphPath, currentText), stylesRoot, themeFonts, documentRoot, null));
+    } else if (XmlPartSupport.W.equals(element.getNamespaceURI())
+        && "drawing".equals(element.getLocalName())) {
+      possibleObjects.add(new PossibleObject(new SourceAddress("word/document.xml",
+          paragraphPath == null ? path : paragraphPath, 0, 0),
+          hasOleContainer(element) ? "OLE" : "DRAWING"));
+    } else if (XmlPartSupport.W.equals(element.getNamespaceURI())
+        && "pict".equals(element.getLocalName()) && ancestor(element, "object") == null
+        && ancestor(element, "drawing") == null) {
+      possibleObjects.add(new PossibleObject(new SourceAddress("word/document.xml",
+          paragraphPath == null ? path : paragraphPath, 0, 0), "VML"));
     }
     int index = 0;
     for (Element child : XmlPartSupport.children(element)) {
       var childPath = new ArrayList<>(path); childPath.add(index++);
-      collect(child, List.copyOf(childPath), currentText, result, stylesRoot, themeFonts, documentRoot);
+      collect(child, List.copyOf(childPath), currentText, result, possibleObjects, stylesRoot,
+          themeFonts, documentRoot);
     }
   }
 
@@ -444,7 +474,7 @@ public final class EquationParser {
       List<VisibleTextFragment> result) {
     for (Element child : XmlPartSupport.children(parent)) {
       if ("p".equals(child.getLocalName()) && child != paragraph) continue;
-      if ("del".equals(child.getLocalName()) || "moveFrom".equals(child.getLocalName())) continue;
+      if (excludedFromCurrentDocument(child)) continue;
       if (!"r".equals(child.getLocalName())) {
         collectVisibleText(child, paragraph, result);
         continue;
@@ -582,8 +612,8 @@ public final class EquationParser {
       Element candidate = siblings.get(next);
       if (!XmlPartSupport.W.equals(candidate.getNamespaceURI())) continue;
       if (!"p".equals(candidate.getLocalName())) return null;
-      String text = XmlPartSupport.text(candidate);
-      String math = mathText(candidate);
+      String text = visibleWordText(candidate);
+      String math = visibleMathText(candidate);
       String combined = (text + math).strip();
       if (XmlPartSupport.isBlankText(combined)) continue;
       return VARIABLE_EXPLANATION.matcher(combined).matches() ? combined : null;
@@ -604,10 +634,10 @@ public final class EquationParser {
         .filter(child -> XmlPartSupport.W.equals(child.getNamespaceURI()) && "tc".equals(child.getLocalName())).toList();
     if (rows.size() != 1 || rows.get(0) != row || cells.size() != 2 || !cells.contains(cell)
         || hasCaptionBeforeTable(table)
-        || !XmlPartSupport.isBlankText(XmlPartSupport.text(cell))) return null;
+        || !XmlPartSupport.isBlankText(visibleWordText(cell))) return null;
 
     Element numberCell = cells.get(0) == cell ? cells.get(1) : cells.get(0);
-    String numberText = XmlPartSupport.text(numberCell).trim();
+    String numberText = visibleWordText(numberCell).trim();
     Matcher number = NUMBER.matcher(numberText);
     if (!number.matches()) return null;
 
@@ -619,7 +649,7 @@ public final class EquationParser {
     var paragraphs = numberCell.getElementsByTagNameNS(XmlPartSupport.W, "p");
     for (int index = 0; index < paragraphs.getLength(); index++) {
       Element candidate = (Element) paragraphs.item(index);
-      if (!numberText.equals(XmlPartSupport.text(candidate).trim())) continue;
+      if (!numberText.equals(visibleWordText(candidate).trim())) continue;
       if (numberParagraph != null) return null;
       numberParagraph = candidate;
     }
@@ -629,7 +659,7 @@ public final class EquationParser {
     boolean formulaCentered = "center".equals(paragraphAlignment(formulaParagraph));
     boolean rightAligned = "right".equals(paragraphAlignment(numberParagraph)) && borderless;
     return new TableNumber(number.group("number"), new SourceAddress("word/document.xml",
-        pathOf(numberParagraph), 0, XmlPartSupport.text(numberParagraph).length()), formulaCentered,
+        pathOf(numberParagraph), 0, visibleWordText(numberParagraph).length()), formulaCentered,
         rightAligned, borderless);
   }
 
@@ -666,9 +696,9 @@ public final class EquationParser {
       String localName = previous.getLocalName();
       if ("bookmarkStart".equals(localName) || "bookmarkEnd".equals(localName)
           || "proofErr".equals(localName) || "permStart".equals(localName) || "permEnd".equals(localName)
-          || ("p".equals(localName) && XmlPartSupport.isBlankText(XmlPartSupport.text(previous)))) continue;
+          || ("p".equals(localName) && XmlPartSupport.isBlankText(visibleWordText(previous)))) continue;
       if (!"p".equals(localName)) return false;
-      return TABLE_CAPTION.matcher(XmlPartSupport.text(previous).trim()).find();
+      return TABLE_CAPTION.matcher(visibleWordText(previous).trim()).find();
     }
     return false;
   }
@@ -750,6 +780,7 @@ public final class EquationParser {
   }
 
   private void collectEquationUnits(Element element, List<Element> units, String paragraphText) {
+    if (excludedFromCurrentDocument(element)) return;
     if (XmlPartSupport.M.equals(element.getNamespaceURI()) && "oMathPara".equals(element.getLocalName())) {
       units.add(element);
       return;
@@ -764,21 +795,91 @@ public final class EquationParser {
     if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "object".equals(element.getLocalName())) {
       Element ole = firstDescendant(element, "OLEObject");
       String progId = ole == null ? "" : ole.getAttribute("ProgID");
-      if (progId.equalsIgnoreCase("Equation.3") || progId.toLowerCase(java.util.Locale.ROOT).contains("mathtype")) {
+      if (isEquationProgId(progId)) {
         units.add(element);
         return;
       }
     }
     if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "drawing".equals(element.getLocalName())
-        && hasPicture(element) && NUMBER.matcher(paragraphText == null ? "" : paragraphText).find()) {
+        && embeddedEquationProgId(element) != null) {
+      units.add(element);
+      return;
+    }
+    if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "drawing".equals(element.getLocalName())
+        && hasPicture(element) && !hasOleContainer(element)
+        && NUMBER.matcher(paragraphText == null ? "" : paragraphText).find()) {
       units.add(element);
       return;
     }
     for (Element child : XmlPartSupport.children(element)) collectEquationUnits(child, units, paragraphText);
   }
 
+  private static String visibleWordText(Element element) {
+    var text = new StringBuilder();
+    appendVisibleWordText(element, text);
+    return text.toString();
+  }
+
+  private static String visibleMathText(Element element) {
+    var tokens = new ArrayList<String>();
+    collectVisibleMathRuns(element, tokens);
+    var text = new StringBuilder();
+    for (String token : tokens) {
+      if (!text.isEmpty() && isIdentifierPart(text.codePointBefore(text.length()))
+          && isIdentifierPart(token.codePointAt(0))) text.append(' ');
+      text.append(token);
+    }
+    return text.toString();
+  }
+
+  private static void collectVisibleMathRuns(Element element, List<String> tokens) {
+    if (excludedFromCurrentDocument(element)) return;
+    if (XmlPartSupport.M.equals(element.getNamespaceURI()) && "r".equals(element.getLocalName())) {
+      var token = new StringBuilder();
+      appendVisibleMathCharacters(element, token);
+      if (!token.isEmpty()) tokens.add(token.toString());
+      return;
+    }
+    for (Element child : XmlPartSupport.children(element)) collectVisibleMathRuns(child, tokens);
+  }
+
+  private static void appendVisibleMathCharacters(Element element, StringBuilder text) {
+    if (excludedFromCurrentDocument(element)) return;
+    if (XmlPartSupport.M.equals(element.getNamespaceURI()) && "t".equals(element.getLocalName())) {
+      text.append(element.getTextContent());
+      return;
+    }
+    for (Element child : XmlPartSupport.children(element)) appendVisibleMathCharacters(child, text);
+  }
+
+  private static void appendVisibleWordText(Element element, StringBuilder text) {
+    if (excludedFromCurrentDocument(element)) return;
+    if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "t".equals(element.getLocalName())) {
+      text.append(element.getTextContent());
+      return;
+    }
+    for (Element child : XmlPartSupport.children(element)) appendVisibleWordText(child, text);
+  }
+
+  private static boolean excludedFromCurrentDocument(Element element) {
+    String name = element.getLocalName();
+    return XmlPartSupport.W.equals(element.getNamespaceURI())
+            && ("del".equals(name) || "moveFrom".equals(name) || name.endsWith("PrChange"));
+  }
+
   private static boolean hasPicture(Element drawing) {
     return drawing.getElementsByTagNameNS("http://schemas.openxmlformats.org/drawingml/2006/picture", "pic").getLength() > 0;
+  }
+
+  private static boolean hasOleContainer(Element drawing) {
+    if (drawing.getElementsByTagNameNS("*", "OLEObject").getLength() > 0) return true;
+    var graphicData = drawing.getElementsByTagNameNS(
+        "http://schemas.openxmlformats.org/drawingml/2006/main", "graphicData");
+    for (int index = 0; index < graphicData.getLength(); index++) {
+      String uri = ((Element) graphicData.item(index)).getAttribute("uri");
+      if (uri.toLowerCase(java.util.Locale.ROOT).contains("/ole")) return true;
+    }
+    return false;
   }
 
   /** Finds embedded equation objects regardless of legacy VML or DrawingML container. */
@@ -790,18 +891,18 @@ public final class EquationParser {
       if (progId == null || progId.isBlank()) progId = object.getAttributeNS(XmlPartSupport.O, "ProgID");
       if (isEquationProgId(progId)) return progId;
     }
-    String uri = drawing.getElementsByTagNameNS("http://schemas.openxmlformats.org/drawingml/2006/main",
-        "graphicData").getLength() == 0 ? "" : ((Element) drawing
-            .getElementsByTagNameNS("http://schemas.openxmlformats.org/drawingml/2006/main", "graphicData")
-            .item(0)).getAttribute("uri");
-    return uri.toLowerCase(java.util.Locale.ROOT).contains("ole") ? "EmbeddedEquationObject" : null;
+    // The graphicData URI only identifies an OLE container. It does not
+    // distinguish an equation from an embedded spreadsheet or other object.
+    return null;
   }
 
   private static boolean isEquationProgId(String progId) {
     if (progId == null || progId.isBlank()) return false;
     String normalized = progId.toLowerCase(java.util.Locale.ROOT);
-    return normalized.startsWith("equation") || normalized.contains("mathtype")
-        || normalized.contains("mathcad") || normalized.contains("wps.math");
+    return normalized.startsWith("equation.") || normalized.equals("equation")
+        || normalized.startsWith("mathtype.") || normalized.equals("mathtype")
+        || normalized.startsWith("mathcad.") || normalized.equals("mathcad")
+        || normalized.startsWith("wps.math.") || normalized.equals("wps.math");
   }
 
   private static boolean isStandalone(String paragraphText) {

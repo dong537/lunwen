@@ -7,7 +7,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests package
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl libreoffice-writer \
+    && apt-get install -y --no-install-recommends curl fontconfig libreoffice-writer util-linux \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system thesis && useradd --system --gid thesis --home /app thesis \
     && mkdir -p /data/thesis-inspection /app/.cache \

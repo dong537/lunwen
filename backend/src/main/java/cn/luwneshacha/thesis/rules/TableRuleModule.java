@@ -7,7 +7,9 @@ import cn.luwneshacha.thesis.document.RunModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.document.TableModel;
 import cn.luwneshacha.thesis.document.TableFragmentEvidence;
+import cn.luwneshacha.thesis.rendering.RenderedLayoutEvidence;
 import java.math.BigInteger;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -18,6 +20,8 @@ import java.util.regex.Pattern;
 
 /** Owns thesis-table caption, border, citation, sequence, and continuation checks. */
 final class TableRuleModule implements RuleModule {
+  static final String NO_TABLE_NOTES_REASON =
+      "NO_TABLE_NOTES_IN_COMPLETE_INLINE_TABLE_INVENTORY";
   private static final Pattern TABLE_OR_FIGURE_CAPTION = Pattern.compile(
       "^(续表|表|图)\\s*[0-9一二三四五六七八九十]+", Pattern.CASE_INSENSITIVE);
   private static final Pattern TABLE_NUMBER = Pattern.compile(
@@ -32,26 +36,150 @@ final class TableRuleModule implements RuleModule {
   private final TableRuleChecker tableChecker = new TableRuleChecker();
   private final ParagraphFormatChecker paragraphFormatChecker = new ParagraphFormatChecker();
   private final DocumentRegionClassifier regions = new DocumentRegionClassifier();
+  private final RenderedLayoutEvidence renderedLayout;
+
+  TableRuleModule() { this(null); }
+
+  TableRuleModule(RenderedLayoutEvidence renderedLayout) {
+    this.renderedLayout = renderedLayout;
+  }
 
   @Override
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
+    return evaluate(document, rules).results();
+  }
+
+  @Override
+  public Evaluation evaluate(ParsedDocument document, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
+    var citationRun = new EvidenceCounter("TAB-01");
+    var borderRun = new EvidenceCounter("TAB-02");
+    var captionRun = new EvidenceCounter("TAB-03");
+    var unitRun = new EvidenceCounter("TAB-04");
+    var sequenceRun = new EvidenceCounter("TAB-05");
+    var placeholderRun = new EvidenceCounter("TAB-06");
+    var noteRun = new EvidenceCounter("TAB-07");
+    var continuationRun = new EvidenceCounter("TAB-08");
+    var continuationPositionRun = new EvidenceCounter("TAB-09");
+    var captionFontRun = new EvidenceCounter("CAPTION-FONT");
+    var captionSizeRun = new EvidenceCounter("CAPTION-SIZE");
+    boolean bodyBoundaryKnown = document.paragraphs().stream()
+        .anyMatch(paragraph -> !paragraph.insideTextBox()
+            && regions.isBodyChapterStart(paragraph, document));
     for (TableModel table : document.tables()) {
       if (isBeforeMainBodyTable(document, table)
           || isCodeListingTable(table)
           || isEquationLayoutTable(table, document.equations())) continue;
+      var checked = tableChecker.evaluate(document, table, rules);
+      for (var evidence : checked.evidence()) {
+        EvidenceCounter counter = switch (evidence.ruleId()) {
+          case "TAB-04" -> unitRun;
+          case "TAB-06" -> placeholderRun;
+          case "TAB-07" -> noteRun;
+          case "TAB-08" -> continuationRun;
+          default -> throw new IllegalStateException("Unsupported table evidence: " + evidence.ruleId());
+        };
+        counter.recordKnown(bodyBoundaryKnown && evidence.checked());
+      }
+      if (table.fragmentEvidence() == null && table.captionText() != null
+          && table.captionText().stripLeading().startsWith("续表")) {
+        CheckResult position = checkContinuationPosition(document, table);
+        results.add(position);
+        continuationPositionRun.record(position, bodyBoundaryKnown);
+      }
       if (table.fragmentEvidence() != null) {
-        results.addAll(tableChecker.check(document, table, rules));
+        results.addAll(checked.results());
         continue;
       }
-      checkTable(results, document, table, rules);
+      checkTable(results, document, table, rules, bodyBoundaryKnown, citationRun, borderRun,
+          captionRun, captionFontRun, captionSizeRun, checked.results());
     }
-    checkTableNumberSequences(results, document);
-    return List.copyOf(results);
+    checkTableNumberSequences(results, document, bodyBoundaryKnown, sequenceRun);
+    var runs = new ArrayList<RuleRun>();
+    for (var evidence : List.of(citationRun, borderRun, captionRun, unitRun, sequenceRun,
+        placeholderRun, noteRun, continuationRun, continuationPositionRun,
+        captionFontRun, captionSizeRun)) {
+      if (evidence.candidates > 0) runs.add(evidence.toRun());
+    }
+    if (noteRun.candidates == 0 && bodyBoundaryKnown && document.tableInventoryComplete()
+        && document.diagnostics().isEmpty()
+        && document.paragraphs().stream().noneMatch(ParagraphModel::insideTextBox)
+        && document.tables().stream().allMatch(table ->
+            table.flowPosition() == TableModel.FlowPosition.INLINE_BODY
+                && table.noteText() == null)) {
+      // A parsed, reconciled inventory of inline tables has no adjacent table-note
+      // candidate. Floating/nested tables and hand-built models cannot prove that.
+      runs.add(new RuleRun("TAB-07", "TableRuleModule", 0, 0, 0,
+          NO_TABLE_NOTES_REASON));
+    }
+    return new Evaluation(List.copyOf(results), List.copyOf(runs));
+  }
+
+  private CheckResult checkContinuationPosition(ParsedDocument document, TableModel table) {
+    SourceAddress source = table.captionSource() == null ? table.source() : table.captionSource();
+    String caption = table.captionText();
+    List<ParagraphModel> matchingParagraphs = document.paragraphs().stream()
+        .filter(paragraph -> canonicalCaption(paragraph.runs().stream().map(RunModel::text)
+            .collect(java.util.stream.Collectors.joining())).equals(canonicalCaption(caption)))
+        .toList();
+    boolean captionSourceMatches = table.captionSource() != null && matchingParagraphs.size() == 1
+        && matchingParagraphs.getFirst().source().partName().equals(table.captionSource().partName())
+        && matchingParagraphs.getFirst().source().elementPath().equals(table.captionSource().elementPath());
+    if (renderedLayout == null || !renderedLayout.matchesSource(document.sourceSha256())
+        || !captionSourceMatches)
+      return result("TAB-09", "续表编号行位于所在页正文第一行", "无法可靠确认页面位置",
+          "TABLE_CONTINUATION_PAGE_POSITION_UNKNOWN", Judgement.REVIEW, source);
+    var headerTexts = new ArrayList<String>();
+    document.headers().forEach(header -> headerTexts.add(header.text()));
+    var position = renderedLayout.continuationPosition(caption, headerTexts);
+    return switch (position.status()) {
+      case FIRST_BODY_LINE -> result("TAB-09", "续表编号行位于所在页正文第一行",
+          "第" + position.page() + "页正文第一行", "", Judgement.PASS, source);
+      case LATER_BODY_LINE -> result("TAB-09", "续表编号行位于所在页正文第一行",
+          "第" + position.page() + "页正文第" + position.bodyLineNumber() + "行",
+          "TABLE_CONTINUATION_NOT_FIRST_BODY_LINE", Judgement.FAIL, source);
+      case UNKNOWN -> result("TAB-09", "续表编号行位于所在页正文第一行",
+          "无法可靠确认页面位置", "TABLE_CONTINUATION_PAGE_POSITION_UNKNOWN",
+          Judgement.REVIEW, source);
+    };
+  }
+
+  private static String canonicalCaption(String value) {
+    return Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFKC)
+        .codePoints().filter(code -> !Character.isWhitespace(code) && !Character.isSpaceChar(code))
+        .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+        .toString();
+  }
+
+  private static final class EvidenceCounter {
+    private final String ruleId;
+    private int candidates;
+    private int unknown;
+
+    private EvidenceCounter(String ruleId) { this.ruleId = ruleId; }
+
+    private void recordKnown(boolean known) {
+      candidates++;
+      if (!known) unknown++;
+    }
+
+    private void record(CheckResult result, boolean scopeKnown) {
+      recordKnown(scopeKnown && result.judgement() != Judgement.REVIEW
+          && result.applicability() != Applicability.UNKNOWN
+          && result.executionStatus() == ExecutionStatus.EXECUTED);
+    }
+
+    private void unknown() { candidates++; unknown++; }
+
+    private RuleRun toRun() {
+      return new RuleRun(ruleId, "TableRuleModule", candidates, candidates - unknown, unknown, null);
+    }
   }
 
   private void checkTable(List<CheckResult> results, ParsedDocument document,
-      TableModel table, RuleSet rules) {
+      TableModel table, RuleSet rules, boolean bodyBoundaryKnown, EvidenceCounter citationRun,
+      EvidenceCounter borderRun, EvidenceCounter captionRun, EvidenceCounter captionFontRun,
+      EvidenceCounter captionSizeRun, List<CheckResult> tableFindings) {
     String captionText = table.captionText();
     if (captionText == null) {
       results.add(result("TAB-03", "表号和表题", null, "TABLE_CAPTION_MISSING", Judgement.FAIL,
@@ -75,15 +203,32 @@ final class TableRuleModule implements RuleModule {
           "TABLE_CAPTION_NUMBER_FORMAT", Judgement.FAIL, table.captionSource()));
     }
 
-    results.addAll(tableChecker.check(document, table, rules));
+    results.addAll(tableFindings);
     TableModel tail = document.tables().stream().filter(candidate -> candidate.fragmentEvidence() != null
         && candidate.fragmentEvidence().kind() == TableFragmentEvidence.Kind.DATA_ROW
         && candidate.fragmentEvidence().originalSource().equals(table.source()))
         .findFirst().orElse(table);
     checkBorders(results, table, tail, captionText);
-    checkBodyCitation(results, document, table, captionText, normalizedCaption);
-    captionParagraph(document, table.captionSource())
-        .ifPresent(paragraph -> checkCaptionParagraph(results, paragraph, captionText, rules));
+    borderRun.recordKnown(bodyBoundaryKnown
+        && (!table.hasTableStyle() || table.tableStyleBorderEvidenceResolved())
+        && (!tail.hasTableStyle() || tail.tableStyleBorderEvidenceResolved()));
+    checkBodyCitation(results, document, table, captionText, normalizedCaption,
+        bodyBoundaryKnown, citationRun);
+    var caption = captionParagraph(document, table.captionSource());
+    captionRun.recordKnown(bodyBoundaryKnown && !table.layoutNeedsReview()
+        && (captionText == null || (caption.isPresent() && caption.orElseThrow().alignment() != null)));
+    if (caption.isPresent()) {
+      int candidatesBefore = captionFontRun.candidates;
+      checkCaptionParagraph(results, caption.orElseThrow(), captionText, rules,
+          bodyBoundaryKnown, captionFontRun, captionSizeRun);
+      if (captionFontRun.candidates == candidatesBefore) {
+        captionFontRun.unknown();
+        captionSizeRun.unknown();
+      }
+    } else {
+      captionFontRun.unknown();
+      captionSizeRun.unknown();
+    }
   }
 
   private void checkBorders(List<CheckResult> results, TableModel table, TableModel tail, String captionText) {
@@ -115,19 +260,26 @@ final class TableRuleModule implements RuleModule {
   }
 
   private void checkBodyCitation(List<CheckResult> results, ParsedDocument document,
-      TableModel table, String captionText, String normalizedCaption) {
+      TableModel table, String captionText, String normalizedCaption,
+      boolean bodyBoundaryKnown, EvidenceCounter citationRun) {
     String tableNumber = tableNumberFromCaption(normalizedCaption);
-    if (tableNumber == null || (captionText != null && captionText.stripLeading().startsWith("续表"))) return;
+    if (captionText != null && captionText.stripLeading().startsWith("续表")) return;
+    if (tableNumber == null) {
+      citationRun.unknown();
+      return;
+    }
     SourceAddress referenceSource = table.captionSource() == null ? table.source() : table.captionSource();
     boolean cited = regions.isLabelReferencedInBody(document, tableNumber,
         table.captionSource(), TABLE_NUMBER);
     results.add(result("TAB-01", "body reference to table " + tableNumber,
         cited ? tableNumber : null, cited ? "" : "TABLE_NOT_CITED_IN_BODY",
         cited ? Judgement.PASS : Judgement.FAIL, referenceSource));
+    citationRun.recordKnown(bodyBoundaryKnown);
   }
 
   private void checkCaptionParagraph(List<CheckResult> results, ParagraphModel paragraph,
-      String captionText, RuleSet rules) {
+      String captionText, RuleSet rules, boolean bodyBoundaryKnown,
+      EvidenceCounter captionFontRun, EvidenceCounter captionSizeRun) {
     boolean continuation = captionText != null && captionText.stripLeading().startsWith("续表");
     String requiredAlignment = continuation ? "right" : "center";
     String alignmentError = continuation
@@ -146,11 +298,14 @@ final class TableRuleModule implements RuleModule {
     for (RunModel run : paragraph.runs()) {
       if (ParagraphFormatChecker.isLayoutControlOnly(run)) continue;
       results.add(paragraphFormatChecker.checkFont(run, rules, "CAPTION-FONT"));
+      captionFontRun.record(results.getLast(), bodyBoundaryKnown);
       results.add(checkCaptionSize(run));
+      captionSizeRun.record(results.getLast(), bodyBoundaryKnown);
     }
   }
 
-  private void checkTableNumberSequences(List<CheckResult> results, ParsedDocument document) {
+  private void checkTableNumberSequences(List<CheckResult> results, ParsedDocument document,
+      boolean bodyBoundaryKnown, EvidenceCounter sequenceRun) {
     Map<String, BigInteger> nextByChapter = new HashMap<>();
     for (TableModel table : document.tables()) {
       if (table.fragmentEvidence() != null || isBeforeMainBodyTable(document, table)
@@ -158,8 +313,13 @@ final class TableRuleModule implements RuleModule {
           || isEquationLayoutTable(table, document.equations())
           || regions.appendixLetterAt(document,
               table.captionSource() == null ? table.source() : table.captionSource()) != null) continue;
+      if (table.captionText() != null && table.captionText().stripLeading().startsWith("续表")) continue;
       Matcher matcher = TABLE_SEQUENCE.matcher(table.captionText() == null ? "" : table.captionText().stripLeading());
-      if (!matcher.matches()) continue;
+      if (!matcher.matches()) {
+        sequenceRun.unknown();
+        continue;
+      }
+      sequenceRun.recordKnown(bodyBoundaryKnown);
       checkNumberSequence(results, nextByChapter, matcher.group(1), matcher.group(2),
           table.captionText(), table.captionSource() == null ? table.source() : table.captionSource());
     }

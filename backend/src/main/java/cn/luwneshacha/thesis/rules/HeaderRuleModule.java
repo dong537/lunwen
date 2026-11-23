@@ -16,16 +16,27 @@ final class HeaderRuleModule implements RuleModule {
   private static final int EXPECTED_SIZE_HALF_POINTS = 21;
   @Override
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
+    return evaluate(document, rules).results();
+  }
+
+  @Override
+  public Evaluation evaluate(ParsedDocument document, RuleSet rules) {
     var findings = new ArrayList<CheckResult>();
+    var checks = new HeaderChecks();
     CoverHeaderScope coverScope = CoverHeaderScope.identify(document);
     if (document.sections().isEmpty()) {
       if (document.paragraphs().isEmpty()) {
+        checks.scope.unknown();
         findings.add(scopeUnknown(document, null, "section and document content unavailable"));
-      } else if (!coverScope.entireDocumentIsCover()) {
+      } else {
+        checks.scope.checked();
+      }
+      if (!document.paragraphs().isEmpty() && !coverScope.entireDocumentIsCover()) {
+        checks.missing.checked();
         findings.add(result("HEADER-01-MISSING", EXPECTED_TEXT, "implicit section has no header reference",
             "HEADER_MISSING", Judgement.FAIL, coverScope.firstRequiredSource(), coverScope.firstRequiredSource()));
       }
-      return findings;
+      return new Evaluation(findings, checks.runs());
     }
 
     Set<String> checkedParts = new HashSet<>();
@@ -33,9 +44,11 @@ final class HeaderRuleModule implements RuleModule {
       int currentSectionIndex = sectionIndex;
       SectionModel section = document.sections().get(sectionIndex);
       if (section.source() == null || !"word/document.xml".equals(section.source().partName())) {
+        checks.scope.unknown();
         findings.add(scopeUnknown(document, section.source(), "section XML evidence unavailable"));
         continue;
       }
+      checks.scope.checked();
       if (coverScope.sectionIsCoverOnly(sectionIndex)) continue;
       SourceAddress contextSource = sectionContext(document, coverScope, sectionIndex);
       List<HeaderModel.Type> requiredTypes = new ArrayList<>();
@@ -44,6 +57,7 @@ final class HeaderRuleModule implements RuleModule {
         requiredTypes.add(HeaderModel.Type.FIRST);
       if (section.evenPageHeaderEnabled()) requiredTypes.add(HeaderModel.Type.EVEN);
       for (HeaderModel.Type type : requiredTypes) {
+        checks.missing.checked();
         HeaderModel header = document.headers().stream()
             .filter(candidate -> candidate.applicableSectionIndexesByType()
                 .getOrDefault(type, List.of()).contains(currentSectionIndex))
@@ -52,11 +66,64 @@ final class HeaderRuleModule implements RuleModule {
           findings.add(result("HEADER-01-MISSING", EXPECTED_TEXT, "missing " + type.xmlValue() + " header",
               "HEADER_MISSING", Judgement.FAIL, section.source(), contextSource));
         } else if (checkedParts.add(header.source().partName())) {
+          checks.recordHeader(header);
           checkHeader(findings, header, contextSource);
         }
       }
     }
-    return findings;
+    return new Evaluation(findings, checks.runs());
+  }
+
+  /** Records the exact candidates traversed above; a partial section mapping cannot certify later rules. */
+  private static final class HeaderChecks {
+    private final RunCounter scope = new RunCounter();
+    private final RunCounter missing = new RunCounter();
+    private final RunCounter text = new RunCounter();
+    private final RunCounter alignment = new RunCounter();
+    private final RunCounter font = new RunCounter();
+    private final RunCounter size = new RunCounter();
+
+    private void recordHeader(HeaderModel header) {
+      text.checked();
+      if (header.centered() == null) alignment.unknown();
+      else alignment.checked();
+      if (header.runFormatting().isEmpty()) {
+        font.unknown();
+        size.unknown();
+      } else {
+        for (HeaderModel.RunFormatting run : header.runFormatting()) {
+          if (run.asciiFont() == null || run.eastAsiaFont() == null) font.unknown();
+          else font.checked();
+          if (run.sizeHalfPoints() == null) size.unknown();
+          else size.checked();
+        }
+      }
+    }
+
+    private List<RuleRun> runs() {
+      var runs = new ArrayList<RuleRun>();
+      scope.addRun(runs, "HEADER-01-SCOPE");
+      if (scope.unknownCount > 0) return List.copyOf(runs);
+      missing.addRun(runs, "HEADER-01-MISSING");
+      text.addRun(runs, "HEADER-01-TEXT");
+      alignment.addRun(runs, "HEADER-01-ALIGNMENT");
+      font.addRun(runs, "HEADER-01-FONT");
+      size.addRun(runs, "HEADER-01-SIZE");
+      return List.copyOf(runs);
+    }
+  }
+
+  private static final class RunCounter {
+    private int candidateCount;
+    private int checkedCount;
+    private int unknownCount;
+
+    private void checked() { candidateCount++; checkedCount++; }
+    private void unknown() { candidateCount++; unknownCount++; }
+    private void addRun(List<RuleRun> runs, String ruleId) {
+      if (candidateCount > 0) runs.add(new RuleRun(ruleId, "HeaderRuleModule", candidateCount,
+          checkedCount, unknownCount, null));
+    }
   }
 
   private void checkHeader(List<CheckResult> findings, HeaderModel header, SourceAddress contextSource) {

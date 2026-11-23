@@ -29,7 +29,49 @@ public record TableModel(
     boolean codeLayout,
     List<List<String>> dataRowTexts,
     List<Integer> repeatingHeaderRowIndexes,
-    TableFragmentEvidence fragmentEvidence) {
+    TableFragmentEvidence fragmentEvidence,
+    FlowPosition flowPosition,
+    @com.fasterxml.jackson.annotation.JsonIgnore List<CellEvidence> cellEvidence) {
+  public enum FlowPosition { INLINE_BODY, FLOATING, UNKNOWN }
+  /** Structural table-cell facts; a header is present only when column mapping is proven. */
+  public record CellEvidence(SourceAddress source, int rowIndex, String columnHeader,
+      boolean fullWidth, int paragraphCount) {}
+
+  public TableModel(SourceAddress source, SourceAddress captionSource, String captionText,
+      int rows, int columns, boolean topBorder, boolean middleBorder, boolean bottomBorder,
+      boolean verticalBorders, boolean captionBefore, boolean layoutNeedsReview,
+      boolean mergedCells, List<Integer> columnWidthsTwips, List<Integer> rowHeightsTwips,
+      List<String> headerTexts, String noteText, SourceAddress noteSource,
+      boolean repeatedPlaceholderText, boolean hasTableStyle, String sharedUnitText,
+      boolean sharedUnitRightAligned, boolean tableStyleBorderEvidenceResolved,
+      boolean xmlNumericValuesValid, boolean codeLayout, List<List<String>> dataRowTexts,
+      List<Integer> repeatingHeaderRowIndexes, TableFragmentEvidence fragmentEvidence,
+      FlowPosition flowPosition) {
+    this(source, captionSource, captionText, rows, columns, topBorder, middleBorder,
+        bottomBorder, verticalBorders, captionBefore, layoutNeedsReview, mergedCells,
+        columnWidthsTwips, rowHeightsTwips, headerTexts, noteText, noteSource,
+        repeatedPlaceholderText, hasTableStyle, sharedUnitText, sharedUnitRightAligned,
+        tableStyleBorderEvidenceResolved, xmlNumericValuesValid, codeLayout, dataRowTexts,
+        repeatingHeaderRowIndexes, fragmentEvidence, flowPosition, List.of());
+  }
+
+  public TableModel(SourceAddress source, SourceAddress captionSource, String captionText,
+      int rows, int columns, boolean topBorder, boolean middleBorder, boolean bottomBorder,
+      boolean verticalBorders, boolean captionBefore, boolean layoutNeedsReview,
+      boolean mergedCells, List<Integer> columnWidthsTwips, List<Integer> rowHeightsTwips,
+      List<String> headerTexts, String noteText, SourceAddress noteSource,
+      boolean repeatedPlaceholderText, boolean hasTableStyle, String sharedUnitText,
+      boolean sharedUnitRightAligned, boolean tableStyleBorderEvidenceResolved,
+      boolean xmlNumericValuesValid, boolean codeLayout, List<List<String>> dataRowTexts,
+      List<Integer> repeatingHeaderRowIndexes, TableFragmentEvidence fragmentEvidence) {
+    this(source, captionSource, captionText, rows, columns, topBorder, middleBorder, bottomBorder,
+        verticalBorders, captionBefore, layoutNeedsReview, mergedCells, columnWidthsTwips,
+        rowHeightsTwips, headerTexts, noteText, noteSource, repeatedPlaceholderText, hasTableStyle,
+        sharedUnitText, sharedUnitRightAligned, tableStyleBorderEvidenceResolved,
+        xmlNumericValuesValid, codeLayout, dataRowTexts, repeatingHeaderRowIndexes,
+        fragmentEvidence, FlowPosition.UNKNOWN);
+  }
+
   public TableModel(SourceAddress source, SourceAddress captionSource, String captionText,
       int rows, int columns, boolean topBorder, boolean middleBorder, boolean bottomBorder,
       boolean verticalBorders, boolean captionBefore, boolean layoutNeedsReview,
@@ -52,7 +94,15 @@ public record TableModel(
         columnWidthsTwips, rowHeightsTwips, headerTexts, noteText, noteSource,
         repeatedPlaceholderText, hasTableStyle, sharedUnitText, sharedUnitRightAligned,
         tableStyleBorderEvidenceResolved, xmlNumericValuesValid, codeLayout, dataRowTexts,
-        repeatingHeaderRowIndexes, evidence);
+        repeatingHeaderRowIndexes, evidence, flowPosition, cellEvidence);
+  }
+  public TableModel withCellEvidence(List<CellEvidence> cells) {
+    return new TableModel(source, captionSource, captionText, rows, columns, topBorder, middleBorder,
+        bottomBorder, verticalBorders, captionBefore, layoutNeedsReview, mergedCells,
+        columnWidthsTwips, rowHeightsTwips, headerTexts, noteText, noteSource,
+        repeatedPlaceholderText, hasTableStyle, sharedUnitText, sharedUnitRightAligned,
+        tableStyleBorderEvidenceResolved, xmlNumericValuesValid, codeLayout, dataRowTexts,
+        repeatingHeaderRowIndexes, fragmentEvidence, flowPosition, cells);
   }
   public TableModel(SourceAddress source, SourceAddress captionSource, String captionText,
       int rows, int columns, boolean topBorder, boolean middleBorder, boolean bottomBorder,
@@ -142,6 +192,8 @@ public record TableModel(
   }
 
   public TableModel {
+    flowPosition = flowPosition == null ? FlowPosition.UNKNOWN : flowPosition;
+    cellEvidence = List.copyOf(cellEvidence == null ? List.of() : cellEvidence);
     dataRowTexts = dataRowTexts.stream().map(List::copyOf).toList();
     columnWidthsTwips = List.copyOf(columnWidthsTwips == null ? List.of() : columnWidthsTwips);
     rowHeightsTwips = List.copyOf(rowHeightsTwips == null ? List.of() : rowHeightsTwips);

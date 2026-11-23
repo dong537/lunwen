@@ -11,13 +11,13 @@ public final class ReferenceParser {
   private static final Pattern END_HEADING = Pattern.compile(
       "^(?:致[\\s\\p{Zs}]*谢|Acknowledg(?:e)?ments?|附[\\s\\p{Zs}]*录(?:[\\s\\p{Zs}]*[A-Z](?:[\\s\\p{Zs}]+\\S.*|\\p{IsHan}.*)?|[\\s\\p{Zs}]+\\S.*)?|Appendix(?:[\\s\\p{Zs}]+[A-Z])?(?:[\\s\\p{Zs}]+\\S.*)?)[\\s\\p{Zs}]*$",
       Pattern.CASE_INSENSITIVE);
-  private static final Pattern NUMBER = Pattern.compile("^\\s*\\[(\\d+)\\]");
+  private static final Pattern NUMBER = Pattern.compile("^\\s*[\\[［](\\d+)[\\]］]");
   private static final Pattern BIBLIOGRAPHIC_CATEGORY = Pattern.compile(
-      "\\[(?:EB|DB|CP|M|J|D|C|N|R|S|P|Z|A)(?:/(?:OL|CD|DK|MT))?\\](?=[\\s\\p{Zs}]*(?:[.。．]|//|$))",
+      "[\\[［](?:EB|DB|CP|M|J|D|C|N|R|S|P|Z|A)(?:/(?:OL|CD|DK|MT))?[\\]］](?=[\\s\\p{Zs}]*(?:[.。．]|//|$))",
       Pattern.CASE_INSENSITIVE);
   /** GB/T 7714 常见文献类型：单字母类型，以及电子资源、数据库和计算机程序。 */
   private static final Pattern CATEGORY = Pattern.compile(
-      "\\[((?:EB|DB|CP|M|J|D|C|N|R|S|P|Z|A)(?:/(?:OL|CD|DK|MT))?)\\](?=[\\s\\p{Zs}]*(?:[.。．]|//|$))");
+      "[\\[［]((?:EB|DB|CP|M|J|D|C|N|R|S|P|Z|A)(?:/(?:OL|CD|DK|MT))?)[\\]］](?=[\\s\\p{Zs}]*(?:[.。．]|//|$))");
   private static final Pattern YEAR = Pattern.compile("(?<!\\d)((?:19|20)\\d{2})(?!\\d)");
   private static final Pattern NEWSPAPER_PAGE = Pattern.compile(
       "(?<!\\d)(?:19|20)\\d{2}[-－]\\d{1,2}[-－]\\d{1,2}\\s*[（(](\\d{1,3})[）)]");
@@ -32,9 +32,9 @@ public final class ReferenceParser {
   private static final String PAGE_SEQUENCE = PAGE_ATOM + "(?:[+＋]" + PAGE_ATOM + ")*";
   private static final Pattern PAGES = Pattern.compile(
       "(?:(?:[:：])\\s*(" + PAGE_SEQUENCE + ")|(?:[,，])\\s*(\\d+[-－][\\s\\p{Zs}]*\\d+(?:[+＋]\\d+(?:[-－][\\s\\p{Zs}]*\\d+)?)*))"
-          + "(?=\\s*(?:[.。．,，;；)\\]\\[]|$))");
+          + "(?=\\s*(?:[.。．,，;；)\\]］\\[［]|$))");
   private static final Pattern URL = Pattern.compile("(?i)\\b(?:https?://|www\\.)\\S+");
-  private static final Pattern ACCESS_DATE = Pattern.compile("\\[(\\d{4}-\\d{1,2}-\\d{1,2})\\]");
+  private static final Pattern ACCESS_DATE = Pattern.compile("[\\[［](\\d{4}-\\d{1,2}-\\d{1,2})[\\]］]");
 
   public List<ReferenceEntryModel> parse(List<ParagraphModel> paragraphs) {
     var result = new ArrayList<ReferenceEntryModel>();

@@ -23,6 +23,127 @@ class ContentsRuleCheckerTest {
   private static final SourceAddress TITLE_SOURCE = source(0);
 
   @Test
+  void countsOnlyVisitedContentsTitleAndEntryFormatCandidates() {
+    var document = document(
+        paragraph("目    录", 0, "黑体", 32, "center"),
+        paragraph("", 1, "宋体", 24, "left"),
+        tocEntry("第一章  引言……1", 2, "宋体", 24, 0, null),
+        bodyChapter("第一章 引言", 3));
+    var checker = new ContentsRuleChecker(new ParagraphFormatChecker());
+
+    var evaluation = checker.evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(checker.check(document, RuleSet.schoolV1()), evaluation.results());
+    for (String ruleId : List.of("TOC-01-SPACING", "TOC-01-BLANK", "TOC-01-FONT",
+        "TOC-01-SIZE", "TOC-01-LINE", "TOC-01-ALIGNMENT", "TOC-ENTRY-FONT",
+        "TOC-ENTRY-SIZE", "TOC-ENTRY-LINE", "TOC-ENTRY-INDENT", "TOC-ENTRY-PAGE")) {
+      assertEquals(new RuleRun(ruleId, "ContentsRuleChecker", 1, 1, 0, null), run(evaluation, ruleId));
+    }
+    assertEquals(new RuleRun("TOC-REQUIRED-ENTRY", "ContentsRuleChecker", 3, 3, 0, null),
+        run(evaluation, "TOC-REQUIRED-ENTRY"));
+    assertEquals(new RuleRun("TOC-SPACING", "ContentsRuleChecker", 1, 1, 0, null),
+        run(evaluation, "TOC-SPACING"));
+    assertEquals(new RuleRun("TOC-02", "ContentsRuleChecker", 2, 2, 0, null),
+        run(evaluation, "TOC-02"));
+    for (String ruleId : List.of("EN-TOC-01-BOLD", "EN-TOC-01-ALIGNMENT",
+        "EN-TOC-01-FONT", "EN-TOC-01-SIZE", "EN-TOC-01-LINE")) {
+      assertEquals(new RuleRun(ruleId, "ContentsRuleChecker", 0, 0, 0,
+          "NO_ENGLISH_CONTENTS_TITLE"), run(evaluation, ruleId));
+    }
+  }
+
+  @Test
+  void noNumberedContentsEntryHasNoSpacingCandidateAfterTheBodyBoundary() {
+    var document = document(
+        paragraph("目    录", 0, "黑体", 32, "center"),
+        paragraph("", 1, "宋体", 24, "left"),
+        paragraph("参考文献……1", 2, "宋体", 24, "left"),
+        bodyChapter("第一章 引言", 3),
+        paragraph("参考文献", 4, "黑体", 32, "center"));
+
+    var evaluation = new ContentsRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(new RuleRun("TOC-SPACING", "ContentsRuleChecker", 0, 0, 0,
+        "NO_NUMBERED_TOC_ENTRIES"), run(evaluation, "TOC-SPACING"));
+    assertTrue(evaluation.results().stream()
+        .noneMatch(result -> "TOC-SPACING".equals(result.ruleId())));
+  }
+
+  @Test
+  void incompleteContentsRegionDoesNotProveAnEmptySpacingOrCorrespondenceScope() {
+    var document = document(
+        paragraph("目    录", 0, "黑体", 32, "center"),
+        paragraph("", 1, "宋体", 24, "left"),
+        paragraph("说明文字", 2, "宋体", 24, "left"));
+
+    var evaluation = new ContentsRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    assertTrue(evaluation.ruleRuns().stream()
+        .noneMatch(run -> "NO_NUMBERED_TOC_ENTRIES".equals(run.notApplicableReason())
+            || "NO_ENGLISH_CONTENTS_TITLE".equals(run.notApplicableReason())));
+    assertEquals(new RuleRun("TOC-02", "ContentsRuleChecker", 1, 0, 1, null),
+        run(evaluation, "TOC-02"));
+  }
+
+  @Test
+  void anEndMatterLabelAloneDoesNotProveTheBodyBoundaryForEmptyScope() {
+    var document = document(
+        paragraph("目    录", 0, "黑体", 32, "center"),
+        paragraph("", 1, "宋体", 24, "left"),
+        paragraph("参考文献……1", 2, "宋体", 24, "left"),
+        paragraph("参考文献", 3, "黑体", 32, "center"));
+
+    var evaluation = new ContentsRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    assertTrue(evaluation.ruleRuns().stream()
+        .noneMatch(run -> "NO_NUMBERED_TOC_ENTRIES".equals(run.notApplicableReason())
+            || "NO_ENGLISH_CONTENTS_TITLE".equals(run.notApplicableReason())));
+    assertEquals(new RuleRun("TOC-02", "ContentsRuleChecker", 2, 0, 2, null),
+        run(evaluation, "TOC-02"));
+    assertEquals(new RuleRun("TOC-02-ORDER", "ContentsRuleChecker", 1, 0, 1, null),
+        run(evaluation, "TOC-02-ORDER"));
+  }
+
+  @Test
+  void doesNotClaimContentsCoverageWithoutAContentsTitle() {
+    var document = document(paragraph("第一章 引言", 0, "黑体", 32, "center"));
+
+    var evaluation = new ContentsRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    assertTrue(evaluation.ruleRuns().isEmpty());
+  }
+
+  @Test
+  void preservesUnknownEntryCandidatesForUnclassifiedContentsLines() {
+    var document = document(
+        paragraph("目    录", 0, "黑体", 32, "center"),
+        paragraph("", 1, "宋体", 24, "left"),
+        paragraph("说明文字", 2, "宋体", 24, "left"),
+        tocEntry("第一章  引言……1", 3, "宋体", 24, 0, null),
+        paragraph("第一章 引言", 4, "黑体", 32, "center"));
+
+    var evaluation = new ContentsRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    for (String ruleId : List.of("TOC-ENTRY-FONT", "TOC-ENTRY-SIZE", "TOC-ENTRY-LINE",
+        "TOC-ENTRY-INDENT", "TOC-ENTRY-PAGE")) {
+      assertEquals(new RuleRun(ruleId, "ContentsRuleChecker", 2, 1, 1, null),
+          run(evaluation, ruleId));
+    }
+    assertEquals(new RuleRun("TOC-02-ORDER", "ContentsRuleChecker", 1, 0, 1, null),
+        run(evaluation, "TOC-02-ORDER"));
+  }
+
+  private static RuleRun run(RuleModule.Evaluation evaluation, String ruleId) {
+    return evaluation.ruleRuns().stream().filter(value -> value.ruleId().equals(ruleId))
+        .findFirst().orElseThrow();
+  }
+
+  @Test
   void reportsContentsEntryWithoutMatchingBodyHeading() {
     var document = document(
         paragraph("目    录", 0, "黑体", 32, "center"),
@@ -103,6 +224,40 @@ class ContentsRuleCheckerTest {
             && result.reasonCode().equals("TOC_BODY_ORDER_MISMATCH")));
     assertTrue(new ContentsRuleChecker(new ParagraphFormatChecker()).check(document, RuleSet.schoolV1()).stream()
         .noneMatch(result -> result.ruleId().equals("TOC-02-ORDER")));
+  }
+
+  @Test
+  void recordsOrderEvidenceOnlyForComparableContentsAndBodyHeadingLists() {
+    var document = document(
+        paragraph("目    录", 0, "黑体", 32, "center"),
+        paragraph("", 1, "宋体", 24, "left"),
+        paragraph("第一章  引言……1", 2, "宋体", 24, "left"),
+        paragraph("第二章  方法……2", 3, "宋体", 24, "left"),
+        bodyChapter("第一章 引言", 4),
+        bodyChapter("第二章 方法", 5));
+    var checker = new ContentsRuleChecker(new ParagraphFormatChecker());
+
+    var evaluation = checker.evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(new RuleRun("TOC-02-ORDER", "ContentsRuleChecker", 1, 1, 0, null),
+        run(evaluation, "TOC-02-ORDER"));
+    assertEquals(checker.check(document, RuleSet.schoolV1()), evaluation.results());
+  }
+
+  @Test
+  void keepsOrderEvidenceUnknownWhenHeadingInventoriesDiffer() {
+    var document = document(
+        paragraph("目    录", 0, "黑体", 32, "center"),
+        paragraph("", 1, "宋体", 24, "left"),
+        paragraph("第一章  引言……1", 2, "宋体", 24, "left"),
+        paragraph("第一章 绪论", 3, "黑体", 32, "center"));
+
+    var evaluation = new ContentsRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(new RuleRun("TOC-02-ORDER", "ContentsRuleChecker", 1, 0, 1, null),
+        run(evaluation, "TOC-02-ORDER"));
+    assertTrue(evaluation.results().stream().anyMatch(result -> "TOC-02".equals(result.ruleId())));
   }
 
   @Test
@@ -754,6 +909,12 @@ class ContentsRuleCheckerTest {
     var source = new SourceAddress("word/document.xml", path, 0, text.length());
     return new ParagraphModel(List.of(new RunModel(text, "Times New Roman", "宋体",
         null, 24, false, source)), 0, null, null, null, 360, "auto", source, 0, null, "left");
+  }
+
+  private static ParagraphModel bodyChapter(String text, int index) {
+    var source = source(index);
+    return new ParagraphModel(List.of(new RunModel(text, "Times New Roman", "黑体",
+        null, 32, false, source)), 0, null, null, null, 360, "auto", source, 0, 0, "center");
   }
 
   private static ParagraphModel tocEntry(String text, int index, String eastAsiaFont, int size,

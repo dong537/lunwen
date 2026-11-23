@@ -182,17 +182,20 @@ final class DocumentRegionClassifier {
 
   boolean isFigureReferencedInBody(ParsedDocument document, String targetNumber, SourceAddress captionSource,
       Pattern figureNumberPattern) {
-    return isLabelReferencedInBody(document, targetNumber, captionSource, figureNumberPattern);
+    return isLabelReferencedInBody(document, targetNumber, captionSource, figureNumberPattern,
+        figureCaptionOuterParagraph(document, captionSource));
   }
 
   boolean hasUnnumberedFigureReference(ParsedDocument document, SourceAddress captionSource,
       Pattern figureNumberPattern, Pattern unnumberedReferencePattern) {
     boolean inMainBody = false;
+    SourceAddress captionOuter = figureCaptionOuterParagraph(document, captionSource);
     for (ParagraphModel paragraph : document.paragraphs()) {
       String text = paragraphText(paragraph);
       if (isBodyChapterStart(paragraph, document)) inMainBody = true;
       if (inMainBody && isEndMatterHeading(paragraph, document)) inMainBody = false;
-      if (!inMainBody || isInsideTable(paragraph, document.tables()) || (captionSource != null
+      if (!inMainBody || isSameGroupedTextBox(paragraph, captionOuter)
+          || isInsideTable(paragraph, document.tables()) || (captionSource != null
           && paragraph.source().elementPath().equals(captionSource.elementPath()))) continue;
       if (unnumberedReferencePattern.matcher(text).find() && !figureNumberPattern.matcher(text).find()) return true;
     }
@@ -201,13 +204,18 @@ final class DocumentRegionClassifier {
 
   boolean isLabelReferencedInBody(ParsedDocument document, String targetNumber, SourceAddress captionSource,
       Pattern labelPattern) {
+    return isLabelReferencedInBody(document, targetNumber, captionSource, labelPattern, null);
+  }
+
+  private boolean isLabelReferencedInBody(ParsedDocument document, String targetNumber,
+      SourceAddress captionSource, Pattern labelPattern, SourceAddress excludedFigureGroup) {
     boolean inMainBody = false;
     String normalizedTarget = targetNumber.replace('－', '-');
     for (ParagraphModel paragraph : document.paragraphs()) {
       String text = paragraphText(paragraph);
       if (isBodyChapterStart(paragraph, document)) inMainBody = true;
       if (inMainBody && isEndMatterHeading(paragraph, document)) inMainBody = false;
-      if (!inMainBody || (captionSource != null
+      if (!inMainBody || isSameGroupedTextBox(paragraph, excludedFigureGroup) || (captionSource != null
           && paragraph.source().elementPath().equals(captionSource.elementPath()))
           || isInsideTable(paragraph, document.tables()) || TABLE_OR_FIGURE_CAPTION.matcher(text).find()) continue;
       Matcher reference = labelPattern.matcher(text);
@@ -217,6 +225,31 @@ final class DocumentRegionClassifier {
       }
     }
     return false;
+  }
+
+  private SourceAddress figureCaptionOuterParagraph(ParsedDocument document, SourceAddress captionSource) {
+    if (captionSource == null) return null;
+    boolean captionInsideTextBox = document.paragraphs().stream().anyMatch(paragraph ->
+        paragraph.insideTextBox() && paragraph.source().partName().equals(captionSource.partName())
+            && paragraph.source().elementPath().equals(captionSource.elementPath()));
+    if (!captionInsideTextBox) return null;
+    SourceAddress outer = null;
+    for (ParagraphModel paragraph : document.paragraphs()) {
+      if (paragraph.insideTextBox() || !paragraph.source().partName().equals(captionSource.partName())) continue;
+      List<Integer> path = paragraph.source().elementPath();
+      List<Integer> captionPath = captionSource.elementPath();
+      if (path.size() >= captionPath.size() || !captionPath.subList(0, path.size()).equals(path)) continue;
+      if (outer == null || path.size() > outer.elementPath().size()) outer = paragraph.source();
+    }
+    return outer;
+  }
+
+  private boolean isSameGroupedTextBox(ParagraphModel paragraph, SourceAddress outer) {
+    if (outer == null || !paragraph.insideTextBox()
+        || !paragraph.source().partName().equals(outer.partName())) return false;
+    List<Integer> outerPath = outer.elementPath();
+    List<Integer> path = paragraph.source().elementPath();
+    return path.size() > outerPath.size() && path.subList(0, outerPath.size()).equals(outerPath);
   }
 
   static String paragraphText(ParagraphModel paragraph) {

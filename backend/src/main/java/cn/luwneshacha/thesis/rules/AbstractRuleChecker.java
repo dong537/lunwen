@@ -4,9 +4,12 @@ import cn.luwneshacha.thesis.document.ParagraphModel;
 import cn.luwneshacha.thesis.document.ParsedDocument;
 import cn.luwneshacha.thesis.document.RunModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
+import cn.luwneshacha.thesis.rendering.RenderedLayoutEvidence;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,21 +30,34 @@ final class AbstractRuleChecker implements RuleModule {
 
   private final ParagraphFormatChecker formatChecker;
   private final HeadingRuleChecker headingChecker;
+  private final RenderedLayoutEvidence renderedLayout;
 
   AbstractRuleChecker(ParagraphFormatChecker formatChecker) {
+    this(formatChecker, null);
+  }
+
+  AbstractRuleChecker(ParagraphFormatChecker formatChecker, RenderedLayoutEvidence renderedLayout) {
     this.formatChecker = formatChecker;
     this.headingChecker = new HeadingRuleChecker(formatChecker);
+    this.renderedLayout = renderedLayout;
   }
 
   @Override
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
+    return evaluate(document, rules).results();
+  }
+
+  @Override
+  public Evaluation evaluate(ParsedDocument document, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
+    var evidence = new Evidence();
     String language = null;
     boolean needTitleBlank = false;
     boolean previousWasBlank = false;
     int titleBlankLineCount = 0;
     boolean titleBlankCountReported = false;
     boolean countingTitleBlankLines = false;
+    String pendingTitleBlankRule = null;
     int abstractBlankLinesBeforeParagraph = 0;
     boolean bodyStarted = false;
     DocumentRegionClassifier regions = new DocumentRegionClassifier();
@@ -59,6 +75,9 @@ final class AbstractRuleChecker implements RuleModule {
         continue;
       }
       if (normalized.equals("摘要")) {
+        evidence.completed("ZH-01-SPACING");
+        pendingTitleBlankRule = "ZH-02-BLANK";
+        evidence.unknown(pendingTitleBlankRule);
         language = "zh";
         titleBlankLineCount = ManualLineBreakSupport.blankLinesAfter(paragraph);
         needTitleBlank = titleBlankLineCount == 0;
@@ -73,6 +92,8 @@ final class AbstractRuleChecker implements RuleModule {
         continue;
       }
       if (normalized.equalsIgnoreCase("ABSTRACT")) {
+        pendingTitleBlankRule = "EN-01-BLANK";
+        evidence.unknown(pendingTitleBlankRule);
         language = "en";
         titleBlankLineCount = ManualLineBreakSupport.blankLinesAfter(paragraph);
         needTitleBlank = titleBlankLineCount == 0;
@@ -98,10 +119,18 @@ final class AbstractRuleChecker implements RuleModule {
               String.valueOf(titleBlankLineCount), "ABSTRACT_TITLE_BLANK_LINE_COUNT_MISMATCH",
               Judgement.FAIL, paragraph.source()));
           titleBlankCountReported = true;
+          if (pendingTitleBlankRule != null) {
+            evidence.resolveUnknown(pendingTitleBlankRule);
+            pendingTitleBlankRule = null;
+          }
         }
         if (needTitleBlank) needTitleBlank = false;
         previousWasBlank = true;
         continue;
+      }
+      if (pendingTitleBlankRule != null) {
+        evidence.resolveUnknown(pendingTitleBlankRule);
+        pendingTitleBlankRule = null;
       }
       if (needTitleBlank) {
         results.add(result("zh".equals(language) ? "ZH-02-BLANK" : "EN-01-BLANK", "空一行",
@@ -115,7 +144,11 @@ final class AbstractRuleChecker implements RuleModule {
         titleBlankCountReported = true;
       }
       countingTitleBlankLines = false;
-      boolean keywords = normalized.matches("(?i)^(关键词|keywords)[:：].*");
+      // A misspelled Chinese label is still an identifiable keyword paragraph.
+      // Visit its format, bold, alignment and blank-line candidates; the format
+      // check below rejects the label instead of silently dropping all owners.
+      boolean keywords = normalized.matches("(?i)^(关键词|关键字|keywords)[:：].*");
+      if (keywords) evidence.completed("zh".equals(language) ? "ZH-04-BLANK" : "EN-03-BLANK");
       if (keywords && abstractBlankLinesBeforeParagraph > 1) {
         results.add(result("zh".equals(language) ? "ZH-04-BLANK" : "EN-03-BLANK", "空一行",
             String.valueOf(abstractBlankLinesBeforeParagraph),
@@ -127,29 +160,74 @@ final class AbstractRuleChecker implements RuleModule {
       }
       for (RunModel run : paragraph.runs()) {
         if (ManualLineBreakSupport.isBreakOnly(run.text())) continue;
-        results.add(formatChecker.checkFont(run, rules, "ABSTRACT-FONT"));
-        results.add(formatChecker.checkSize(run, rules, "ABSTRACT-SIZE"));
+        assess(results, evidence, formatChecker.checkFont(run, rules, "ABSTRACT-FONT"));
+        assess(results, evidence, formatChecker.checkSize(run, rules, "ABSTRACT-SIZE"));
       }
-      results.add(formatChecker.checkIndent(paragraph, rules, "ABSTRACT-INDENT"));
-      results.add(formatChecker.checkLineSpacing("ABSTRACT-LINE", paragraph));
+      assess(results, evidence, formatChecker.checkIndent(paragraph, rules, "ABSTRACT-INDENT"));
+      assess(results, evidence, formatChecker.checkLineSpacing("ABSTRACT-LINE", paragraph));
       if (keywords) {
         if ("zh".equals(language)) {
-          results.add(checkKeywordAlignment(paragraph));
-          results.add(checkChineseKeywordLabelBold(paragraph));
-          results.add(checkChineseKeywordFormat(paragraph, text));
+          assess(results, evidence, checkKeywordAlignment(paragraph));
+          assess(results, evidence, checkChineseKeywordLabelBold(paragraph));
+          assess(results, evidence, checkChineseKeywordFormat(paragraph, text));
         } else {
-          results.add(checkEnglishKeywordLabelBold(paragraph));
-          results.add(checkEnglishKeywordFormat(paragraph, text));
-          if (text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0) {
-            results.add(checkEnglishKeywordWrapAlignment(paragraph, text));
-          }
+          assess(results, evidence, checkEnglishKeywordLabelBold(paragraph));
+          assess(results, evidence, checkEnglishKeywordFormat(paragraph, text));
+          assess(results, evidence, englishKeywordAlignment(document, paragraph, text));
         }
         language = null;
       }
       abstractBlankLinesBeforeParagraph = ManualLineBreakSupport.blankLinesAfter(paragraph);
       previousWasBlank = abstractBlankLinesBeforeParagraph > 0;
     }
-    return List.copyOf(results);
+    return new Evaluation(List.copyOf(results), evidence.ruleRuns());
+  }
+
+  private static void assess(List<CheckResult> results, Evidence evidence, CheckResult decision) {
+    // This is called at the candidate visit, including PASS results. The
+    // report's final findings list is never used to infer candidate counts.
+    evidence.assessed(decision);
+    results.add(decision);
+  }
+
+  private static final class Evidence {
+    private final Map<String, int[]> counts = new LinkedHashMap<>();
+
+    private void completed(String ruleId) {
+      counts.computeIfAbsent(ruleId, ignored -> new int[2])[0]++;
+    }
+
+    private void assessed(CheckResult decision) {
+      int[] count = counts.computeIfAbsent(decision.ruleId(), ignored -> new int[2]);
+      count[0]++;
+      if (decision.judgement() == Judgement.REVIEW
+          || decision.applicability() == Applicability.UNKNOWN
+          || decision.executionStatus() != ExecutionStatus.EXECUTED) count[1]++;
+    }
+
+    private void unknown(String ruleId) {
+      int[] count = counts.computeIfAbsent(ruleId, ignored -> new int[2]);
+      count[0]++;
+      count[1]++;
+    }
+
+    private void resolveUnknown(String ruleId) {
+      int[] count = counts.get(ruleId);
+      if (count == null || count[1] == 0)
+        throw new IllegalStateException("no unresolved abstract candidate for " + ruleId);
+      count[1]--;
+    }
+
+    private List<RuleRun> ruleRuns() {
+      var runs = new ArrayList<RuleRun>();
+      for (var entry : counts.entrySet()) {
+        int candidates = entry.getValue()[0];
+        int unknown = entry.getValue()[1];
+        runs.add(new RuleRun(entry.getKey(), "AbstractRuleChecker", candidates,
+            candidates - unknown, unknown, null));
+      }
+      return List.copyOf(runs);
+    }
   }
 
   private CheckResult checkChineseKeywordLabelBold(ParagraphModel paragraph) {
@@ -259,6 +337,9 @@ final class AbstractRuleChecker implements RuleModule {
 
   private CheckResult checkChineseKeywordFormat(ParagraphModel paragraph, String text) {
     String normalized = text.strip();
+    if (normalized.startsWith("关键字"))
+      return result("ABSTRACT-KEYWORD-FORMAT", "关键词：词1；词2；词3", text,
+          "KEYWORD_LABEL_MISMATCH", Judgement.FAIL, paragraph.source());
     if (!normalized.startsWith("关键词："))
       return result("ABSTRACT-KEYWORD-FORMAT", "关键词：词1；词2；词3", text,
           "KEYWORD_SEPARATOR_MISMATCH", Judgement.FAIL, paragraph.source());
@@ -294,31 +375,32 @@ final class AbstractRuleChecker implements RuleModule {
     return result("EN-03-FORMAT", "英文分号分隔关键词", text, "", Judgement.PASS, paragraph.source());
   }
 
-  /**
-   * A wrapped keyword line is aligned by a hanging paragraph indent in the
-   * OOXML evidence.  Without both sides of that setting the final visual
-   * column cannot be proved from the document tree, so the result is REVIEW.
-   */
-  private CheckResult checkEnglishKeywordWrapAlignment(ParagraphModel paragraph, String text) {
-    boolean twipsEvidence = paragraph.leftIndentTwips() != null && paragraph.hangingIndentTwips() != null;
-    boolean characterEvidence = paragraph.leftIndentChars() != null && paragraph.hangingIndentChars() != null;
-    if ((!twipsEvidence && !characterEvidence) || paragraph.hangingEvidenceInvalid()
-        || paragraph.leftEvidenceInvalid()) {
-      return result("EN-03-ALIGNMENT", "换行后与第一个关键词首字母对齐", "XML 未提供悬挂缩进证据",
-          "ENGLISH_KEYWORD_WRAP_ALIGNMENT_UNKNOWN", Judgement.REVIEW, paragraph.source());
-    }
-    boolean valid = twipsEvidence
-        ? paragraph.leftIndentTwips() > 0 && paragraph.hangingIndentTwips() > 0
-            && paragraph.leftIndentTwips() >= paragraph.hangingIndentTwips()
-        : paragraph.leftIndentChars() > 0 && paragraph.hangingIndentChars() > 0
-            && paragraph.leftIndentChars() >= paragraph.hangingIndentChars();
-    if (!valid) {
-      return result("EN-03-ALIGNMENT", "换行后与第一个关键词首字母对齐",
-          "悬挂缩进值不能把续行移到第一个关键词起始位置",
-          "ENGLISH_KEYWORD_WRAP_ALIGNMENT_MISMATCH", Judgement.FAIL, paragraph.source());
-    }
+  /** Paragraph indents do not prove the final horizontal position of rendered text. */
+  private CheckResult checkEnglishKeywordWrapAlignment(ParagraphModel paragraph) {
     return result("EN-03-ALIGNMENT", "换行后与第一个关键词首字母对齐",
-        "已读取左缩进和悬挂缩进", "", Judgement.PASS, paragraph.source());
+        "当前无法确认续行是否与第一个关键词首字母对齐，请在 Word 中检查；如未对齐，请调整段落格式",
+        "ENGLISH_KEYWORD_WRAP_ALIGNMENT_UNKNOWN", Judgement.REVIEW, paragraph.source());
+  }
+
+  private CheckResult englishKeywordAlignment(ParsedDocument document, ParagraphModel paragraph, String text) {
+    if (renderedLayout != null && renderedLayout.matchesSource(document.sourceSha256())) {
+      var layout = renderedLayout.englishKeywordAlignment(text);
+      if (layout.status() == RenderedLayoutEvidence.KeywordStatus.NO_WRAP)
+        return result("EN-03-ALIGNMENT", "换行后与第一个关键词首字母对齐",
+            "版面中的英文关键词没有换行", "", Judgement.PASS, paragraph.source());
+      if (layout.status() == RenderedLayoutEvidence.KeywordStatus.ALIGNED)
+        return result("EN-03-ALIGNMENT", "换行后与第一个关键词首字母对齐",
+            "第 " + layout.page() + " 页的续行已对齐", "", Judgement.PASS, paragraph.source());
+      if (layout.status() == RenderedLayoutEvidence.KeywordStatus.MISALIGNED)
+        return result("EN-03-ALIGNMENT", "换行后与第一个关键词首字母对齐",
+            "第 " + layout.page() + " 页的续行没有与第一个关键词首字母对齐",
+            "ENGLISH_KEYWORD_WRAP_ALIGNMENT_MISMATCH", Judgement.FAIL, paragraph.source());
+    }
+    if (text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0)
+      return checkEnglishKeywordWrapAlignment(paragraph);
+    return result("EN-03-ALIGNMENT", "换行后与第一个关键词首字母对齐",
+        "当前无法确认页面是否自动换行，请在 Word 中检查续行是否与第一个关键词对齐；如未对齐，请调整段落格式",
+        "ENGLISH_KEYWORD_AUTO_WRAP_UNKNOWN", Judgement.REVIEW, paragraph.source());
   }
 
   private static String paragraphText(ParagraphModel paragraph) {

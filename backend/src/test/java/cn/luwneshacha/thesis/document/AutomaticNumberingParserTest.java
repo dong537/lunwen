@@ -106,7 +106,29 @@ class AutomaticNumberingParserTest {
         + "<mc:AlternateContent><mc:Choice Requires=\"v\">" + text("现行内容")
         + "</mc:Choice><mc:Fallback>" + simple("SEQ Fallback") + "</mc:Fallback></mc:AlternateContent></w:p>";
 
-    assertTrue(parse(fixture(body, Map.of(), "")).isEmpty());
+    assertTrue(new AutomaticNumberingParser().parse(fixture(body, Map.of(), "")).isEmpty());
+  }
+
+  @Test
+  void doesNotTreatMultipleNumberingChoicesAsMultipleFields() throws Exception {
+    String body = "<w:p><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"v\">" + simple("SEQ Figure") + "</mc:Choice>"
+        + "<mc:Choice Requires=\"v\">" + simple("LISTNUM LegalDefault") + "</mc:Choice>"
+        + "<mc:Fallback>" + simple("SEQ Fallback") + "</mc:Fallback>"
+        + "</mc:AlternateContent></w:p>";
+
+    assertEquals(List.of(SEQUENCE_FIELD), new AutomaticNumberingParser().parse(fixture(body, Map.of(), "")).stream()
+        .map(AutomaticNumberingModel::kind).toList());
+  }
+
+  @Test
+  void doesNotModelUnknownNumberingBranchAsVisible() throws Exception {
+    String body = "<w:p><mc:AlternateContent xmlns:future=\"urn:example:future-office\">"
+        + "<mc:Choice Requires=\"future\">" + simple("SEQ Future") + "</mc:Choice>"
+        + "<mc:Fallback>" + simple("SEQ Figure") + "</mc:Fallback>"
+        + "</mc:AlternateContent></w:p>";
+
+    assertTrue(new AutomaticNumberingParser().parse(fixture(body, Map.of(), "")).isEmpty());
   }
 
   @Test

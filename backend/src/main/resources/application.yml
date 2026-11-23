@@ -12,3 +12,6 @@ thesis:
   max-upload-bytes: 52428800
   annotation-retention: PT1H
   annotation-cleanup-interval: PT5M
+  # Opt in only after the renderer container has a tested memory limit.
+  layout-analysis-enabled: ${THESIS_LAYOUT_ANALYSIS_ENABLED:false}
+  layout-max-address-space-bytes: ${THESIS_LAYOUT_MAX_ADDRESS_SPACE_BYTES:1073741824}

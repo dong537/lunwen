@@ -42,6 +42,61 @@ class ReferenceRuleCheckerTest {
   }
 
   @Test
+  void checksPublicationPlaceAndPagesForPrintedBooksProceedingsThesesAndReports() {
+    var references = new ReferenceParser().parse(List.of(
+        p("参考文献"),
+        p("[1] 甲. 书名[M]. 北京：科学出版社，2024：1-5."),
+        p("[2] 乙. 学位论文[D]. 四川大学，2022：1-5."),
+        p("[3] 丙. 论文集[C]. 上海：复旦大学出版社，2021."),
+        p("[4] 丁. 报告[R]. 北京：研究院，2020：9-11."),
+        p("[5] 戊. 学位论文[D]. 四川：四川大学，2022：1-5."),
+        p("[6] 己. 书名[M]. 科学出版社，2024：1-5.")));
+
+    var findings = new ReferenceRuleChecker().check(references).stream()
+        .filter(result -> result.reasonCode().equals("REFERENCE_FIELDS_MISSING"))
+        .toList();
+
+    assertEquals(3, findings.size());
+    assertTrue(findings.stream().anyMatch(result -> result.actual().contains("[2]")
+        && result.actual().contains("出版地")));
+    assertTrue(findings.stream().anyMatch(result -> result.actual().contains("[3]")
+        && result.actual().contains("页码")));
+    assertTrue(findings.stream().anyMatch(result -> result.actual().contains("[6]")
+        && result.actual().contains("出版地")));
+  }
+
+  @Test
+  void checksPrintedJournalIssueWithoutRequiringASeparateVolume() {
+    var references = new ReferenceParser().parse(List.of(
+        p("参考文献"),
+        p("[1] 甲. 文章[J]. 期刊名，2024，10(2)：22-30."),
+        p("[2] 乙. 文章[J]. 期刊名，2024，10：22-30."),
+        p("[3] 丙. 文章[J]．期刊名，2024，(4)：12-13.")));
+
+    var findings = new ReferenceRuleChecker().check(references).stream()
+        .filter(result -> result.reasonCode().equals("REFERENCE_FIELDS_MISSING"))
+        .toList();
+
+    assertEquals(1, findings.size());
+    assertTrue(findings.get(0).actual().contains("[2]"));
+    assertTrue(findings.get(0).actual().contains("期号"));
+  }
+
+  @Test
+  void checksJournalIssueEvenWhenPageNumbersAreAlsoMissing() {
+    var references = new ReferenceParser().parse(List.of(
+        p("参考文献"),
+        p("[1] 作者. 文章[J]. 期刊名，2024.")));
+
+    var finding = new ReferenceRuleChecker().check(references).stream()
+        .filter(result -> result.reasonCode().equals("REFERENCE_FIELDS_MISSING"))
+        .findFirst().orElseThrow();
+
+    assertTrue(finding.actual().contains("页码"));
+    assertTrue(finding.actual().contains("期号"));
+  }
+
+  @Test
   void acceptsChineseAndFullWidthPeriodsAfterCategoryMarkers() {
     var references = new ReferenceParser().parse(List.of(
         p("参考文献"),
@@ -185,6 +240,24 @@ class ReferenceRuleCheckerTest {
     assertTrue(new ReferenceRuleChecker().check(references).stream()
         .noneMatch(result -> result.reasonCode().equals("REFERENCE_NUMBER_SPACING_MISMATCH")
             && result.actual() != null && result.actual().contains("[5]")));
+  }
+
+  @Test
+  void checksSpacingAndFieldsForFullWidthAndMixedReferenceBrackets() {
+    var references = new ReferenceParser().parse(List.of(
+        p("参考文献"),
+        p("［1］作者. 学位论文［D］. 四川大学，2024：1-5."),
+        p("[2］ 作者. 期刊文章［J]. 期刊名，2024，10(2)：6-8."),
+        p("［3] 作者. 专著[M］. 北京：出版社，2023：9-12.")));
+
+    var findings = new ReferenceRuleChecker().check(references);
+    assertEquals(1, findings.stream()
+        .filter(result -> result.reasonCode().equals("REFERENCE_NUMBER_SPACING_MISMATCH"))
+        .count());
+    assertTrue(findings.stream().anyMatch(result -> result.reasonCode().equals("REFERENCE_FIELDS_MISSING")
+        && result.actual().contains("［1］") && result.actual().contains("出版地")));
+    assertFalse(findings.stream().anyMatch(result -> result.reasonCode().equals("REFERENCE_FIELDS_MISSING")
+        && result.actual().contains("[2］")));
   }
 
   @Test

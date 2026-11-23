@@ -24,6 +24,240 @@ class Docx4jDocumentParserTest {
   @TempDir Path temp;
 
   @Test
+  void rejectsSameCountAlternateParagraphInsteadOfAnchoringFallbackToChoice() throws Exception {
+    String alternative = "<mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:p><w:r><w:t>A</w:t></w:r></w:p></mc:Choice>"
+        + "<mc:Fallback><w:p><w:r><w:t>C</w:t></w:r></w:p></mc:Fallback>"
+        + "</mc:AlternateContent>";
+
+    var error = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+        () -> new Docx4jDocumentParser().parse(alternateBodyFixture(alternative)));
+
+    assertTrue(error.getCause().getMessage().contains("cannot safely map compatibility paragraph"));
+  }
+
+  @Test
+  void keepsOrdinaryParagraphsWhenUnknownCompatibilityContentIsConfinedToTextBoxes() throws Exception {
+    String alternative = "<w:p><w:r><w:t>before</w:t></w:r><w:r><mc:AlternateContent "
+        + "xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\" "
+        + "xmlns:v=\"urn:schemas-microsoft-com:vml\">"
+        + "<mc:Choice Requires=\"wps\"><w:drawing><wps:wsp><wps:txbx><w:txbxContent>"
+        + "<w:p><w:r><w:t>choice box</w:t></w:r></w:p>"
+        + "</w:txbxContent></wps:txbx></wps:wsp></w:drawing></mc:Choice>"
+        + "<mc:Fallback><w:pict><v:shape><v:textbox><w:txbxContent>"
+        + "<w:p><w:r><w:t>fallback box</w:t></w:r></w:p>"
+        + "</w:txbxContent></v:textbox></v:shape></w:pict></mc:Fallback>"
+        + "</mc:AlternateContent></w:r></w:p>"
+        + "<w:p><w:r><w:t>after</w:t></w:r></w:p>";
+    RawDocx raw = alternateBodyFixture(alternative);
+
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(raw);
+
+    assertEquals(List.of("before", "after"), parsed.paragraphs().stream()
+        .map(paragraph -> paragraph.runs().stream().map(RunModel::text).reduce("", String::concat))
+        .toList());
+    assertEquals(List.of(0, 0), parsed.paragraphs().get(0).source().elementPath());
+    assertTrue(new cn.luwneshacha.thesis.inspection.DocumentCoverageAnalyzer()
+        .analyze(raw, parsed, List.of()).uncheckedRegions().stream().anyMatch(region ->
+            region.region().startsWith("文本框兼容内容分支")
+                && region.kind() == cn.luwneshacha.thesis.inspection.CoverageKind.NOT_INSPECTED));
+  }
+
+  @Test
+  void rejectsMixedTextBoxAlternativeThatAlsoChangesOrdinaryParagraphText() throws Exception {
+    String alternative = "<w:p><w:r><mc:AlternateContent "
+        + "xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\" "
+        + "xmlns:v=\"urn:schemas-microsoft-com:vml\">"
+        + "<mc:Choice Requires=\"wps\"><w:t>choice visible</w:t><w:drawing><wps:wsp><wps:txbx>"
+        + "<w:txbxContent><w:p><w:r><w:t>box</w:t></w:r></w:p></w:txbxContent>"
+        + "</wps:txbx></wps:wsp></w:drawing></mc:Choice>"
+        + "<mc:Fallback><w:t>fallback visible</w:t><w:pict><v:shape><v:textbox>"
+        + "<w:txbxContent><w:p><w:r><w:t>box</w:t></w:r></w:p></w:txbxContent>"
+        + "</v:textbox></v:shape></w:pict></mc:Fallback>"
+        + "</mc:AlternateContent></w:r></w:p>";
+
+    var error = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+        () -> new Docx4jDocumentParser().parse(alternateBodyFixture(alternative)));
+    assertTrue(error.getCause().getMessage().contains("cannot safely map compatibility paragraph"));
+  }
+
+  @Test
+  void rejectsAlternateParagraphWithoutTwoComparableBranches() throws Exception {
+    for (String alternative : List.of(
+        "<mc:AlternateContent><mc:Fallback><w:p><w:r><w:t>C</w:t></w:r></w:p></mc:Fallback></mc:AlternateContent>",
+        "<mc:AlternateContent><mc:Choice Requires=\"w\"><w:p><w:r><w:t>A</w:t></w:r></w:p></mc:Choice></mc:AlternateContent>")) {
+      var error = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+          () -> new Docx4jDocumentParser().parse(alternateBodyFixture(alternative)));
+      assertTrue(error.getCause().getMessage().contains("cannot safely map compatibility paragraph"));
+    }
+  }
+
+  @Test
+  void rejectsTextRunsInAlternateContentBecauseDocx4jMayUseAnotherBranch() throws Exception {
+    String paragraph = "<w:p><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:r><w:t>A</w:t></w:r></mc:Choice>"
+        + "<mc:Fallback><w:r><w:t>C</w:t></w:r></mc:Fallback>"
+        + "</mc:AlternateContent></w:p>";
+
+    var error = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+        () -> new Docx4jDocumentParser().parse(alternateBodyFixture(paragraph)));
+
+    assertTrue(error.getCause().getMessage().contains("cannot safely map compatibility paragraph"));
+  }
+
+  @Test
+  void rejectsAlternateTableBeforeUsingJaxbTableStyleIndexes() throws Exception {
+    String alternative = "<mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:tbl><w:tblPr/></w:tbl></mc:Choice>"
+        + "<mc:Fallback><w:tbl><w:tblPr/></w:tbl></mc:Fallback>"
+        + "</mc:AlternateContent>";
+
+    var error = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+        () -> new Docx4jDocumentParser().parse(alternateBodyFixture(alternative)));
+
+    assertTrue(error.getCause().getMessage().contains("cannot safely map compatibility paragraph"));
+  }
+
+  @Test
+  void rejectsAlternateOmmlRunsWithoutASeparateParagraph() throws Exception {
+    String paragraph = "<w:p><mc:AlternateContent "
+        + "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\">"
+        + "<mc:Choice Requires=\"m\"><m:oMath><m:r><m:t>A</m:t></m:r></m:oMath></mc:Choice>"
+        + "<mc:Fallback><m:oMath><m:r><m:t>C</m:t></m:r></m:oMath></mc:Fallback>"
+        + "</mc:AlternateContent></w:p>";
+
+    var error = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+        () -> new Docx4jDocumentParser().parse(alternateBodyFixture(paragraph)));
+
+    assertTrue(error.getCause().getMessage().contains("cannot safely map compatibility paragraph"));
+  }
+
+  @Test
+  void allowsAnImageOnlyAlternateBranchInsideAnOrdinaryParagraph() throws Exception {
+    String paragraph = "<w:p><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:r><w:drawing/></w:r></mc:Choice>"
+        + "<mc:Fallback><w:r><w:drawing/></w:r></mc:Fallback>"
+        + "</mc:AlternateContent></w:p>";
+
+    assertEquals(1, org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+        () -> new Docx4jDocumentParser().parse(alternateBodyFixture(paragraph)))
+        .paragraphs().size());
+  }
+
+  @Test
+  void ignoresRemovedTextWhenCheckingAnImageOnlyAlternate() throws Exception {
+    String paragraph = "<w:p><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:del w:id=\"1\" w:author=\"test\">"
+        + "<w:r><w:t>已删除</w:t></w:r></w:del><w:r><w:drawing/></w:r></mc:Choice>"
+        + "<mc:Fallback><w:r><w:drawing/></w:r></mc:Fallback>"
+        + "</mc:AlternateContent></w:p>";
+
+    assertEquals(1, org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+        () -> new Docx4jDocumentParser().parse(alternateBodyFixture(paragraph)))
+        .paragraphs().size());
+  }
+
+  @Test
+  void rejectsWordPropertyAlternativesEvenWithoutBranchText() throws Exception {
+    String pPr = "<w:p><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:pPr><w:jc w:val=\"center\"/></w:pPr></mc:Choice>"
+        + "<mc:Fallback><w:pPr><w:jc w:val=\"right\"/></w:pPr></mc:Fallback>"
+        + "</mc:AlternateContent><w:r><w:t>正文</w:t></w:r></w:p>";
+    String rPr = "<w:p><w:r><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:rPr><w:b/></w:rPr></mc:Choice>"
+        + "<mc:Fallback><w:rPr><w:i/></w:rPr></mc:Fallback>"
+        + "</mc:AlternateContent><w:t>正文</w:t></w:r></w:p>";
+    String numPr = "<w:p><w:pPr><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:numPr><w:numId w:val=\"1\"/></w:numPr></mc:Choice>"
+        + "<mc:Fallback><w:numPr><w:numId w:val=\"2\"/></w:numPr></mc:Fallback>"
+        + "</mc:AlternateContent></w:pPr><w:r><w:t>正文</w:t></w:r></w:p>";
+    String tblPr = "<w:tbl><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:tblPr><w:tblW w:w=\"1000\" w:type=\"dxa\"/></w:tblPr></mc:Choice>"
+        + "<mc:Fallback><w:tblPr><w:tblW w:w=\"2000\" w:type=\"dxa\"/></w:tblPr></mc:Fallback>"
+        + "</mc:AlternateContent><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl>";
+
+    for (String body : List.of(pPr, rPr, numPr, tblPr)) {
+      var error = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+          () -> new Docx4jDocumentParser().parse(alternateBodyFixture(body)));
+      assertTrue(error.getCause().getMessage().contains("cannot safely map compatibility paragraph"),
+          error.toString());
+    }
+  }
+
+  @Test
+  void rejectsAlternativeInsideExistingWordPropertyContainers() throws Exception {
+    String pPr = "<w:p><w:pPr><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:jc w:val=\"center\"/></mc:Choice>"
+        + "<mc:Fallback><w:jc w:val=\"right\"/></mc:Fallback>"
+        + "</mc:AlternateContent></w:pPr><w:r><w:t>正文</w:t></w:r></w:p>";
+    String rPr = "<w:p><w:r><w:rPr><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:b/></mc:Choice>"
+        + "<mc:Fallback><w:i/></mc:Fallback>"
+        + "</mc:AlternateContent></w:rPr><w:t>正文</w:t></w:r></w:p>";
+
+    for (String body : List.of(pPr, rPr)) {
+      var error = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+          () -> new Docx4jDocumentParser().parse(alternateBodyFixture(body)));
+      assertTrue(error.getCause().getMessage().contains("cannot safely map compatibility paragraph"));
+    }
+  }
+
+  private RawDocx alternateBodyFixture(String body) throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    Path file = temp.resolve("alternate-" + java.util.UUID.randomUUID() + ".docx");
+    pkg.save(file.toFile());
+    String document = "<w:document " + NS
+        + " xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">"
+        + "<w:body>" + body + "<w:sectPr/></w:body></w:document>";
+    return new DocxReader().read(replaceZipPart(file, "word/document.xml", document, null));
+  }
+
+  @Test
+  void carriesUnrecognizedGraphicInventoryIntoParsedDocument() throws Exception {
+    String drawing = "<w:p><w:r><w:drawing "
+        + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+        + "<wp:inline><wp:extent cx=\"100\" cy=\"100\"/>"
+        + "<wp:docPr id=\"1\" name=\"unrecognized shape\"/>"
+        + "<a:graphic><a:graphicData uri=\"urn:unrecognized-shape\"/></a:graphic>"
+        + "</wp:inline></w:drawing></w:r></w:p>";
+
+    var unknown = new Docx4jDocumentParser().parse(alternateBodyFixture(drawing));
+    var ordinary = new Docx4jDocumentParser().parse(alternateBodyFixture(
+        "<w:p><w:r><w:t>正文</w:t></w:r></w:p>"));
+
+    assertTrue(unknown.images().isEmpty());
+    assertFalse(unknown.imageInventoryComplete());
+    assertTrue(ordinary.imageInventoryComplete());
+  }
+
+  @Test
+  void provesOptionalAppendixAbsentWithOnlyEarlierInlineTables() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + "><w:body>"
+            + "<w:p><w:r><w:t>第一章 绪论</w:t></w:r></w:p>"
+            + "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>数据</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+            + "<w:p><w:r><w:t>参考文献</w:t></w:r></w:p>"
+            + "<w:p><w:r><w:t>致谢</w:t></w:r></w:p>"
+            + "<w:p><w:r><w:t>感谢指导老师</w:t></w:r></w:p>"
+            + "<w:sectPr/></w:body></w:document>"));
+    Path source = temp.resolve("inline-table-before-acknowledgements.docx");
+    pkg.save(source.toFile());
+
+    var parsed = new Docx4jDocumentParser().parse(new DocxReader().read(source));
+    var runs = new cn.luwneshacha.thesis.rules.RuleEngine()
+        .checkWithExecution(parsed, cn.luwneshacha.thesis.rules.RuleSet.schoolV1()).ruleRuns();
+    var optional = runs.stream().filter(run ->
+        "OPTIONAL_APPENDIX_ABSENT_AFTER_END_MATTER_SCAN".equals(run.notApplicableReason())).toList();
+
+    assertEquals(1, parsed.tables().size());
+    assertTrue(parsed.tableInventoryComplete());
+    assertEquals(TableModel.FlowPosition.INLINE_BODY, parsed.tables().get(0).flowPosition());
+    assertEquals(7, optional.size(), "all appendix owners should close only after table inventory is proved");
+  }
+
+  @Test
   void resolvesInheritedRunFormattingAndSectionMargins() throws Exception {
     Path source = fixture();
 
@@ -136,6 +370,84 @@ class Docx4jDocumentParserTest {
   }
 
   @Test
+  void provesFrontSectionHasNoPageFieldWhenOnlyBodyHasReferencedFooter() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + "><w:body>"
+            + "<w:p><w:pPr><w:sectPr><w:pgMar w:top=\"1474\" w:right=\"1474\""
+            + " w:bottom=\"1474\" w:left=\"1474\"/></w:sectPr></w:pPr>"
+            + "<w:r><w:t>封面</w:t></w:r></w:p>"
+            + "<w:p><w:r><w:t>第一章 绪论</w:t></w:r></w:p>"
+            + "<w:sectPr><w:pgMar w:top=\"1474\" w:right=\"1474\""
+            + " w:bottom=\"1474\" w:left=\"1474\"/>"
+            + "<w:pgNumType w:fmt=\"decimal\" w:start=\"1\"/>"
+            + "</w:sectPr></w:body></w:document>"));
+    Path source = temp.resolve("front-no-footer-body-has-page.docx");
+    pkg.save(source.toFile());
+    RawDocx withFooter = addFooter(new DocxReader().read(source),
+        "word/footer-body.xml", "rIdBodyFooter",
+        "<w:ftr " + NS + "><w:p><w:r><w:instrText> PAGE </w:instrText></w:r></w:p></w:ftr>");
+
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(withFooter);
+    assertEquals(2, parsed.sections().size(), parsed.sections().toString());
+    assertEquals(2, parsed.paragraphs().size(), parsed.paragraphs().toString());
+    assertEquals(1, parsed.pageNumbers().size(), parsed.pageNumbers().toString());
+    var run = new cn.luwneshacha.thesis.rules.RuleEngine()
+        .checkWithExecution(parsed, cn.luwneshacha.thesis.rules.RuleSet.schoolV1())
+        .ruleRuns().stream().filter(candidate -> "PAGE-04".equals(candidate.ruleId()))
+        .findFirst().orElseThrow();
+    assertEquals(4, run.candidateCount());
+    assertEquals(0, run.unknownCount(), run.toString());
+  }
+
+  @Test
+  void recordsEmptyReferencedFooterAsProvenMissingPageField() throws Exception {
+    RawDocx raw = addFooter(new DocxReader().read(fixture()),
+        "word/footer-empty.xml", "rIdEmptyFooter",
+        "<w:ftr " + NS + "><w:p/></w:ftr>");
+
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(raw);
+
+    assertEquals(List.of(
+        new FooterPageEvidence(0, PageNumberModel.FooterVariant.DEFAULT,
+            FooterPageEvidence.Origin.NONE, null, FooterPageEvidence.Presence.ABSENT),
+        new FooterPageEvidence(1, PageNumberModel.FooterVariant.DEFAULT,
+            FooterPageEvidence.Origin.EXPLICIT, "word/footer-empty.xml",
+            FooterPageEvidence.Presence.ABSENT)), parsed.footerPageEvidence());
+  }
+
+  @Test
+  void recordsInheritedPageFieldInLaterSection() throws Exception {
+    RawDocx raw = addFooter(new DocxReader().read(fixture()),
+        "word/footer-shared.xml", "rIdSharedFooter", "default",
+        "<w:ftr " + NS + "><w:p><w:r><w:instrText> PAGE </w:instrText></w:r></w:p></w:ftr>",
+        true);
+
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(raw);
+
+    assertEquals(List.of(
+        new FooterPageEvidence(0, PageNumberModel.FooterVariant.DEFAULT,
+            FooterPageEvidence.Origin.EXPLICIT, "word/footer-shared.xml",
+            FooterPageEvidence.Presence.PRESENT),
+        new FooterPageEvidence(1, PageNumberModel.FooterVariant.DEFAULT,
+            FooterPageEvidence.Origin.INHERITED, "word/footer-shared.xml",
+            FooterPageEvidence.Presence.PRESENT)), parsed.footerPageEvidence());
+    assertEquals(List.of(0, 1), parsed.pageNumbers().getFirst().applicableSectionIndexes());
+  }
+
+  @Test
+  void keepsUnresolvedNonPageFieldAsUnknown() throws Exception {
+    RawDocx raw = addFooter(new DocxReader().read(fixture()),
+        "word/footer-date.xml", "rIdDateFooter",
+        "<w:ftr " + NS + "><w:p><w:r><w:instrText> DATE </w:instrText></w:r></w:p></w:ftr>");
+
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(raw);
+
+    assertEquals(FooterPageEvidence.Presence.UNKNOWN,
+        parsed.footerPageEvidence().get(1).presence());
+  }
+
+  @Test
   void reportsMissingHeaderForValidDocxWithImplicitSectionAndNoHeaderReference() throws Exception {
     var pkg = WordprocessingMLPackage.createPackage();
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
@@ -233,6 +545,78 @@ class Docx4jDocumentParserTest {
     ParsedDocument document = new Docx4jDocumentParser().parse(new DocxReader().read(file));
 
     assertTrue(document.paragraphs().get(0).runs().isEmpty());
+    assertNull(document.paragraphs().get(0).blankParagraphMarkFormat());
+    assertFalse(document.paragraphs().get(0).structurallyBlankParagraph());
+    assertTrue(document.equationInventoryComplete());
+    assertEquals(List.of("DRAWING"), document.possibleEquationObjectSources().stream()
+        .map(EquationParser.PossibleObject::kind).toList());
+  }
+
+  @Test
+  void keepsPureBlankParagraphMarkFormattingSeparateFromVisibleRuns() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + "><w:body>"
+            + "<w:p><w:pPr><w:rPr><w:rFonts w:ascii='Times New Roman' w:eastAsia='黑体'/>"
+            + "<w:sz w:val='32'/></w:rPr></w:pPr></w:p>"
+            + "<w:p><w:r><w:rPr><w:rFonts w:eastAsia='宋体'/>"
+            + "<w:sz w:val='24'/></w:rPr><w:t xml:space='preserve'> </w:t></w:r></w:p>"
+            + "<w:sectPr/></w:body></w:document>"));
+    Path file = temp.resolve("blank-paragraph-mark.docx");
+    pkg.save(file.toFile());
+
+    var paragraphs = new Docx4jDocumentParser().parse(new DocxReader().read(file)).paragraphs();
+
+    assertTrue(paragraphs.get(0).runs().isEmpty());
+    assertTrue(paragraphs.get(0).structurallyBlankParagraph());
+    assertEquals("黑体", paragraphs.get(0).blankParagraphMarkFormat().eastAsiaFont());
+    assertEquals(32, paragraphs.get(0).blankParagraphMarkFormat().fontSizeHalfPoints());
+    assertNull(paragraphs.get(1).blankParagraphMarkFormat());
+    assertEquals(" ", paragraphs.get(1).runs().get(0).text());
+  }
+
+  @Test
+  void resolvesPureBlankParagraphMarkFormattingFromItsParagraphStyle() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().getStyleDefinitionsPart().setContents((Styles) XmlUtils.unmarshalString(
+        "<w:styles " + NS + "><w:style w:type='paragraph' w:styleId='Heading1'>"
+            + "<w:name w:val='heading 1'/><w:rPr>"
+            + "<w:rFonts w:ascii='Times New Roman' w:eastAsia='黑体'/>"
+            + "<w:sz w:val='32'/></w:rPr></w:style></w:styles>"));
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + "><w:body>"
+            + "<w:p><w:pPr><w:pStyle w:val='Heading1'/></w:pPr></w:p>"
+            + "<w:sectPr/></w:body></w:document>"));
+    Path file = temp.resolve("blank-inherited-heading-style.docx");
+    pkg.save(file.toFile());
+
+    var blank = new Docx4jDocumentParser().parse(new DocxReader().read(file)).paragraphs().get(0);
+
+    assertTrue(blank.structurallyBlankParagraph());
+    assertTrue(blank.runs().isEmpty());
+    assertEquals("黑体", blank.blankParagraphMarkFormat().eastAsiaFont());
+    assertEquals("Times New Roman", blank.blankParagraphMarkFormat().asciiFont());
+    assertEquals(32, blank.blankParagraphMarkFormat().fontSizeHalfPoints());
+  }
+
+  @Test
+  void keepsBookmarkOnlyParagraphAsARealBlankLine() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + "><w:body>"
+            + "<w:p><w:pPr><w:rPr><w:rFonts w:ascii='Times New Roman' w:eastAsia='黑体'/>"
+            + "<w:sz w:val='32'/></w:rPr></w:pPr>"
+            + "<w:bookmarkStart w:id='1' w:name='mark'/>"
+            + "<w:bookmarkEnd w:id='1'/></w:p>"
+            + "<w:sectPr/></w:body></w:document>"));
+    Path file = temp.resolve("blank-with-bookmark.docx");
+    pkg.save(file.toFile());
+
+    var blank = new Docx4jDocumentParser().parse(new DocxReader().read(file)).paragraphs().get(0);
+
+    assertTrue(blank.structurallyBlankParagraph());
+    assertTrue(blank.runs().isEmpty());
+    assertEquals(32, blank.blankParagraphMarkFormat().fontSizeHalfPoints());
   }
 
   @Test
@@ -504,6 +888,38 @@ class Docx4jDocumentParserTest {
             && check.reasonCode().equals("PAGE_NUMBER_START_INVALID"))
         .findFirst().orElseThrow();
     assertEquals(cn.luwneshacha.thesis.rules.Judgement.FAIL, result.judgement());
+  }
+
+  @Test
+  void distinguishesMissingPageNumberTypeFromItsOmittedFormat() throws Exception {
+    var pkg = WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
+        "<w:document " + NS + "><w:body>"
+            + "<w:p><w:pPr><w:sectPr><w:pgNumType/></w:sectPr></w:pPr>"
+            + "<w:r><w:t>第一章 引言</w:t></w:r></w:p>"
+            + "<w:sectPr/></w:body></w:document>"));
+    Path file = temp.resolve("page-number-type-default-format.docx");
+    pkg.save(file.toFile());
+    try (var zip = new java.util.zip.ZipFile(file.toFile())) {
+      String xml = new String(zip.getInputStream(zip.getEntry("word/document.xml")).readAllBytes(),
+          java.nio.charset.StandardCharsets.UTF_8);
+      assertTrue(xml.contains("pgNumType"), xml);
+    }
+
+    var document = new Docx4jDocumentParser().parse(new DocxReader().read(file));
+
+    assertEquals(2, document.sections().size());
+    assertEquals("decimal", document.sections().get(0).pageNumberFormat());
+    assertNull(document.sections().get(1).pageNumberFormat());
+    assertFalse(document.sections().get(0).pageNumberFormatInvalid());
+    assertFalse(document.sections().get(1).pageNumberFormatInvalid());
+    var pageRun = new cn.luwneshacha.thesis.rules.RuleEngine()
+        .checkWithExecution(document, cn.luwneshacha.thesis.rules.RuleSet.schoolV1())
+        .ruleRuns().stream().filter(run -> "PAGE-04".equals(run.ruleId()))
+        .findFirst().orElseThrow();
+    assertEquals(6, pageRun.candidateCount());
+    assertEquals(3, pageRun.checkedCount());
+    assertEquals(3, pageRun.unknownCount());
   }
 
   @Test
@@ -1205,6 +1621,8 @@ class Docx4jDocumentParserTest {
 
     assertEquals(1, document.pageNumbers().size());
     assertEquals("word/footer1.xml", document.pageNumbers().get(0).source().partName());
+    assertTrue(document.footerPageEvidence().stream().noneMatch(evidence ->
+        evidence.variant() == PageNumberModel.FooterVariant.FIRST));
   }
 
   @Test
@@ -1227,6 +1645,8 @@ class Docx4jDocumentParserTest {
     ParsedDocument document = new Docx4jDocumentParser().parse(withEvenEnabled);
 
     assertEquals(2, document.pageNumbers().size());
+    assertEquals(2, document.footerPageEvidence().stream().filter(evidence ->
+        evidence.variant() == PageNumberModel.FooterVariant.EVEN).count());
     assertTrue(document.pageNumbers().stream().anyMatch(page -> page.source().partName().equals("word/footer1.xml")
         && page.footerVariant() == PageNumberModel.FooterVariant.DEFAULT));
     assertTrue(document.pageNumbers().stream().anyMatch(page -> page.source().partName().equals("word/footer2.xml")
@@ -1258,6 +1678,9 @@ class Docx4jDocumentParserTest {
     assertTrue(parsed.pageNumbers().stream().anyMatch(pageNumber ->
         pageNumber.source().partName().equals("word/footer-first.xml")
             && pageNumber.footerVariant() == PageNumberModel.FooterVariant.FIRST));
+    assertEquals(1, parsed.footerPageEvidence().stream().filter(evidence ->
+        evidence.variant() == PageNumberModel.FooterVariant.FIRST
+            && evidence.presence() == FooterPageEvidence.Presence.PRESENT).count());
   }
 
   @Test
@@ -1467,6 +1890,192 @@ class Docx4jDocumentParserTest {
     assertTrue(pageNumber.centered());
     assertEquals("Times New Roman", pageNumber.asciiFont());
     assertEquals(21, pageNumber.sizeHalfPoints());
+  }
+
+  @Test
+  void deletedPageFieldDoesNotCountAsVisibleFooterPageNumber() throws Exception {
+    RawDocx valid = new DocxReader().read(fixture());
+    String footer = "<w:ftr " + NS + "><w:p><w:del w:id=\"1\" w:author=\"test\">"
+        + "<w:r><w:instrText> PAGE </w:instrText></w:r><w:r><w:t>1</w:t></w:r>"
+        + "</w:del></w:p></w:ftr>";
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(
+        addFooter(valid, "word/footer-deleted-page.xml", "rIdDeletedPage", footer));
+
+    assertTrue(parsed.pageNumbers().isEmpty(), "deleted PAGE must not be visible");
+    assertEquals(FooterPageEvidence.Presence.ABSENT, parsed.footerPageEvidence().stream()
+        .filter(item -> item.sectionIndex() == 1
+            && item.variant() == PageNumberModel.FooterVariant.DEFAULT)
+        .findFirst().orElseThrow().presence());
+  }
+
+  @Test
+  void movedAwayPageFieldDoesNotCountAsVisibleFooterPageNumber() throws Exception {
+    RawDocx valid = new DocxReader().read(fixture());
+    String footer = "<w:ftr " + NS + "><w:p><w:moveFrom w:id=\"2\" w:author=\"test\">"
+        + "<w:r><w:instrText> PAGE </w:instrText></w:r><w:r><w:t>1</w:t></w:r>"
+        + "</w:moveFrom></w:p></w:ftr>";
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(
+        addFooter(valid, "word/footer-moved-page.xml", "rIdMovedPage", footer));
+
+    assertTrue(parsed.pageNumbers().isEmpty(), "moved-away PAGE must not be visible");
+    assertEquals(FooterPageEvidence.Presence.ABSENT, parsed.footerPageEvidence().stream()
+        .filter(item -> item.sectionIndex() == 1
+            && item.variant() == PageNumberModel.FooterVariant.DEFAULT)
+        .findFirst().orElseThrow().presence());
+  }
+
+  @Test
+  void deletedSimplePageFieldAlsoDoesNotCount() throws Exception {
+    RawDocx valid = new DocxReader().read(fixture());
+    String footer = "<w:ftr " + NS + "><w:p><w:del w:id=\"3\" w:author=\"test\">"
+        + "<w:fldSimple w:instr=\"PAGE\"><w:r><w:t>1</w:t></w:r></w:fldSimple>"
+        + "</w:del></w:p></w:ftr>";
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(
+        addFooter(valid, "word/footer-deleted-simple.xml", "rIdDeletedSimple", footer));
+
+    assertTrue(parsed.pageNumbers().isEmpty());
+    assertEquals(FooterPageEvidence.Presence.ABSENT, parsed.footerPageEvidence().stream()
+        .filter(item -> item.sectionIndex() == 1
+            && item.variant() == PageNumberModel.FooterVariant.DEFAULT)
+        .findFirst().orElseThrow().presence());
+  }
+
+  @Test
+  void alternateContentPageFieldStaysUnknownWithoutBranchSelection() throws Exception {
+    RawDocx valid = new DocxReader().read(fixture());
+    String footer = "<w:ftr " + NS
+        + " xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">"
+        + "<w:p><mc:AlternateContent><mc:Choice Requires=\"w\">"
+        + "<w:r><w:t>说明</w:t></w:r></mc:Choice><mc:Fallback>"
+        + "<w:r><w:instrText> PAGE </w:instrText></w:r><w:r><w:t>1</w:t></w:r>"
+        + "</mc:Fallback></mc:AlternateContent></w:p></w:ftr>";
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(
+        addFooter(valid, "word/footer-alternate-page.xml", "rIdAlternatePage", footer));
+
+    assertTrue(parsed.pageNumbers().isEmpty(), "unselected branch must not prove visible PAGE");
+    assertEquals(FooterPageEvidence.Presence.UNKNOWN, parsed.footerPageEvidence().stream()
+        .filter(item -> item.sectionIndex() == 1
+            && item.variant() == PageNumberModel.FooterVariant.DEFAULT)
+        .findFirst().orElseThrow().presence());
+  }
+
+  @Test
+  void unknownChoiceWithFallbackPageFieldStaysUnknown() throws Exception {
+    RawDocx valid = new DocxReader().read(fixture());
+    String footer = "<w:ftr " + NS
+        + " xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\""
+        + " xmlns:future=\"urn:example:future-office\">"
+        + "<w:p><mc:AlternateContent><mc:Choice Requires=\"future\">"
+        + "<w:r><w:t>说明</w:t></w:r></mc:Choice><mc:Fallback>"
+        + "<w:r><w:instrText> PAGE </w:instrText></w:r><w:r><w:t>1</w:t></w:r>"
+        + "</mc:Fallback></mc:AlternateContent></w:p></w:ftr>";
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(
+        addFooter(valid, "word/footer-unknown-alternate-page.xml", "rIdUnknownAlternatePage", footer));
+
+    assertEquals(FooterPageEvidence.Presence.UNKNOWN, parsed.footerPageEvidence().stream()
+        .filter(item -> item.sectionIndex() == 1
+            && item.variant() == PageNumberModel.FooterVariant.DEFAULT)
+        .findFirst().orElseThrow().presence());
+  }
+
+  @Test
+  void alternateContentWithoutAnyFieldStillProvesNoPageNumber() throws Exception {
+    RawDocx valid = new DocxReader().read(fixture());
+    String footer = "<w:ftr " + NS
+        + " xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">"
+        + "<w:p><mc:AlternateContent><mc:Choice Requires=\"w\">"
+        + "<w:r><w:t>甲</w:t></w:r></mc:Choice><mc:Fallback>"
+        + "<w:r><w:t>乙</w:t></w:r></mc:Fallback></mc:AlternateContent></w:p></w:ftr>";
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(
+        addFooter(valid, "word/footer-alternate-text.xml", "rIdAlternateText", footer));
+
+    assertTrue(parsed.pageNumbers().isEmpty());
+    assertEquals(FooterPageEvidence.Presence.ABSENT, parsed.footerPageEvidence().stream()
+        .filter(item -> item.sectionIndex() == 1
+            && item.variant() == PageNumberModel.FooterVariant.DEFAULT)
+        .findFirst().orElseThrow().presence());
+  }
+
+  @Test
+  void pageFieldWithAlternateResultDoesNotBorrowParagraphTypography() throws Exception {
+    RawDocx valid = new DocxReader().read(fixture());
+    var parts = new LinkedHashMap<>(valid.parts());
+    String styles = "<w:styles " + NS + "><w:docDefaults><w:rPrDefault><w:rPr>"
+        + "<w:rFonts w:ascii=\"Times New Roman\"/><w:sz w:val=\"21\"/>"
+        + "</w:rPr></w:rPrDefault></w:docDefaults></w:styles>";
+    parts.put("word/styles.xml", new RawPart("word/styles.xml", "test",
+        styles.getBytes(java.nio.charset.StandardCharsets.UTF_8), true));
+    valid = new RawDocx(valid.sourceSha256(), valid.sourceBytes(), parts, valid.entryCount());
+    String footer = "<w:ftr " + NS
+        + " xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">"
+        + "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr>"
+        + "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>"
+        + "<w:r><w:instrText xml:space=\"preserve\"> PAGE </w:instrText></w:r>"
+        + "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
+        + "<mc:AlternateContent><mc:Choice Requires=\"w\">"
+        + "<w:r><w:rPr><w:rFonts w:ascii=\"Arial\"/><w:sz w:val=\"40\"/></w:rPr><w:t>1</w:t></w:r>"
+        + "</mc:Choice><mc:Fallback>"
+        + "<w:r><w:rPr><w:rFonts w:ascii=\"Times New Roman\"/><w:sz w:val=\"21\"/></w:rPr><w:t>1</w:t></w:r>"
+        + "</mc:Fallback></mc:AlternateContent>"
+        + "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p></w:ftr>";
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(
+        addFooter(valid, "word/footer-alternate-result.xml", "rIdAlternateResult", footer));
+
+    assertEquals(1, parsed.pageNumbers().size(), "ordinary PAGE instruction remains visible");
+    PageNumberModel page = parsed.pageNumbers().get(0);
+    assertNull(page.asciiFont(), "branch-dependent result font cannot be inferred from paragraph");
+    assertNull(page.sizeHalfPoints(), "branch-dependent result size cannot be inferred from paragraph");
+    assertEquals(List.of(new PageNumberModel.RunFormatting(null, null)), page.runFormatting());
+    assertEquals(FooterPageEvidence.Presence.PRESENT, parsed.footerPageEvidence().stream()
+        .filter(item -> item.sectionIndex() == 1
+            && item.variant() == PageNumberModel.FooterVariant.DEFAULT)
+        .findFirst().orElseThrow().presence());
+  }
+
+  @Test
+  void unrelatedAlternateTextDoesNotMakeOrdinaryPageResultFormattingUnknown() throws Exception {
+    RawDocx valid = new DocxReader().read(fixture());
+    String alternative = "<mc:AlternateContent><mc:Choice Requires=\"w\">"
+        + "<w:r><w:t>说明</w:t></w:r></mc:Choice><mc:Fallback>"
+        + "<w:r><w:t>备注</w:t></w:r></mc:Fallback></mc:AlternateContent>";
+    String footer = "<w:ftr " + NS
+        + " xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">"
+        + "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr>" + alternative
+        + "<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>"
+        + "<w:r><w:instrText xml:space=\"preserve\"> PAGE </w:instrText></w:r>"
+        + "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>"
+        + "<w:r><w:rPr><w:rFonts w:ascii=\"Times New Roman\"/><w:sz w:val=\"21\"/></w:rPr>"
+        + "<w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r>"
+        + alternative + "</w:p></w:ftr>";
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(
+        addFooter(valid, "word/footer-unrelated-alternate.xml", "rIdUnrelatedAlternate", footer));
+
+    assertEquals(1, parsed.pageNumbers().size());
+    PageNumberModel page = parsed.pageNumbers().get(0);
+    assertEquals("Times New Roman", page.asciiFont());
+    assertEquals(21, page.sizeHalfPoints());
+    assertEquals(List.of(new PageNumberModel.RunFormatting("Times New Roman", 21)),
+        page.runFormatting());
+  }
+
+  @Test
+  void simplePageFieldWithAlternateResultKeepsFormattingUnknown() throws Exception {
+    RawDocx valid = new DocxReader().read(fixture());
+    String footer = "<w:ftr " + NS
+        + " xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">"
+        + "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr>"
+        + "<w:fldSimple w:instr=\"PAGE\"><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"w\"><w:r><w:t>1</w:t></w:r></mc:Choice>"
+        + "<mc:Fallback><w:r><w:t>1</w:t></w:r></mc:Fallback>"
+        + "</mc:AlternateContent></w:fldSimple></w:p></w:ftr>";
+    ParsedDocument parsed = new Docx4jDocumentParser().parse(
+        addFooter(valid, "word/footer-simple-alternate-result.xml", "rIdSimpleAlternateResult", footer));
+
+    assertEquals(1, parsed.pageNumbers().size());
+    PageNumberModel page = parsed.pageNumbers().get(0);
+    assertNull(page.asciiFont());
+    assertNull(page.sizeHalfPoints());
+    assertEquals(List.of(new PageNumberModel.RunFormatting(null, null)), page.runFormatting());
   }
 
   @Test
@@ -2325,12 +2934,18 @@ class Docx4jDocumentParserTest {
   }
 
   private RawDocx addFooter(RawDocx source, String footerPart, String relationshipId, String type, String footerXml) throws Exception {
+    return addFooter(source, footerPart, relationshipId, type, footerXml, false);
+  }
+
+  private RawDocx addFooter(RawDocx source, String footerPart, String relationshipId,
+      String type, String footerXml, boolean firstSection) throws Exception {
     var parts = new LinkedHashMap<>(source.parts());
     parts.put(footerPart, new RawPart(footerPart, "test", footerXml.getBytes(java.nio.charset.StandardCharsets.UTF_8), true));
     String document = new String(parts.get("word/document.xml").bytes(), java.nio.charset.StandardCharsets.UTF_8);
     if (!document.contains("xmlns:r="))
       document = document.replace("<w:document ", "<w:document xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" ");
-    int sectionEnd = document.lastIndexOf("</w:sectPr>");
+    int sectionEnd = firstSection ? document.indexOf("</w:sectPr>")
+        : document.lastIndexOf("</w:sectPr>");
     if (sectionEnd < 0) throw new IllegalStateException("fixture has no final section properties");
     document = document.substring(0, sectionEnd)
         + "<w:footerReference w:type=\"" + type + "\" r:id=\"" + relationshipId + "\"/>"

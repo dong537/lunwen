@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import cn.luwneshacha.thesis.document.Docx4jDocumentParser;
 import cn.luwneshacha.thesis.document.DocxReader;
+import cn.luwneshacha.thesis.document.AutomaticNumberingModel;
+import cn.luwneshacha.thesis.document.ParsedDocument;
 import cn.luwneshacha.thesis.inspection.RuleCatalog;
 import java.nio.file.Path;
 import java.util.List;
@@ -20,6 +22,49 @@ import org.junit.jupiter.params.provider.ValueSource;
 class AutomaticNumberingPolicyTest {
   private static final String NS = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"";
   @TempDir Path temp;
+
+  @Test
+  void explicitlyPassesTheProhibitionWhenNoAutomaticNumberingWasParsed() throws Exception {
+    Path input = fixture("space", paragraph("", "普通正文"));
+    var document = new Docx4jDocumentParser().parse(new DocxReader().read(input));
+
+    var results = new AutomaticNumberingRuleModule().check(document, RuleSet.schoolV1());
+
+    assertEquals(1, results.size());
+    assertEquals("NUMBERING-01", results.getFirst().ruleId());
+    assertEquals(Judgement.PASS, results.getFirst().judgement());
+    assertEquals(Applicability.APPLICABLE, results.getFirst().applicability());
+    assertEquals(ExecutionStatus.EXECUTED, results.getFirst().executionStatus());
+    assertEquals("AUTOMATIC_NUMBERING_NOT_FOUND", results.getFirst().reasonCode());
+    assertEquals(document.paragraphs().getFirst().source(), results.getFirst().source());
+    assertEquals(List.of(new RuleRun("NUMBERING-01", "AutomaticNumberingRuleModule", 1, 1, 0, null)),
+        new AutomaticNumberingRuleModule().evaluate(document, RuleSet.schoolV1()).ruleRuns());
+  }
+
+  @Test
+  void emptyParsedDocumentCannotClaimACompletedNumberingScan() {
+    var document = new cn.luwneshacha.thesis.document.ParsedDocument(
+        "sha", List.of(), List.of(), List.of());
+    assertTrue(new AutomaticNumberingRuleModule().check(document, RuleSet.schoolV1()).isEmpty());
+    assertTrue(new AutomaticNumberingRuleModule().evaluate(document, RuleSet.schoolV1()).ruleRuns().isEmpty());
+  }
+
+  @Test
+  void unresolvedAutomaticNumberingKeepsTheDocumentWideCandidateUnknown() throws Exception {
+    Path input = fixture("space", paragraph("", "普通正文"));
+    var parsed = new Docx4jDocumentParser().parse(new DocxReader().read(input));
+    var document = new ParsedDocument(parsed.sourceSha256(), parsed.paragraphs(), parsed.sections(),
+        parsed.diagnostics(), parsed.tables(), parsed.equations(), parsed.references(), parsed.images(),
+        parsed.pageNumbers(), parsed.chapterBreaks(), parsed.headers(),
+        List.of(new AutomaticNumberingModel(parsed.paragraphs().getFirst().source(),
+            AutomaticNumberingModel.Kind.UNKNOWN_LIST)));
+
+    var evaluated = new AutomaticNumberingRuleModule().evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(List.of(new RuleRun("NUMBERING-01", "AutomaticNumberingRuleModule", 1, 0, 1, null)),
+        evaluated.ruleRuns());
+    assertEquals(Judgement.REVIEW, evaluated.results().getFirst().judgement());
+  }
 
   @ParameterizedTest
   @ValueSource(strings = {"space", "tab", "nothing"})
@@ -106,7 +151,9 @@ class AutomaticNumberingPolicyTest {
     pkg.save(input.toFile());
     var results = new RuleEngine().check(
         new Docx4jDocumentParser().parse(new DocxReader().read(input)), RuleSet.schoolV1());
-    assertFalse(results.stream().anyMatch(r -> r.ruleId().equals("NUMBERING-01")));
+    assertEquals(List.of(Judgement.PASS), results.stream()
+        .filter(r -> r.ruleId().equals("NUMBERING-01"))
+        .map(CheckResult::judgement).toList());
     assertTrue(results.stream().anyMatch(r -> r.ruleId().equals("HEAD-02-SPACING")
         && r.judgement() == Judgement.FAIL), "纯项目符号不能遮蔽实际手写标题的缺空格问题");
     assertTrue(results.stream().anyMatch(r -> r.reasonCode().equals("REFERENCE_NUMBER_SPACING_MISMATCH")),

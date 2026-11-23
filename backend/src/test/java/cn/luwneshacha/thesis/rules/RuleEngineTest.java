@@ -13,6 +13,7 @@ import cn.luwneshacha.thesis.document.TableModel;
 import cn.luwneshacha.thesis.document.ReferenceEntryModel;
 import cn.luwneshacha.thesis.document.ImageModel;
 import cn.luwneshacha.thesis.document.PageNumberModel;
+import cn.luwneshacha.thesis.document.FooterPageEvidence;
 import cn.luwneshacha.thesis.document.HeadingBreakModel;
 import cn.luwneshacha.thesis.document.EquationModel;
 import cn.luwneshacha.thesis.document.EquationNumberEvidence;
@@ -4312,7 +4313,7 @@ class RuleEngineTest {
 
     var results = new RuleEngine().check(document, RuleSet.schoolV1());
 
-    assertEquals(Judgement.FAIL, results.stream().filter(item -> item.ruleId().equals("EQ-03"))
+    assertEquals(Judgement.REVIEW, results.stream().filter(item -> item.ruleId().equals("EQ-03"))
         .findFirst().orElseThrow().judgement());
     assertEquals(Judgement.PASS, results.stream().filter(item -> item.ruleId().equals("EQ-04"))
         .findFirst().orElseThrow().judgement());
@@ -4851,7 +4852,7 @@ class RuleEngineTest {
   }
 
   @Test
-  void malformedFigureCaptionDoesNotShiftTheNextValidFigureSequence() {
+  void identifiableNumberWithBadCaptionSpacingStillCountsTowardFigureSequence() {
     var malformed = paragraph("图 1-1 错误格式", List.of(0, 2));
     var valid = paragraph("图1-1 正常图题", List.of(0, 4));
     var firstImage = new ImageModel(new SourceAddress("word/document.xml", List.of(0, 3, 0), 0, 0),
@@ -4864,7 +4865,10 @@ class RuleEngineTest {
     var results = new RuleEngine().check(document, RuleSet.schoolV1());
 
     assertTrue(results.stream().anyMatch(item -> item.reasonCode().equals("FIGURE_CAPTION_NUMBER_FORMAT")));
-    assertTrue(results.stream().noneMatch(item -> item.reasonCode().equals("FIGURE_NUMBER_SEQUENCE_MISMATCH")));
+    assertTrue(results.stream().anyMatch(item -> item.ruleId().equals("FIG-05")
+        && item.source().equals(malformed.source()) && item.judgement() == Judgement.PASS));
+    assertTrue(results.stream().anyMatch(item -> item.reasonCode().equals("FIGURE_NUMBER_SEQUENCE_MISMATCH")
+        && item.source().equals(valid.source()) && item.expected().equals("图1-2")));
   }
 
   @Test
@@ -4983,9 +4987,13 @@ class RuleEngineTest {
     var results = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
         .filter(item -> item.ruleId().startsWith("FIG-")).toList();
 
-    assertEquals(1, results.size());
-    assertEquals("FIGURE_CAPTION_MISSING", results.get(0).reasonCode());
-    assertEquals(Judgement.FAIL, results.get(0).judgement());
+    assertEquals(2, results.size());
+    assertTrue(results.stream().anyMatch(result -> result.ruleId().equals("FIG-03")
+        && result.reasonCode().equals("FIGURE_CAPTION_MISSING")
+        && result.judgement() == Judgement.FAIL));
+    assertTrue(results.stream().anyMatch(result -> result.ruleId().equals("FIG-02")
+        && result.reasonCode().equals("FIGURE_LAYOUT_REVIEW")
+        && result.judgement() == Judgement.REVIEW));
   }
 
   @Test
@@ -4999,9 +5007,13 @@ class RuleEngineTest {
     var figureResults = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
         .filter(item -> item.ruleId().startsWith("FIG-")).toList();
 
-    assertEquals(1, figureResults.size());
-    assertEquals("FIGURE_CAPTION_MISSING", figureResults.get(0).reasonCode());
-    assertEquals(Judgement.FAIL, figureResults.get(0).judgement());
+    assertEquals(2, figureResults.size());
+    assertTrue(figureResults.stream().anyMatch(result -> result.ruleId().equals("FIG-03")
+        && result.reasonCode().equals("FIGURE_CAPTION_MISSING")
+        && result.judgement() == Judgement.FAIL));
+    assertTrue(figureResults.stream().anyMatch(result -> result.ruleId().equals("FIG-02")
+        && result.reasonCode().equals("FIGURE_LAYOUT_REVIEW")
+        && result.judgement() == Judgement.REVIEW));
   }
 
   @Test
@@ -5839,7 +5851,9 @@ class RuleEngineTest {
         24, false, new SourceAddress("word/document.xml", List.of(0, 1), 0, 4))),
         480, null, null, null, null, new SourceAddress("word/document.xml", List.of(0, 1), 0, 4), 200);
     var section = new SectionModel(1474, 1474, 1474, 1474, heading.source(), "decimal", null);
-    var document = new ParsedDocument("source", List.of(heading, body), List.of(section), List.of());
+    var document = withFooterEvidence(
+        new ParsedDocument("source", List.of(heading, body), List.of(section), List.of()),
+        List.of(noFooter(0)));
 
     var result = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
         .filter(item -> item.reasonCode().equals("PAGE_NUMBER_MISSING_IN_MAIN_BODY"))
@@ -5870,7 +5884,9 @@ class RuleEngineTest {
     var body = paragraph("正文内容", List.of(0, 1));
     var first = new SectionModel(1474, 1474, 1474, 1474, heading.source(), "decimal", null);
     var later = new SectionModel(1474, 1474, 1474, 1474, body.source(), "decimal", null);
-    var document = new ParsedDocument("source", List.of(heading, body), List.of(first, later), List.of());
+    var document = withFooterEvidence(
+        new ParsedDocument("source", List.of(heading, body), List.of(first, later), List.of()),
+        List.of(noFooter(0), noFooter(1)));
 
     var findings = new RuleEngine().check(document, RuleSet.schoolV1()).stream()
         .filter(item -> item.reasonCode().equals("PAGE_NUMBER_MISSING_IN_MAIN_BODY")).toList();
@@ -5889,9 +5905,13 @@ class RuleEngineTest {
         new SourceAddress("word/document.xml", List.of(0, 2), 0, 0), "decimal", null, true);
     var bodyPage = new PageNumberModel(new SourceAddress("word/footer1.xml", List.of(), 0, 0), true,
         true, "Times New Roman", 21, List.of(0));
-    var document = new ParsedDocument("source", List.of(heading, body),
+    var document = withFooterEvidence(new ParsedDocument("source", List.of(heading, body),
         List.of(contentSection, terminalSection), List.of(), List.of(), List.of(), List.of(), List.of(),
-        List.of(bodyPage));
+        List.of(bodyPage)), List.of(
+        new FooterPageEvidence(0, PageNumberModel.FooterVariant.DEFAULT,
+            FooterPageEvidence.Origin.EXPLICIT, "word/footer1.xml",
+            FooterPageEvidence.Presence.PRESENT),
+        noFooter(1)));
 
     assertTrue(new RuleEngine().check(document, RuleSet.schoolV1()).stream()
         .anyMatch(result -> result.reasonCode().equals("PAGE_NUMBER_MISSING_IN_MAIN_BODY")
@@ -6059,5 +6079,20 @@ class RuleEngineTest {
 
     assertTrue(new RuleEngine().check(document, RuleSet.schoolV1()).stream()
         .noneMatch(result -> result.reasonCode().equals("CHAPTER_PAGE_BREAK_MISSING")));
+  }
+
+  private FooterPageEvidence noFooter(int sectionIndex) {
+    return new FooterPageEvidence(sectionIndex, PageNumberModel.FooterVariant.DEFAULT,
+        FooterPageEvidence.Origin.NONE, null, FooterPageEvidence.Presence.ABSENT);
+  }
+
+  private ParsedDocument withFooterEvidence(ParsedDocument document,
+      List<FooterPageEvidence> footerPageEvidence) {
+    return new ParsedDocument(document.sourceSha256(), document.paragraphs(), document.sections(),
+        document.diagnostics(), document.tables(), document.equations(), document.references(),
+        document.images(), document.pageNumbers(), document.chapterBreaks(), document.headers(),
+        document.automaticNumbering(), document.tableInventoryComplete(),
+        document.possibleEquationObjectSources(), document.equationInventoryComplete(),
+        footerPageEvidence);
   }
 }

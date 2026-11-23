@@ -18,6 +18,13 @@ final class BodyFormatRuleChecker implements RuleModule {
   private static final Pattern EQUATION = Pattern.compile("^\\(?((?:\\d+[\\-－]\\d+)|(?:[A-Z]\\d+))\\)?$");
   private static final Pattern CONTINUATION_MARKER = Pattern.compile("^续表(?:\\d+-\\d+|[A-Z]\\d+)$");
   private static final Pattern TOC_ENTRY = Pattern.compile(".+(?:\\.{2,}|……+|\\t|[\\p{Zs}]{2,})\\s*\\d+$");
+  private static final Pattern UNBOUND_CAPTION_NUMBER = Pattern.compile(
+      "^(?:图|表|续表)\\s*(?:\\d|[A-Z])", Pattern.CASE_INSENSITIVE);
+  private static final Pattern POSSIBLE_EMBEDDED_HEADING_SUFFIX = Pattern.compile(
+      "(?<=[。！？!?；;\\r\\n])[\\t\\p{Zs}]*(?:\\d+(?:\\.\\d+){1,2})[\\t\\p{Zs}]*"
+          + "[^\\r\\n。！？!?；;]+?[\\t\\p{Zs}]*$");
+  private static final String NO_EMBEDDED_HEADING_IN_RESOLVED_BODY =
+      "NO_EMBEDDED_HEADING_IN_RESOLVED_BODY";
 
   private final ParagraphFormatChecker formatChecker;
   private final HeadingRuleChecker headingRuleChecker;
@@ -30,7 +37,25 @@ final class BodyFormatRuleChecker implements RuleModule {
 
   @Override
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
+    return evaluate(document, rules).results();
+  }
+
+  @Override
+  public Evaluation evaluate(ParsedDocument document, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
+    var embeddedResults = new ArrayList<CheckResult>();
+    int paragraphCandidates = 0;
+    int lineUnknown = 0;
+    int indentUnknown = 0;
+    int fontCandidates = 0;
+    int fontUnknown = 0;
+    int sizeUnknown = 0;
+    int unboundCaptionCandidates = 0;
+    int unresolvedEmbeddedSuffixes = 0;
+    int embeddedCandidates = 0;
+    int embeddedRunCandidates = 0;
+    int secondarySpacingCandidates = 0;
+    int tertiarySpacingCandidates = 0;
     Set<SourceAddress> captionLocations = captionLocations(document);
     var embeddedHeadings = new EmbeddedHeadingDetector(document);
     boolean inMainBody = false;
@@ -55,31 +80,125 @@ final class BodyFormatRuleChecker implements RuleModule {
           || regions.isEndMatterHeading(paragraph, document))) inContents = false;
       if (!insideTable && inMainBody && regions.isEndMatterHeading(paragraph, document)) inMainBody = false;
       if (!inMainBody || insideTable
-          || captionLocations.contains(paragraphLocation(paragraph.source()))
-          || hasCaptionStyle(paragraph)
-          || !isBodyParagraph(paragraph)) continue;
+          || captionLocations.contains(paragraphLocation(paragraph.source()))) continue;
+      // A caption style is not proof that prose is a bound figure/table title.
+      // Numbered caption-like text without an object binding has ambiguous identity.
+      if (hasCaptionStyle(paragraph) && UNBOUND_CAPTION_NUMBER.matcher(text).find()) {
+        unboundCaptionCandidates++;
+        paragraphCandidates++;
+        lineUnknown++;
+        indentUnknown++;
+        for (RunModel run : bodyTextRuns(paragraph, null)) {
+          fontCandidates++;
+          fontUnknown++;
+          sizeUnknown++;
+        }
+        continue;
+      }
+      boolean possibleEmbeddedHeading = POSSIBLE_EMBEDDED_HEADING_SUFFIX
+          .matcher(ManualLineBreakSupport.text(paragraph)).find();
+      if (!isBodyParagraph(paragraph)) {
+        if (possibleEmbeddedHeading) unresolvedEmbeddedSuffixes++;
+        continue;
+      }
       bodyParagraphChecked = true;
-      results.add(formatChecker.checkLineSpacing("BODY-LINE", paragraph));
-      results.add(formatChecker.checkIndent(paragraph, rules, "BODY-INDENT"));
+      paragraphCandidates++;
+      CheckResult line = formatChecker.checkLineSpacing("BODY-LINE", paragraph);
+      CheckResult indent = formatChecker.checkIndent(paragraph, rules, "BODY-INDENT");
+      results.add(line);
+      results.add(indent);
+      if (isUnknown(line)) lineUnknown++;
+      if (isUnknown(indent)) indentUnknown++;
       var embedded = embeddedHeadings.find(paragraph).orElse(null);
       for (RunModel run : bodyTextRuns(paragraph, embedded)) {
-        results.add(formatChecker.checkFont(run, rules, "BODY-FONT"));
-        results.add(formatChecker.checkSize(run, rules, "BODY-SIZE"));
+        fontCandidates++;
+        CheckResult font = formatChecker.checkFont(run, rules, "BODY-FONT");
+        CheckResult size = formatChecker.checkSize(run, rules, "BODY-SIZE");
+        results.add(font);
+        results.add(size);
+        if (isUnknown(font)) fontUnknown++;
+        if (isUnknown(size)) sizeUnknown++;
       }
       if (embedded != null) {
-        results.add(new CheckResult("HEAD-EMBEDDED", Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        embeddedCandidates++;
+        CheckResult joined = new CheckResult("HEAD-EMBEDDED", Applicability.APPLICABLE,
+            ExecutionStatus.EXECUTED,
             Judgement.FAIL, embedded.level() == 2 ? "二级标题独立成段" : "三级标题独立成段",
-            embedded.title(), "HEADING_JOINED_TO_BODY", embedded.source()));
-        results.addAll(headingRuleChecker.checkEmbeddedHeading(
-            headingRuns(paragraph, embedded), embedded.source(), embedded.level()));
+            embedded.title(), "HEADING_JOINED_TO_BODY", embedded.source());
+        results.add(joined);
+        embeddedResults.add(joined);
+        List<RunModel> titleRuns = headingRuns(paragraph, embedded);
+        embeddedRunCandidates += titleRuns.stream().filter(run -> !run.text().isBlank()).count();
+        if (embedded.level() == 2) secondarySpacingCandidates++;
+        else tertiarySpacingCandidates++;
+        List<CheckResult> headingResults = headingRuleChecker.checkEmbeddedHeading(
+            titleRuns, embedded.source(), embedded.level());
+        results.addAll(headingResults);
+        embeddedResults.addAll(headingResults);
+      } else if (possibleEmbeddedHeading) {
+        // A suffix that fails title/format corroboration cannot establish absence.
+        unresolvedEmbeddedSuffixes++;
       }
     }
-    if (hasFrontMatterSignal(document) && !bodyStartFound) {
+    boolean hasThesisSignal = hasFrontMatterSignal(document);
+    if (hasThesisSignal && !bodyStartFound) {
       results.add(bodyScopeReview(document, "正文起点未能从章节证据确定"));
-    } else if (hasFrontMatterSignal(document) && bodyStartFound && !bodyParagraphChecked) {
+    } else if (hasThesisSignal && bodyStartFound && !bodyParagraphChecked) {
       results.add(bodyScopeReview(document, "已找到正文起点，但没有可检查的正文段落"));
     }
-    return List.copyOf(results);
+    var runs = new ArrayList<RuleRun>();
+    addRun(runs, "BODY-LINE", paragraphCandidates, lineUnknown);
+    addRun(runs, "BODY-INDENT", paragraphCandidates, indentUnknown);
+    addRun(runs, "BODY-FONT", fontCandidates, fontUnknown);
+    addRun(runs, "BODY-SIZE", fontCandidates, sizeUnknown);
+    boolean embeddedAbsenceProved = bodyStartFound && bodyParagraphChecked
+        && unboundCaptionCandidates == 0 && unresolvedEmbeddedSuffixes == 0;
+    addEmbeddedRun(runs, "HEAD-EMBEDDED", embeddedCandidates, embeddedResults, embeddedAbsenceProved);
+    addEmbeddedRun(runs, "HEADING-FONT", embeddedRunCandidates, embeddedResults,
+        embeddedAbsenceProved);
+    addEmbeddedRun(runs, "HEADING-SIZE", embeddedRunCandidates, embeddedResults,
+        embeddedAbsenceProved);
+    addEmbeddedRun(runs, "HEAD-02-SPACING", secondarySpacingCandidates, embeddedResults,
+        embeddedAbsenceProved);
+    addEmbeddedRun(runs, "HEAD-03-SPACING", tertiarySpacingCandidates, embeddedResults,
+        embeddedAbsenceProved);
+    // The document is one scope candidate only when chapter/front-matter evidence exists.
+    // An unlocated or empty body remains unknown rather than becoming a false pass.
+    if (hasThesisSignal || bodyStartFound) {
+      runs.add(new RuleRun("BODY-SCOPE", getClass().getSimpleName(), 1,
+          bodyStartFound && bodyParagraphChecked && unboundCaptionCandidates == 0 ? 1 : 0,
+          bodyStartFound && bodyParagraphChecked && unboundCaptionCandidates == 0 ? 0 : 1, null));
+    }
+    return new Evaluation(List.copyOf(results), List.copyOf(runs));
+  }
+
+  private void addRun(List<RuleRun> runs, String ruleId, int candidates, int unknown) {
+    // No body objects is not proof that the rule is inapplicable.
+    if (candidates > 0)
+      runs.add(new RuleRun(ruleId, getClass().getSimpleName(), candidates,
+          candidates - unknown, unknown, null));
+  }
+
+  private void addEmbeddedRun(List<RuleRun> runs, String ruleId, int candidates,
+      List<CheckResult> findings, boolean absenceProved) {
+    if (candidates == 0) {
+      if (absenceProved)
+        runs.add(new RuleRun(ruleId, getClass().getSimpleName(), 0, 0, 0,
+            NO_EMBEDDED_HEADING_IN_RESOLVED_BODY));
+      return;
+    }
+    long checked = findings.stream().filter(item -> ruleId.equals(item.ruleId()))
+        .filter(item -> !isUnknown(item)).count();
+    if (checked > candidates)
+      throw new IllegalStateException("embedded heading rule produced more findings than candidates: " + ruleId);
+    runs.add(new RuleRun(ruleId, getClass().getSimpleName(), candidates,
+        (int) checked, candidates - (int) checked, null));
+  }
+
+  private static boolean isUnknown(CheckResult result) {
+    return result.judgement() == Judgement.REVIEW
+        || result.applicability() == Applicability.UNKNOWN
+        || result.executionStatus() != ExecutionStatus.EXECUTED;
   }
 
   private CheckResult bodyScopeReview(ParsedDocument document, String actual) {

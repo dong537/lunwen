@@ -4,15 +4,51 @@ import cn.luwneshacha.thesis.rules.CheckResult;
 import cn.luwneshacha.thesis.rules.Applicability;
 import cn.luwneshacha.thesis.rules.ExecutionStatus;
 import cn.luwneshacha.thesis.rules.Judgement;
+import cn.luwneshacha.thesis.rules.RuleRun;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Builds the report's coverage summary from the actual results produced in this run. */
 public final class RuleCoverageAnalyzer {
+  // Keep in sync with the platform's approved zero-candidate reasons.
+  private static final Map<String, Set<String>> APPROVED_NOT_APPLICABLE_REASONS = Map.ofEntries(
+      Map.entry("COVER-04-CONSISTENCY@CoverRuleChecker", Set.of("SINGLE_COVER_DATE")),
+      Map.entry("HEAD-02-SPACING@BodyFormatRuleChecker",
+          Set.of("NO_EMBEDDED_HEADING_IN_RESOLVED_BODY")),
+      Map.entry("HEAD-03-SPACING@BodyFormatRuleChecker",
+          Set.of("NO_EMBEDDED_HEADING_IN_RESOLVED_BODY")),
+      Map.entry("HEADING-FONT@BodyFormatRuleChecker",
+          Set.of("NO_EMBEDDED_HEADING_IN_RESOLVED_BODY")),
+      Map.entry("HEADING-SIZE@BodyFormatRuleChecker",
+          Set.of("NO_EMBEDDED_HEADING_IN_RESOLVED_BODY")),
+      Map.entry("HEAD-EMBEDDED@BodyFormatRuleChecker",
+          Set.of("NO_EMBEDDED_HEADING_IN_RESOLVED_BODY")),
+      Map.entry("TOC-SPACING@ContentsRuleChecker", Set.of("NO_NUMBERED_TOC_ENTRIES")),
+      Map.entry("EN-TOC-01-BOLD@ContentsRuleChecker", Set.of("NO_ENGLISH_CONTENTS_TITLE")),
+      Map.entry("EN-TOC-01-ALIGNMENT@ContentsRuleChecker", Set.of("NO_ENGLISH_CONTENTS_TITLE")),
+      Map.entry("EN-TOC-01-FONT@ContentsRuleChecker", Set.of("NO_ENGLISH_CONTENTS_TITLE")),
+      Map.entry("EN-TOC-01-SIZE@ContentsRuleChecker", Set.of("NO_ENGLISH_CONTENTS_TITLE")),
+      Map.entry("EN-TOC-01-LINE@ContentsRuleChecker", Set.of("NO_ENGLISH_CONTENTS_TITLE")),
+      Map.entry("APP-01@AppendixRuleModule",
+          Set.of("OPTIONAL_APPENDIX_ABSENT_AFTER_END_MATTER_SCAN")),
+      Map.entry("APP-02-BLANK@AppendixRuleModule",
+          Set.of("OPTIONAL_APPENDIX_ABSENT_AFTER_END_MATTER_SCAN")),
+      Map.entry("APP-03@AppendixRuleModule",
+          Set.of("OPTIONAL_APPENDIX_ABSENT_AFTER_END_MATTER_SCAN")),
+      Map.entry("APP-02-SPACING@HeadingDocumentRuleModule",
+          Set.of("OPTIONAL_APPENDIX_ABSENT_AFTER_END_MATTER_SCAN")),
+      Map.entry("APP-02-FONT@HeadingDocumentRuleModule",
+          Set.of("OPTIONAL_APPENDIX_ABSENT_AFTER_END_MATTER_SCAN")),
+      Map.entry("APP-02-SIZE@HeadingDocumentRuleModule",
+          Set.of("OPTIONAL_APPENDIX_ABSENT_AFTER_END_MATTER_SCAN")),
+      Map.entry("APP-02-ALIGNMENT@HeadingDocumentRuleModule",
+          Set.of("OPTIONAL_APPENDIX_ABSENT_AFTER_END_MATTER_SCAN")));
   /**
-   * Legacy result-only view.  Callers that need the complete school-rule
+   * Legacy result-only view. Callers that need the complete school-rule
    * inventory should use {@link #analyzeWithCatalog(List)}.
    */
   public List<RuleCoverage> analyze(List<CheckResult> results) {
@@ -38,12 +74,15 @@ public final class RuleCoverageAnalyzer {
   }
 
   /**
-   * Builds a complete coverage view from the authoritative catalog and this
-   * run's results. With a result-only interface, an absent row cannot prove
-   * whether the rule passed silently or did not run, so it is reported as
-   * missing execution evidence rather than as a pass or a definite skip.
+   * Builds a complete coverage view from the catalog and result stream alone.
+   * An absent result remains unknown until independent rule-run evidence exists.
    */
   public List<RuleCoverage> analyzeWithCatalog(List<CheckResult> results) {
+    return analyzeWithCatalog(results, List.of());
+  }
+
+  /** Every catalog rule needs independent candidate evidence before it can show a terminal status. */
+  public List<RuleCoverage> analyzeWithCatalog(List<CheckResult> results, List<RuleRun> ruleRuns) {
     Map<String, MutableCoverage> grouped = new LinkedHashMap<>();
     for (RuleCatalog.Entry entry : RuleCatalog.entries()) {
       grouped.put(entry.ruleId(), new MutableCoverage(entry.module(), entry.ruleId(), entry));
@@ -54,6 +93,34 @@ public final class RuleCoverageAnalyzer {
       MutableCoverage coverage = grouped.computeIfAbsent(result.ruleId(),
           ignored -> new MutableCoverage(moduleFor(result.ruleId()), result.ruleId(), entry));
       coverage.record(result);
+    }
+
+    Map<String, RuleRun> byOwner = new LinkedHashMap<>();
+    Set<String> duplicateRules = new HashSet<>();
+    for (RuleRun run : ruleRuns) {
+      String key = run.ruleId() + "@" + run.moduleId();
+      if (byOwner.putIfAbsent(key, run) != null) duplicateRules.add(run.ruleId());
+    }
+    for (MutableCoverage coverage : grouped.values()) {
+      if (coverage.catalog == null || duplicateRules.contains(coverage.ruleId)) continue;
+      List<String> owners = RuleCatalog.ownerModuleIds(coverage.ruleId);
+      if (owners.isEmpty()) continue;
+      boolean complete = true;
+      boolean hasCandidates = false;
+      for (String owner : owners) {
+        RuleRun run = byOwner.get(coverage.ruleId + "@" + owner);
+        if (run == null || run.unknownCount() != 0
+            || run.checkedCount() != run.candidateCount()
+            || (run.candidateCount() == 0
+                && !APPROVED_NOT_APPLICABLE_REASONS.getOrDefault(coverage.ruleId + "@" + owner, Set.of())
+                    .contains(run.notApplicableReason()))) {
+          complete = false;
+          break;
+        }
+        hasCandidates |= run.candidateCount() > 0;
+      }
+      if (complete && !(hasCandidates && coverage.onlyNotApplicableResults()))
+        coverage.recordRunEvidence(hasCandidates);
     }
 
     List<RuleCoverage> output = new ArrayList<>(grouped.size());
@@ -87,6 +154,8 @@ public final class RuleCoverageAnalyzer {
     private int skipped;
     private int unsupported;
     private int errored;
+    private boolean runEvidenceComplete;
+    private boolean runHasCandidates;
     private final java.util.LinkedHashSet<String> evidence = new java.util.LinkedHashSet<>();
     private final java.util.LinkedHashSet<String> applicabilityValues = new java.util.LinkedHashSet<>();
 
@@ -114,12 +183,22 @@ public final class RuleCoverageAnalyzer {
       else if (result.executionStatus() == ExecutionStatus.ERROR) errored++;
     }
 
+    private void recordRunEvidence(boolean hasCandidates) {
+      runEvidenceComplete = true;
+      runHasCandidates = hasCandidates;
+    }
+
+    private boolean onlyNotApplicableResults() {
+      return total > 0 && applicabilityValues.equals(Set.of("不适用"));
+    }
+
     private RuleCoverage toCoverage() {
       String status;
       String executionStatus;
       if (total == 0) {
-        status = "未产生结果";
-        executionStatus = "无结果证据";
+        status = runEvidenceComplete
+            ? (runHasCandidates ? "已执行且无错误" : "不适用") : "未产生结果";
+        executionStatus = runEvidenceComplete ? "已执行" : "无结果证据";
       } else {
         executionStatus = executionStatusLabel();
         status = judgementStatus();
@@ -133,10 +212,21 @@ public final class RuleCoverageAnalyzer {
           else if (review > 0) status = "证据不足，适用性未知";
           else status = "适用性未知";
         }
+        if (catalog != null && !runEvidenceComplete) {
+          if (failed > 0) status = "已发现问题，检查范围未确认";
+          else if (review > 0) status = "证据不足，检查范围未确认";
+          else if (applicabilityValues.contains("适用性未知"))
+            status = "适用性及检查范围未确认";
+          else if (applicabilityValues.equals(java.util.Set.of("不适用")))
+            status = "已判断部分内容不适用，检查范围未确认";
+          else status = "有检查结果，检查范围未确认";
+        }
       }
       String scope = catalog == null ? "目录未登记；适用范围待核实" : catalog.scope();
       String applicability = applicabilityValues.isEmpty()
-          ? (catalog == null ? "本次结果已执行；适用范围待补充" : "已登记；本次结果流无此规则记录，是否执行无法确认")
+          ? (runEvidenceComplete ? (runHasCandidates ? "适用" : "不适用")
+              : (catalog == null ? "本次结果已执行；适用范围待补充"
+                  : "已登记；本次结果流无此规则记录，是否执行无法确认"))
           : String.join("、", applicabilityValues);
       String evidenceSource = catalog == null ? "规则依据尚未登记；请核对学校规范和实现来源" : catalog.evidence();
       String description = catalog == null
