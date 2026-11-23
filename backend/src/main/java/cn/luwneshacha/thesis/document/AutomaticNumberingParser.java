@@ -27,7 +27,6 @@ public final class AutomaticNumberingParser {
   private static final String REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
   private static final String STRICT_REL = "http://purl.oclc.org/ooxml/officeDocument/relationships";
   private static final String PACKAGE_REL = "http://schemas.openxmlformats.org/package/2006/relationships";
-  private static final String MC = "http://schemas.openxmlformats.org/markup-compatibility/2006";
   private static final Pattern NUMBERING_FIELD = Pattern.compile(
       "^\\s*(SEQ|LISTNUM|AUTONUM(?:LGL|OUT)?)(?=\\s|$)", Pattern.CASE_INSENSITIVE);
 
@@ -332,8 +331,7 @@ public final class AutomaticNumberingParser {
 
   private static boolean excluded(Element element) {
     String name = element.getLocalName();
-    return MC.equals(element.getNamespaceURI()) && "Fallback".equals(name)
-        || isWord(element) && ("del".equals(name) || "moveFrom".equals(name)
+    return isWord(element) && ("del".equals(name) || "moveFrom".equals(name)
             || "delInstrText".equals(name) || name.endsWith("PrChange"));
   }
 

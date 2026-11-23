@@ -6,6 +6,7 @@ import cn.luwneshacha.thesis.document.RunModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,6 +33,12 @@ final class HeadingRuleChecker {
 
   List<CheckResult> check(ParagraphModel paragraph, RuleSet rules,
       boolean insideTable, boolean namedSectionTitle) {
+    return check(paragraph, rules, insideTable, namedSectionTitle, ignored -> { });
+  }
+
+  /** Reports each invoked check while its input heading/run is still in scope. */
+  List<CheckResult> check(ParagraphModel paragraph, RuleSet rules,
+      boolean insideTable, boolean namedSectionTitle, Consumer<CheckResult> candidate) {
     if (regions.hasDefiniteContentsEvidence(paragraph)) return List.of();
     var results = new ArrayList<CheckResult>();
     String text = paragraphText(paragraph);
@@ -39,40 +46,47 @@ final class HeadingRuleChecker {
       int level = headingLevel(paragraph);
       if (level > 0) {
         if (level <= 3) {
-          if (level == 1) results.add(checkHeadingAlignment(paragraph));
+          if (level == 1) add(results, candidate, checkHeadingAlignment(paragraph));
           for (RunModel run : paragraph.runs()) {
-            results.add(checkHeadingFont(run, level));
-            results.add(checkHeadingSize(run, level));
+            add(results, candidate, checkHeadingFont(run, level));
+            add(results, candidate, checkHeadingSize(run, level));
           }
           if (level == 2 || level == 3) {
-            results.add(paragraphFormatChecker.checkLineSpacing("HEADING-LINE", paragraph));
+            add(results, candidate, paragraphFormatChecker.checkLineSpacing("HEADING-LINE", paragraph));
           }
           if (level == 3) {
-            results.add(paragraphFormatChecker.checkIndent(paragraph, rules, "HEAD-03-INDENT"));
+            add(results, candidate,
+                paragraphFormatChecker.checkIndent(paragraph, rules, "HEAD-03-INDENT"));
           }
         }
         // Only literal numbers have text separators to check. The separate policy module
         // rejects generated numbers; bullet formatting must not hide a literal heading.
         if (hasHeadingNumber(level, text)) {
-          results.add(checkHeadingNumberSpacing(paragraph, level, text));
+          add(results, candidate, checkHeadingNumberSpacing(paragraph, level, text));
         }
       }
       if (level == 0 && isLowerHeading(text)) {
         boolean markerMatches = text.matches("^（\\d+）(?:、)?[^\\p{P}\\p{S}\\s].{0,79}$");
-        results.add(result("HEAD-05-MARKER", "（1）标题（顿号可选）", text,
+        add(results, candidate, result("HEAD-05-MARKER", "（1）标题（顿号可选）", text,
             markerMatches ? "" : "LOWER_HEADING_MARKER_MISMATCH",
             markerMatches ? Judgement.PASS : Judgement.FAIL, paragraph.source()));
         for (RunModel run : paragraph.runs()) {
           if (run.text().isBlank()) continue;
-          results.add(paragraphFormatChecker.checkFont(run, rules, "HEAD-05-FONT"));
-          results.add(paragraphFormatChecker.checkSize(run, rules, "HEAD-05-SIZE"));
+          add(results, candidate, paragraphFormatChecker.checkFont(run, rules, "HEAD-05-FONT"));
+          add(results, candidate, paragraphFormatChecker.checkSize(run, rules, "HEAD-05-SIZE"));
         }
-        results.add(paragraphFormatChecker.checkExactFirstLineIndent(paragraph,
+        add(results, candidate, paragraphFormatChecker.checkExactFirstLineIndent(paragraph,
             rules.expectedFirstLineChars(), 420, "HEAD-05-INDENT"));
-        results.add(paragraphFormatChecker.checkLineSpacing("HEAD-05-LINE", paragraph));
+        add(results, candidate, paragraphFormatChecker.checkLineSpacing("HEAD-05-LINE", paragraph));
       }
     }
     return List.copyOf(results);
+  }
+
+  private static void add(List<CheckResult> results, Consumer<CheckResult> candidate,
+      CheckResult checked) {
+    candidate.accept(checked);
+    results.add(checked);
   }
 
   int headingLevel(ParagraphModel paragraph) {

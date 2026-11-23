@@ -5,7 +5,9 @@ import cn.luwneshacha.thesis.document.ParsedDocument;
 import cn.luwneshacha.thesis.document.RunModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -29,23 +31,37 @@ final class ContentsRuleChecker implements RuleModule {
 
   @Override
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
+    return evaluate(document, rules).results();
+  }
+
+  @Override
+  public Evaluation evaluate(ParsedDocument document, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
+    var evidence = new Evidence();
     var contentsEntries = new ArrayList<RelationItem>();
     var bodyHeadings = new ArrayList<RelationItem>();
     var embeddedHeadings = new EmbeddedHeadingDetector(document);
     boolean inContents = false;
     boolean contentsSeen = false;
+    boolean chineseContentsSeen = false;
+    boolean englishContentsTextSeen = false;
+    boolean bodyBoundaryProven = false;
+    boolean unresolvedContentsEntry = false;
     SourceAddress contentsAnchor = null;
     for (int index = 0; index < document.paragraphs().size(); index++) {
       ParagraphModel paragraph = document.paragraphs().get(index);
       String raw = text(paragraph);
       String normalized = compact(raw);
+      if (normalized.equalsIgnoreCase("CONTENTS")) englishContentsTextSeen = true;
       boolean insideTable = regions.isInsideTable(paragraph, document.tables());
       if (!insideTable && (normalized.equals("目录") || normalized.equalsIgnoreCase("CONTENTS"))) {
         inContents = true;
         contentsSeen = true;
         if (contentsAnchor == null) contentsAnchor = paragraph.source();
-        checkTitle(results, paragraph, normalized.equalsIgnoreCase("CONTENTS"));
+        boolean english = normalized.equalsIgnoreCase("CONTENTS");
+        if (!english) chineseContentsSeen = true;
+        if (!english) evidence.completed("TOC-01-SPACING");
+        checkTitle(results, evidence, paragraph, english);
         int next = index + 1;
         int blankLines = ManualLineBreakSupport.blankLinesAfter(paragraph);
         while (next < document.paragraphs().size()
@@ -62,16 +78,27 @@ final class ContentsRuleChecker implements RuleModule {
                   : "TOC_TITLE_BLANK_LINE_COUNT_MISMATCH",
               Judgement.FAIL, source));
         }
+        evidence.completed("TOC-01-BLANK");
         continue;
       }
       if (isVisualBlank(paragraph)) continue;
       if (inContents && regions.isPotentialContentsEntry(document, index, paragraph, raw)) {
-        checkEntryFormatting(results, paragraph, raw);
+        checkEntryFormatting(results, evidence, paragraph, raw);
         relationItem(raw, paragraph, true).ifPresent(contentsEntries::add);
         continue;
       }
+      if (inContents && (insideTable || !isBodyHeading(paragraph, raw))) {
+        // A nonblank line inside the contents region was not classified as
+        // an entry. It may be a malformed entry, so entry coverage is unknown.
+        unresolvedContentsEntry = true;
+        for (String ruleId : List.of("TOC-ENTRY-FONT", "TOC-ENTRY-SIZE",
+            "TOC-ENTRY-LINE", "TOC-ENTRY-INDENT", "TOC-ENTRY-PAGE"))
+          evidence.unknown(ruleId);
+      }
       if (inContents && !insideTable && isBodyHeading(paragraph, raw)) {
         inContents = false;
+        bodyBoundaryProven = regions.isBodyChapterStart(paragraph, document)
+            && headingChecker.hasHeadingEvidence(paragraph);
         relationItem(raw, paragraph, false).ifPresent(bodyHeadings::add);
       } else if (!inContents && contentsSeen && !insideTable && isBodyHeading(paragraph, raw)) {
         relationItem(raw, paragraph, false).ifPresent(bodyHeadings::add);
@@ -81,19 +108,35 @@ final class ContentsRuleChecker implements RuleModule {
       }
       if (isEntry(paragraph, raw)) checkEntrySpacing(results, paragraph, raw);
     }
-    checkHeadingCorrespondence(results, contentsEntries, bodyHeadings);
     if (contentsSeen) {
+      checkHeadingCorrespondence(results, evidence, contentsEntries, bodyHeadings,
+          unresolvedContentsEntry, bodyBoundaryProven);
+      if (unresolvedContentsEntry) evidence.unknown("TOC-SPACING");
       boolean hasAppendix = document.paragraphs().stream().anyMatch(paragraph ->
           regions.isMainAppendixTitle(paragraph, document)
               || regions.appendixHeadingLetter(paragraph, document) != null);
-      checkRequiredEntries(results, contentsEntries, contentsAnchor, hasAppendix);
+      checkRequiredEntries(results, evidence, contentsEntries, contentsAnchor, hasAppendix);
     }
-    return List.copyOf(results);
+    var runs = new ArrayList<>(evidence.ruleRuns());
+    if (chineseContentsSeen && bodyBoundaryProven && !unresolvedContentsEntry) {
+      if (runs.stream().noneMatch(run -> run.ruleId().equals("TOC-SPACING")))
+        runs.add(new RuleRun("TOC-SPACING", getClass().getSimpleName(), 0, 0, 0,
+            "NO_NUMBERED_TOC_ENTRIES"));
+      if (!englishContentsTextSeen) {
+        for (String ruleId : List.of("EN-TOC-01-BOLD", "EN-TOC-01-ALIGNMENT",
+            "EN-TOC-01-FONT", "EN-TOC-01-SIZE", "EN-TOC-01-LINE"))
+          runs.add(new RuleRun(ruleId, getClass().getSimpleName(), 0, 0, 0,
+              "NO_ENGLISH_CONTENTS_TITLE"));
+      }
+    }
+    return new Evaluation(List.copyOf(results), List.copyOf(runs));
   }
 
   /** Checks the required landmarks on the contents page independently of body matching. */
-  private void checkRequiredEntries(List<CheckResult> results,
+  private void checkRequiredEntries(List<CheckResult> results, Evidence evidence,
       List<RelationItem> entries, SourceAddress anchor, boolean hasAppendix) {
+    for (int index = 0; index < (hasAppendix ? 4 : 3); index++)
+      evidence.completed("TOC-REQUIRED-ENTRY");
     boolean chapter = entries.stream().anyMatch(item -> CHAPTER.matcher(item.key()).find());
     boolean references = entries.stream().anyMatch(item -> isContentsLandmark(item.key(), "参考文献"));
     boolean acknowledgement = entries.stream().anyMatch(item -> isContentsLandmark(item.key(), "致谢"));
@@ -141,9 +184,14 @@ final class ContentsRuleChecker implements RuleModule {
    * the contents page.  Page numbers and formatting whitespace are removed,
    * but the actual title words and numbering remain part of the key.
    */
-  private void checkHeadingCorrespondence(List<CheckResult> results,
-      List<RelationItem> contentsEntries, List<RelationItem> bodyHeadings) {
-    if (contentsEntries.isEmpty() || bodyHeadings.isEmpty()) return;
+  private void checkHeadingCorrespondence(List<CheckResult> results, Evidence evidence,
+      List<RelationItem> contentsEntries, List<RelationItem> bodyHeadings,
+      boolean unresolvedContentsEntry, boolean bodyBoundaryProven) {
+    if (contentsEntries.isEmpty() || bodyHeadings.isEmpty()) {
+      evidence.unknown("TOC-02");
+      evidence.unknown("TOC-02-ORDER");
+      return;
+    }
 
     var bodyCounts = new java.util.HashMap<String, Integer>();
     var contentsCounts = new java.util.HashMap<String, Integer>();
@@ -151,6 +199,8 @@ final class ContentsRuleChecker implements RuleModule {
     contentsEntries.forEach(item -> contentsCounts.merge(item.key(), 1, Integer::sum));
 
     for (RelationItem item : contentsEntries) {
+      if (bodyBoundaryProven) evidence.completed("TOC-02");
+      else evidence.unknown("TOC-02");
       int contentsCount = contentsCounts.getOrDefault(item.key(), 0);
       int bodyCount = bodyCounts.getOrDefault(item.key(), 0);
       if (contentsCount > bodyCount
@@ -160,6 +210,8 @@ final class ContentsRuleChecker implements RuleModule {
       }
     }
     for (RelationItem item : bodyHeadings) {
+      if (bodyBoundaryProven) evidence.completed("TOC-02");
+      else evidence.unknown("TOC-02");
       int bodyCount = bodyCounts.getOrDefault(item.key(), 0);
       int contentsCount = contentsCounts.getOrDefault(item.key(), 0);
       if (bodyCount > contentsCount
@@ -168,8 +220,11 @@ final class ContentsRuleChecker implements RuleModule {
             "BODY_HEADING_NOT_IN_TOC", Judgement.FAIL, item.source()));
       }
     }
+    if (unresolvedContentsEntry) evidence.unknown("TOC-02");
 
     if (bodyCounts.equals(contentsCounts) && contentsEntries.size() == bodyHeadings.size()) {
+      if (unresolvedContentsEntry || !bodyBoundaryProven) evidence.unknown("TOC-02-ORDER");
+      else evidence.completed("TOC-02-ORDER");
       for (int index = 0; index < contentsEntries.size(); index++) {
         RelationItem contents = contentsEntries.get(index);
         RelationItem body = bodyHeadings.get(index);
@@ -180,6 +235,8 @@ final class ContentsRuleChecker implements RuleModule {
           break;
         }
       }
+    } else {
+      evidence.unknown("TOC-02-ORDER");
     }
   }
 
@@ -212,7 +269,8 @@ final class ContentsRuleChecker implements RuleModule {
 
   private record RelationItem(String key, SourceAddress source, boolean pageNumberPresent) { }
 
-  private void checkTitle(List<CheckResult> results, ParagraphModel paragraph, boolean english) {
+  private void checkTitle(List<CheckResult> results, Evidence evidence,
+      ParagraphModel paragraph, boolean english) {
     String raw = ManualLineBreakSupport.stripBoundaryBreaks(text(paragraph));
     String ruleId = english ? "EN-TOC-01" : "TOC-01";
     if (!english && !raw.matches("^目 {4}录$")) {
@@ -220,29 +278,30 @@ final class ContentsRuleChecker implements RuleModule {
           "TOC_TITLE_SPACING_MISMATCH", Judgement.FAIL, paragraph.source()));
     }
     if (paragraph.alignment() == null) {
-      results.add(result(ruleId + "-ALIGNMENT", "center", "unknown", "ALIGNMENT_UNKNOWN",
-          Judgement.REVIEW, paragraph.source()));
+      assess(results, evidence, result(ruleId + "-ALIGNMENT", "center", "unknown",
+          "ALIGNMENT_UNKNOWN", Judgement.REVIEW, paragraph.source()));
     } else {
       boolean matches = "center".equalsIgnoreCase(paragraph.alignment());
-      results.add(result(ruleId + "-ALIGNMENT", "center", paragraph.alignment(),
+      assess(results, evidence, result(ruleId + "-ALIGNMENT", "center", paragraph.alignment(),
           matches ? "" : "ALIGNMENT_MISMATCH", matches ? Judgement.PASS : Judgement.FAIL,
           paragraph.source()));
     }
     for (RunModel run : paragraph.runs()) {
       if (run.text().isEmpty() || ManualLineBreakSupport.isBreakOnly(run.text())) continue;
-      results.add(formatChecker.checkFont(run, "黑体", "Times New Roman", ruleId + "-FONT"));
-      results.add(formatChecker.checkExpectedSize(run, 32, ruleId + "-SIZE"));
+      assess(results, evidence,
+          formatChecker.checkFont(run, "黑体", "Times New Roman", ruleId + "-FONT"));
+      assess(results, evidence, formatChecker.checkExpectedSize(run, 32, ruleId + "-SIZE"));
       if (english) {
         boolean bold = Boolean.TRUE.equals(run.bold());
-        results.add(result("EN-TOC-01-BOLD", "true", String.valueOf(run.bold()),
+        assess(results, evidence, result("EN-TOC-01-BOLD", "true", String.valueOf(run.bold()),
             run.bold() == null ? "BOLD_UNKNOWN" : (bold ? "" : "BOLD_MISMATCH"),
             run.bold() == null ? Judgement.REVIEW : (bold ? Judgement.PASS : Judgement.FAIL), run.source()));
       }
     }
-    results.add(formatChecker.checkLineSpacing(ruleId + "-LINE", paragraph));
+    assess(results, evidence, formatChecker.checkLineSpacing(ruleId + "-LINE", paragraph));
   }
 
-  private void checkEntrySpacing(List<CheckResult> results, ParagraphModel paragraph, String text) {
+  private boolean checkEntrySpacing(List<CheckResult> results, ParagraphModel paragraph, String text) {
     String sourceText = text(paragraph);
     // Match the original characters: a line break must never turn into a valid space.
     String entryText = sourceText.stripLeading();
@@ -257,7 +316,7 @@ final class ContentsRuleChecker implements RuleModule {
                 + invalidSeparatorOffset(separator, 2)), sourceOffset(paragraph, leadingOffset + chapter.end()
                     + invalidSeparatorEnd(separator, 2)))));
       }
-      return;
+      return true;
     }
     Matcher malformed = Pattern.compile("^第[一二三四五六七八九十百千万零〇]*" + WHITESPACE
         + "+[一二三四五六七八九十百千万零〇]+章").matcher(entryText);
@@ -267,7 +326,7 @@ final class ContentsRuleChecker implements RuleModule {
           "TOC_NUMBER_SPACING_MISMATCH", Judgement.FAIL,
           range(paragraph, sourceOffset(paragraph, leadingOffset + whitespace),
               sourceOffset(paragraph, leadingOffset + whitespace + 1))));
-      return;
+      return true;
     }
     Matcher malformedNumeric = DocumentRegionClassifier.NUMERIC_CONTENTS_WITH_INTERNAL_WHITESPACE.matcher(entryText);
     if (malformedNumeric.matches()
@@ -277,7 +336,7 @@ final class ContentsRuleChecker implements RuleModule {
           "TOC_NUMBER_SPACING_MISMATCH", Judgement.FAIL,
           range(paragraph, sourceOffset(paragraph, leadingOffset + whitespace),
               sourceOffset(paragraph, leadingOffset + whitespace + 1))));
-      return;
+      return true;
     }
     Matcher numeric = NUMERIC.matcher(entryText);
     if (numeric.matches()) {
@@ -289,7 +348,9 @@ final class ContentsRuleChecker implements RuleModule {
                 + invalidSeparatorOffset(separator, 1)), sourceOffset(paragraph, leadingOffset
                     + numeric.group(1).length() + invalidSeparatorEnd(separator, 1)))));
       }
+      return true;
     }
+    return false;
   }
 
   private static SourceAddress range(ParagraphModel paragraph, int start, int end) {
@@ -328,29 +389,32 @@ final class ContentsRuleChecker implements RuleModule {
     return 0;
   }
 
-  private void checkEntryFormatting(List<CheckResult> results, ParagraphModel paragraph, String raw) {
+  private void checkEntryFormatting(List<CheckResult> results, Evidence evidence,
+      ParagraphModel paragraph, String raw) {
     String matchingText = matchingText(raw);
-    checkEntrySpacing(results, paragraph, matchingText);
+    if (checkEntrySpacing(results, paragraph, matchingText)) evidence.completed("TOC-SPACING");
+    else if (paragraph.generatedTocField()) evidence.unknown("TOC-SPACING");
     int level = tocLevel(paragraph, matchingText);
     for (RunModel run : paragraph.runs()) {
       if (run.text().isEmpty()) continue;
-      results.add(formatChecker.checkFont(run, "宋体", "Times New Roman", "TOC-ENTRY-FONT"));
-      results.add(formatChecker.checkExpectedSize(run, 24, "TOC-ENTRY-SIZE"));
+      assess(results, evidence,
+          formatChecker.checkFont(run, "宋体", "Times New Roman", "TOC-ENTRY-FONT"));
+      assess(results, evidence, formatChecker.checkExpectedSize(run, 24, "TOC-ENTRY-SIZE"));
     }
-    results.add(formatChecker.checkLineSpacing("TOC-ENTRY-LINE", paragraph));
+    assess(results, evidence, formatChecker.checkLineSpacing("TOC-ENTRY-LINE", paragraph));
     // 二、三级目录允许首行或整段缩进；没有依据强制其中一种方式或数值。
-    if (level == 1) results.add(checkFirstLevelEntryIndent(paragraph));
+    if (level == 1) assess(results, evidence, checkFirstLevelEntryIndent(paragraph));
     Matcher page = NUMERIC_PAGE.matcher(matchingText.strip());
     if (!page.matches()) {
       String value = matchingText.strip();
       boolean hasPageDelimiter = value.matches(".*(?:\\.{2,}|……+|\\t|[\\p{Zs}]{2,}).+");
-      results.add(result("TOC-ENTRY-PAGE", "数字页码", matchingText.strip(),
+      assess(results, evidence, result("TOC-ENTRY-PAGE", "数字页码", matchingText.strip(),
           hasPageDelimiter
               ? "TOC_PAGE_NUMBER_NON_NUMERIC" : "TOC_PAGE_NUMBER_MISSING",
           Judgement.FAIL, paragraph.source()));
     } else {
-      results.add(result("TOC-ENTRY-PAGE", "数字页码", page.group(1), "", Judgement.PASS,
-          paragraph.source()));
+      assess(results, evidence, result("TOC-ENTRY-PAGE", "数字页码", page.group(1), "",
+          Judgement.PASS, paragraph.source()));
     }
   }
 
@@ -479,6 +543,46 @@ final class ContentsRuleChecker implements RuleModule {
 
   private static boolean isVisualBlank(ParagraphModel paragraph) {
     return ManualLineBreakSupport.visualBlankLines(paragraph) > 0;
+  }
+
+  private static void assess(List<CheckResult> results, Evidence evidence, CheckResult decision) {
+    // Record at the actual title/entry visit, including successful decisions.
+    // A later scan of the findings stream cannot prove all candidates were seen.
+    evidence.assessed(decision);
+    results.add(decision);
+  }
+
+  private static final class Evidence {
+    private final Map<String, int[]> counts = new LinkedHashMap<>();
+
+    private void completed(String ruleId) {
+      counts.computeIfAbsent(ruleId, ignored -> new int[2])[0]++;
+    }
+
+    private void assessed(CheckResult decision) {
+      int[] count = counts.computeIfAbsent(decision.ruleId(), ignored -> new int[2]);
+      count[0]++;
+      if (decision.judgement() == Judgement.REVIEW
+          || decision.applicability() == Applicability.UNKNOWN
+          || decision.executionStatus() != ExecutionStatus.EXECUTED) count[1]++;
+    }
+
+    private void unknown(String ruleId) {
+      int[] count = counts.computeIfAbsent(ruleId, ignored -> new int[2]);
+      count[0]++;
+      count[1]++;
+    }
+
+    private List<RuleRun> ruleRuns() {
+      var runs = new ArrayList<RuleRun>();
+      for (var entry : counts.entrySet()) {
+        int candidates = entry.getValue()[0];
+        int unknown = entry.getValue()[1];
+        runs.add(new RuleRun(entry.getKey(), "ContentsRuleChecker", candidates,
+            candidates - unknown, unknown, null));
+      }
+      return List.copyOf(runs);
+    }
   }
 
   private static CheckResult result(String ruleId, String expected, String actual, String reason,

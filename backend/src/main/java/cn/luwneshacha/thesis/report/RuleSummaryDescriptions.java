@@ -71,6 +71,8 @@ public final class RuleSummaryDescriptions {
       case "HEAD-02-SPACING" -> "二级标题序号后空 1 个普通半角空格";
       case "HEAD-03-SPACING" -> "三级标题序号后空 1 个普通半角空格";
       case "HEAD-02-BLANK" -> "章标题与本章内容之间空一行";
+      case "HEAD-02-BLANK-FONT" -> "一级标题下的空行中文采用黑体，字母数字采用 Times New Roman";
+      case "HEAD-02-BLANK-SIZE" -> "一级标题下的空行采用三号字";
       case "HEAD-03-INDENT" -> "三级标题首行缩进 2 字符";
       case "HEAD-05-MARKER" -> "三级以下标题采用（1）、（2）等编号形式";
       case "HEAD-05-FONT" -> "三级以下标题中文采用宋体，字母和数字采用 Times New Roman";
@@ -92,7 +94,7 @@ public final class RuleSummaryDescriptions {
       case "PAGE-05" -> "页码在页脚居中，采用五号 Times New Roman";
       case "HEADER-01-SCOPE" -> "摘要至附录各页检查页眉，封面不设页眉";
       case "HEADER-01-MISSING" -> "摘要至附录各页设置学校规定页眉";
-      case "HEADER-01-TEXT" -> "页眉内容为“山东石油化工学院本科毕业设计(论文)”";
+      case "HEADER-01-TEXT" -> "页眉内容为“山东石油化工学院本科毕业设计（论文）”";
       case "HEADER-01-FONT" -> "页眉采用黑体";
       case "HEADER-01-SIZE" -> "页眉采用五号字";
       case "HEADER-01-ALIGNMENT" -> "页眉居中";
@@ -110,6 +112,7 @@ public final class RuleSummaryDescriptions {
       case "TAB-06" -> "表中重复文字完整写出，不用“同前”“同左”等代替";
       case "TAB-07" -> "表注位于表格下方并左对齐";
       case "TAB-08" -> "续表与原表编号对应，并重复原表表头";
+      case "TAB-09" -> "续表编号行位于所在页首个正文文字行，页眉不计入";
       case "EQ-01" -> "每个公式有按章编排的编号，编号加圆括号";
       case "EQ-02" -> "公式编号采用五号 Times New Roman";
       case "EQ-03" -> "公式居中，公式编号在右侧对齐";
@@ -124,10 +127,10 @@ public final class RuleSummaryDescriptions {
       case "REF-01-ALIGNMENT" -> "参考文献标题居中";
       case "REF-02" -> "参考文献按文献类型使用相应标识，电子文献注明载体类型";
       case "REF-03" -> "参考文献均在正文中引用，并按首次引用顺序排列，同一文献沿用同一编号";
-      case "REF-04" -> "参考文献包含所属类型要求的著录字段，页码范围连接号两侧不留空格";
+      case "REF-04" -> "专著、论文集、学位论文、报告、期刊分别具备相应著录字段；纸本专著与学位论文写明出版地字段；页码范围连接号两侧不留空格";
       case "REF-05" -> "参考文献不少于 10 篇";
       case "REF-07" -> "参考文献编号连续、不重复，编号后空 1 个普通半角空格";
-      case "REF-FONT" -> "参考文献中文采用宋体，字母和数字采用 Times New Roman";
+      case "REF-FONT" -> "参考文献中文及全角标点采用宋体，字母、数字及半角标点采用 Times New Roman";
       case "REF-LINE" -> "参考文献内容采用 1.5 倍行距";
       case "REF-SIZE" -> "参考文献内容采用小四号字";
       case "END-01-SPACING" -> "致谢标题两字之间空 4 个普通半角空格";

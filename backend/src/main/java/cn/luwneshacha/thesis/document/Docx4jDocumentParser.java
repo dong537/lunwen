@@ -45,10 +45,15 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
 public final class Docx4jDocumentParser {
+  private static final Set<String> BLANK_PARAGRAPH_NON_TEXT_CHILDREN = Set.of(
+      "pPr", "bookmarkStart", "bookmarkEnd", "commentRangeStart", "commentRangeEnd",
+      "proofErr", "permStart", "permEnd", "moveFromRangeStart", "moveFromRangeEnd",
+      "moveToRangeStart", "moveToRangeEnd");
   private static final Pattern PAGE_FIELD = Pattern.compile("(?:^|\\s)PAGE(?=\\s|$)", Pattern.CASE_INSENSITIVE);
   private static final String RELATIONSHIPS = "http://schemas.openxmlformats.org/package/2006/relationships";
   private static final String OFFICE_RELATIONSHIPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
   private static final String STRICT_OFFICE_RELATIONSHIPS = "http://purl.oclc.org/ooxml/officeDocument/relationships";
+  private static final String MARKUP_COMPATIBILITY = "http://schemas.openxmlformats.org/markup-compatibility/2006";
   private static final String FOOTER_RELATIONSHIP = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer";
   private static final String STRICT_FOOTER_RELATIONSHIP = "http://purl.oclc.org/ooxml/officeDocument/relationships/footer";
   private static final String HEADER_RELATIONSHIP = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header";
@@ -69,6 +74,7 @@ public final class Docx4jDocumentParser {
   public ParsedDocument parse(RawDocx raw) {
     Objects.requireNonNull(raw, "raw");
     try {
+      rejectUnmappableBodyAlternatives(raw.part("word/document.xml").bytes());
       WordprocessingMLPackage pkg = (WordprocessingMLPackage) new ImageMediaPackageLoader(raw).get();
       pkg.setNew(false);
       MainDocumentPart main = pkg.getMainDocumentPart();
@@ -76,6 +82,7 @@ public final class Docx4jDocumentParser {
       var sections = new ArrayList<SectionModel>();
       var finder = new ClassFinder(P.class);
       new TraversalUtil(main.getContent(), finder);
+      finder.results.removeIf(candidate -> candidate instanceof P paragraph && isInsideJaxbAlternateTextBox(paragraph));
       Element xmlRoot = XmlPartSupport.parse(raw.part("word/document.xml").bytes()).getDocumentElement();
       var paragraphPaths = new ArrayList<List<Integer>>();
       var xmlParagraphs = new ArrayList<Element>();
@@ -94,7 +101,8 @@ public final class Docx4jDocumentParser {
         paragraphs.add(parseParagraph(pkg, paragraph, xmlParagraphs.get(index), stylesRoot,
             index, path, numberingState, containsGeneratedTocField(xmlParagraphs.get(index))));
         if (paragraph.getPPr() != null && paragraph.getPPr().getSectPr() != null) {
-          sections.add(parseSection(paragraph.getPPr().getSectPr(), directElement(xmlParagraphs.get(index), XmlPartSupport.W, "sectPr"),
+          Element rawProperties = directElement(xmlParagraphs.get(index), XmlPartSupport.W, "pPr");
+          sections.add(parseSection(paragraph.getPPr().getSectPr(), directElement(rawProperties, XmlPartSupport.W, "sectPr"),
               new SourceAddress("word/document.xml", path, 0, 0), false, evenAndOddHeaders));
         }
       }
@@ -111,12 +119,24 @@ public final class Docx4jDocumentParser {
       }
       byte[] documentXml = raw.part("word/document.xml").bytes();
       List<String> diagnostics = DocumentClassifier.classify(documentXml);
+      TableParser.TableInventory tableInventory = new TableParser().parseInventory(
+          documentXml, styles == null ? null : styles.bytes(), pkg);
+      EquationParser.Inventory equationInventory = new EquationParser().parseInventory(
+          documentXml, styles == null ? null : styles.bytes(), equationThemeFonts(pkg));
+      ImageParser.Inventory imageInventory = new ImageParser().parseInventory(
+          documentXml, styles == null ? null : styles.bytes());
+      Map<FooterKey, List<Integer>> footerUsages = referencedFooterSections(raw);
+      List<PageNumberModel> pageNumbers = parsePageNumbers(raw, pkg, footerUsages);
+      List<FooterPageEvidence> footerPageEvidence = parseFooterPageEvidence(
+          raw, sections, footerUsages, pageNumbers);
       return new ParsedDocument(raw.sourceSha256(), paragraphs, sections, diagnostics,
-          new TableParser().parse(documentXml, styles == null ? null : styles.bytes(), pkg),
-          new EquationParser().parse(documentXml, styles == null ? null : styles.bytes(), equationThemeFonts(pkg)),
-          new ReferenceParser().parse(paragraphs), new ImageParser().parse(documentXml, styles == null ? null : styles.bytes()), parsePageNumbers(raw, pkg),
+          tableInventory.tables(),
+          equationInventory.equations(),
+          new ReferenceParser().parse(paragraphs), imageInventory.images(), pageNumbers,
           parseChapterBreaks(documentXml, pkg, finder.results, paragraphPaths, paragraphs),
-          parseHeaders(raw, pkg, evenAndOddHeaders), new AutomaticNumberingParser().parse(raw));
+          parseHeaders(raw, pkg, evenAndOddHeaders), new AutomaticNumberingParser().parse(raw),
+          tableInventory.complete(), equationInventory.possibleObjects(), equationInventory.complete(),
+          footerPageEvidence, imageInventory.complete());
     } catch (Exception error) {
       throw new IllegalArgumentException("unable to parse DOCX: " + error.getMessage(), error);
     }
@@ -150,9 +170,9 @@ public final class Docx4jDocumentParser {
     }
   }
 
-  private List<PageNumberModel> parsePageNumbers(RawDocx raw, WordprocessingMLPackage pkg) {
+  private List<PageNumberModel> parsePageNumbers(RawDocx raw, WordprocessingMLPackage pkg,
+      Map<FooterKey, List<Integer>> referencedFooterSections) {
     var result = new ArrayList<PageNumberModel>();
-    Map<FooterKey, List<Integer>> referencedFooterSections = referencedFooterSections(raw);
     for (RawPart part : raw.parts().values()) {
       List<Map.Entry<FooterKey, List<Integer>>> usages = referencedFooterSections.entrySet().stream()
           .filter(entry -> part.name().equals(entry.getKey().partName())).toList();
@@ -163,8 +183,11 @@ public final class Docx4jDocumentParser {
         for (Map.Entry<FooterKey, List<Integer>> usage : usages) {
           for (int index = 0; index < paragraphs.getLength(); index++) {
             Element paragraph = (Element) paragraphs.item(index);
+            if (!visibleFooterNode(paragraph)) continue;
             if (!hasPageField(paragraph)) continue;
-            List<Element> pageRuns = pageFieldResultRuns(paragraph);
+            PageFieldResult pageResult = pageFieldResult(paragraph);
+            List<Element> pageRuns = pageResult.runs();
+            boolean branchDependentResult = pageResult.unresolvedBranch();
             Element paragraphProperties = directElement(paragraph, XmlPartSupport.W, "pPr");
             Element jc = directElement(paragraphProperties, XmlPartSupport.W, "jc");
             Boolean centered = insideTableCell(paragraph) ? null
@@ -182,13 +205,20 @@ public final class Docx4jDocumentParser {
                 fontResolution = pageNumberFontFromStyles(raw, paragraph, pageRun, pkg);
               formatting.add(new PageNumberModel.RunFormatting(fontResolution.name(), size));
             }
+            // A visible PAGE instruction can have its displayed result in an
+            // unresolved compatibility branch. Paragraph/style inheritance
+            // cannot prove the actual result run's typography in that case.
+            if (branchDependentResult)
+              formatting.add(new PageNumberModel.RunFormatting(null, null));
             if (formatting.isEmpty()) {
               Integer size = pageNumberSizeFromStyles(raw, paragraph, null);
               FontResolution fontResolution = pageNumberFontFromStyles(raw, paragraph, null, pkg);
               formatting.add(new PageNumberModel.RunFormatting(fontResolution.name(), size));
             }
-            String asciiFont = formatting.isEmpty() ? null : formatting.get(0).asciiFont();
-            Integer size = formatting.isEmpty() ? null : formatting.get(0).sizeHalfPoints();
+            String asciiFont = branchDependentResult || formatting.isEmpty()
+                ? null : formatting.get(0).asciiFont();
+            Integer size = branchDependentResult || formatting.isEmpty()
+                ? null : formatting.get(0).sizeHalfPoints();
             result.add(new PageNumberModel(new SourceAddress(part.name(), List.of(index), 0, 0), true,
                 centered, asciiFont, size, usage.getValue(), formatting, usage.getKey().variant()));
           }
@@ -198,6 +228,133 @@ public final class Docx4jDocumentParser {
       }
     }
     return List.copyOf(result);
+  }
+
+  private List<FooterPageEvidence> parseFooterPageEvidence(RawDocx raw,
+      List<SectionModel> sections, Map<FooterKey, List<Integer>> usages,
+      List<PageNumberModel> pageNumbers) throws Exception {
+    Element document = parseXml(raw.part("word/document.xml").bytes());
+    var rawSections = document.getElementsByTagNameNS(XmlPartSupport.W, "sectPr");
+    if (rawSections.getLength() != sections.size()) return List.of();
+    var evidence = new ArrayList<FooterPageEvidence>();
+    var unresolvedFieldMarkup = new java.util.HashMap<String, Boolean>();
+    for (int index = 0; index < sections.size(); index++) {
+      Element rawSection = (Element) rawSections.item(index);
+      SectionModel section = sections.get(index);
+      var variants = new ArrayList<PageNumberModel.FooterVariant>();
+      variants.add(PageNumberModel.FooterVariant.DEFAULT);
+      if (section.firstPageHeaderEnabled()) variants.add(PageNumberModel.FooterVariant.FIRST);
+      if (section.evenPageHeaderEnabled()) variants.add(PageNumberModel.FooterVariant.EVEN);
+      for (PageNumberModel.FooterVariant variant : variants) {
+        int sectionIndex = index;
+        FooterKey effective = usages.entrySet().stream()
+            .filter(entry -> entry.getKey().variant() == variant
+                && entry.getValue().contains(sectionIndex))
+            .map(Map.Entry::getKey).findFirst().orElse(null);
+        if (effective == null) {
+          evidence.add(new FooterPageEvidence(index, variant,
+              FooterPageEvidence.Origin.NONE, null, FooterPageEvidence.Presence.ABSENT));
+          continue;
+        }
+        boolean explicit = XmlPartSupport.children(rawSection).stream().anyMatch(child ->
+            XmlPartSupport.W.equals(child.getNamespaceURI())
+                && "footerReference".equals(child.getLocalName())
+                && footerVariant(child) == variant);
+        boolean present = pageNumbers.stream().anyMatch(page -> page.pageField()
+            && page.footerVariant() == variant
+            && page.source().partName().equals(effective.partName())
+            && page.applicableSectionIndexes().contains(sectionIndex));
+        FooterPageEvidence.Presence presence;
+        if (present) presence = FooterPageEvidence.Presence.PRESENT;
+        else if (unresolvedFieldMarkup.computeIfAbsent(effective.partName(), partName ->
+            footerHasUnresolvedFieldMarkup(raw.part(partName))))
+          presence = FooterPageEvidence.Presence.UNKNOWN;
+        else presence = FooterPageEvidence.Presence.ABSENT;
+        evidence.add(new FooterPageEvidence(index, variant,
+            explicit ? FooterPageEvidence.Origin.EXPLICIT : FooterPageEvidence.Origin.INHERITED,
+            effective.partName(), presence));
+      }
+    }
+    return List.copyOf(evidence);
+  }
+
+  private boolean footerHasUnresolvedFieldMarkup(RawPart footer) {
+    try {
+      Element root = XmlPartSupport.parseWithoutCompatibilitySelection(footer.bytes()).getDocumentElement();
+      // A compatibility branch is not selected by this parser. Do not infer
+      // either a visible PAGE field or its absence from that branch.
+      var alternatives = root.getElementsByTagNameNS(MARKUP_COMPATIBILITY, "AlternateContent");
+      for (int index = 0; index < alternatives.getLength(); index++) {
+        Element alternative = (Element) alternatives.item(index);
+        if (!insideRemovedRevision(alternative) && hasFieldMarkupOutsideRemovedRevision(alternative)) return true;
+      }
+      for (String tag : List.of("fldSimple", "fldChar", "instrText")) {
+        if (!visibleFooterElements(root, tag).isEmpty()) return true;
+      }
+      return false;
+    } catch (Exception error) {
+      return true;
+    }
+  }
+
+  private static void rejectUnmappableBodyAlternatives(byte[] xml) throws Exception {
+    Element root = XmlPartSupport.parseWithoutCompatibilitySelection(xml).getDocumentElement();
+    var alternatives = root.getElementsByTagNameNS(MARKUP_COMPATIBILITY, "AlternateContent");
+    for (int index = 0; index < alternatives.getLength(); index++) {
+      Element alternative = (Element) alternatives.item(index);
+      if (insideRemovedRevision(alternative)) continue;
+      if (!XmlPartSupport.isTextBoxOnlyAlternative(alternative)
+          && (insideWordPropertyContainer(alternative) || containsParagraphOrTextAlternative(alternative)))
+        throw new IllegalArgumentException(
+            "cannot safely map compatibility paragraph, text or properties between XML and docx4j in word/document.xml");
+    }
+  }
+
+  private static boolean insideWordPropertyContainer(Element alternative) {
+    for (Node node = alternative.getParentNode(); node != null; node = node.getParentNode()) {
+      if (!(node instanceof Element ancestor)) continue;
+      if (XmlPartSupport.W.equals(ancestor.getNamespaceURI())
+          && ancestor.getLocalName().endsWith("Pr")) return true;
+    }
+    return false;
+  }
+
+  private static boolean containsParagraphOrTextAlternative(Element alternative) {
+    if (removedRevision(alternative)) return false;
+    String namespace = alternative.getNamespaceURI();
+    String name = alternative.getLocalName();
+    if (XmlPartSupport.W.equals(namespace)) {
+      if ("delInstrText".equals(name) || name.endsWith("PrChange")) return false;
+      if (name.endsWith("Pr") || List.of("p", "tbl", "t", "instrText", "fldSimple", "tab", "br", "cr", "sym", "object")
+          .contains(name)) return true;
+    }
+    if (XmlPartSupport.M.equals(namespace) && ("oMath".equals(name) || "oMathPara".equals(name)))
+      return true;
+    for (Node child = alternative.getFirstChild(); child != null; child = child.getNextSibling())
+      if (child instanceof Element childElement && containsParagraphOrTextAlternative(childElement))
+        return true;
+    return false;
+  }
+
+  private static boolean isInsideJaxbAlternateTextBox(P paragraph) {
+    Object parent = paragraph.getParent();
+    boolean insideTextBox = false;
+    while (parent != null) {
+      Object unwrapped = XmlUtils.unwrap(parent);
+      if (unwrapped instanceof org.docx4j.wml.CTTxbxContent) insideTextBox = true;
+      if (unwrapped instanceof org.docx4j.mce.AlternateContent) return insideTextBox;
+      parent = unwrapped instanceof org.jvnet.jaxb.lang.Child child ? child.getParent() : null;
+    }
+    return false;
+  }
+
+  private PageNumberModel.FooterVariant footerVariant(Element reference) {
+    String type = reference.getAttributeNS(XmlPartSupport.W, "type");
+    return switch (type) {
+      case "first" -> PageNumberModel.FooterVariant.FIRST;
+      case "even" -> PageNumberModel.FooterVariant.EVEN;
+      default -> PageNumberModel.FooterVariant.DEFAULT;
+    };
   }
 
   private Map<FooterKey, List<Integer>> referencedFooterSections(RawDocx raw) {
@@ -306,26 +463,33 @@ public final class Docx4jDocumentParser {
     return value.isBlank() ? element.getAttributeNS(STRICT_OFFICE_RELATIONSHIPS, "id") : value;
   }
 
-  private List<Element> pageFieldResultRuns(Element paragraph) {
+  private PageFieldResult pageFieldResult(Element paragraph) {
     var result = new ArrayList<Element>();
-    var simpleFields = paragraph.getElementsByTagNameNS(XmlPartSupport.W, "fldSimple");
-    for (int index = 0; index < simpleFields.getLength(); index++) {
-      Element field = (Element) simpleFields.item(index);
+    boolean unresolvedBranch = false;
+    var simpleFields = visibleFooterElements(paragraph, "fldSimple");
+    for (Element field : simpleFields) {
       if (!PAGE_FIELD.matcher(field.getAttributeNS(XmlPartSupport.W, "instr")).find()) continue;
-      var fieldRuns = field.getElementsByTagNameNS(XmlPartSupport.W, "r");
-      for (int runIndex = 0; runIndex < fieldRuns.getLength(); runIndex++) {
-        Element run = (Element) fieldRuns.item(runIndex);
-        if (run.getElementsByTagNameNS(XmlPartSupport.W, "t").getLength() > 0) result.add(run);
+      unresolvedBranch |= hasAlternateTextRun(field);
+      for (Element run : visibleFooterElements(field, "r")) {
+        if (!visibleFooterElements(run, "t").isEmpty()) result.add(run);
       }
     }
-    var runs = paragraph.getElementsByTagNameNS(XmlPartSupport.W, "r");
+    var events = new ArrayList<Element>();
+    collectPageResultEvents(paragraph, events);
     var instruction = new StringBuilder();
     int fieldStart = -1;
     boolean pageField = false;
     boolean inResult = false;
     boolean legacyPageResultPending = false;
-    for (int index = 0; index < runs.getLength(); index++) {
-      Element run = (Element) runs.item(index);
+    for (int index = 0; index < events.size(); index++) {
+      Element run = events.get(index);
+      if (alternateContent(run)) {
+        if (hasAlternateTextRun(run)) {
+          if (inResult || (fieldStart < 0 && legacyPageResultPending)) unresolvedBranch = true;
+          if (fieldStart < 0) legacyPageResultPending = false;
+        }
+        continue;
+      }
       Element fieldChar = firstElement(run, XmlPartSupport.W, "fldChar");
       String fieldCharType = fieldChar == null ? "" : fieldChar.getAttributeNS(XmlPartSupport.W, "fldCharType");
       if ("begin".equals(fieldCharType)) {
@@ -335,9 +499,9 @@ public final class Docx4jDocumentParser {
         inResult = false;
         legacyPageResultPending = false;
       }
-      var instructions = run.getElementsByTagNameNS(XmlPartSupport.W, "instrText");
-      for (int part = 0; part < instructions.getLength(); part++) {
-        String text = instructions.item(part).getTextContent();
+      var instructions = visibleFooterElements(run, "instrText");
+      for (Element instructionPart : instructions) {
+        String text = instructionPart.getTextContent();
         instruction.append(text);
       }
       if (PAGE_FIELD.matcher(instruction).find()) legacyPageResultPending = true;
@@ -348,7 +512,7 @@ public final class Docx4jDocumentParser {
         inResult = pageField;
         legacyPageResultPending = false;
       }
-      boolean hasText = run.getElementsByTagNameNS(XmlPartSupport.W, "t").getLength() > 0;
+      boolean hasText = !visibleFooterElements(run, "t").isEmpty();
       if (inResult && hasText) result.add(run);
       else if (fieldStart < 0 && legacyPageResultPending && hasText) {
         result.add(run);
@@ -361,7 +525,22 @@ public final class Docx4jDocumentParser {
         legacyPageResultPending = false;
       }
     }
-    return List.copyOf(result);
+    return new PageFieldResult(List.copyOf(result), unresolvedBranch);
+  }
+
+  private static void collectPageResultEvents(Element parent, List<Element> events) {
+    for (Element child : XmlPartSupport.children(parent)) {
+      if (insideRemovedRevision(child)) continue;
+      if (alternateContent(child)) {
+        events.add(child);
+      } else if (XmlPartSupport.W.equals(child.getNamespaceURI()) && "fldSimple".equals(child.getLocalName())) {
+        // Simple PAGE fields are handled separately above.
+      } else if (XmlPartSupport.W.equals(child.getNamespaceURI()) && "r".equals(child.getLocalName())) {
+        events.add(child);
+      } else {
+        collectPageResultEvents(child, events);
+      }
+    }
   }
 
   private List<HeaderModel> parseHeaders(RawDocx raw, WordprocessingMLPackage pkg, boolean evenAndOddHeaders) {
@@ -826,13 +1005,75 @@ public final class Docx4jDocumentParser {
 
   private static boolean hasPageField(Element root) {
     var instructions = new StringBuilder();
-    var complexFields = root.getElementsByTagNameNS(XmlPartSupport.W, "instrText");
-    for (int i = 0; i < complexFields.getLength(); i++) instructions.append(complexFields.item(i).getTextContent());
-    var simpleFields = root.getElementsByTagNameNS(XmlPartSupport.W, "fldSimple");
-    for (int i = 0; i < simpleFields.getLength(); i++) {
-      instructions.append(' ').append(((Element) simpleFields.item(i)).getAttributeNS(XmlPartSupport.W, "instr"));
+    for (Element field : visibleFooterElements(root, "instrText"))
+      instructions.append(field.getTextContent());
+    for (Element field : visibleFooterElements(root, "fldSimple")) {
+      instructions.append(' ').append(field.getAttributeNS(XmlPartSupport.W, "instr"));
     }
     return PAGE_FIELD.matcher(instructions).find();
+  }
+
+  private static List<Element> visibleFooterElements(Element root, String localName) {
+    var result = new ArrayList<Element>();
+    var elements = root.getElementsByTagNameNS(XmlPartSupport.W, localName);
+    for (int index = 0; index < elements.getLength(); index++) {
+      Element element = (Element) elements.item(index);
+      if (visibleFooterNode(element)) result.add(element);
+    }
+    return result;
+  }
+
+  private static boolean visibleFooterNode(Element element) {
+    for (Node node = element; node != null; node = node.getParentNode()) {
+      if (!(node instanceof Element ancestor)) continue;
+      if (removedRevision(ancestor) || alternateContent(ancestor)) return false;
+    }
+    return true;
+  }
+
+  private static boolean insideRemovedRevision(Element element) {
+    for (Node node = element; node != null; node = node.getParentNode()) {
+      if (node instanceof Element ancestor && removedRevision(ancestor)) return true;
+    }
+    return false;
+  }
+
+  private static boolean hasFieldMarkupOutsideRemovedRevision(Element root) {
+    for (String tag : List.of("fldSimple", "fldChar", "instrText")) {
+      var fields = root.getElementsByTagNameNS(XmlPartSupport.W, tag);
+      for (int index = 0; index < fields.getLength(); index++) {
+        if (!insideRemovedRevision((Element) fields.item(index))) return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean hasAlternateTextRun(Element root) {
+    var alternatives = new ArrayList<Element>();
+    if (alternateContent(root)) alternatives.add(root);
+    var descendants = root.getElementsByTagNameNS(MARKUP_COMPATIBILITY, "AlternateContent");
+    for (int index = 0; index < descendants.getLength(); index++)
+      alternatives.add((Element) descendants.item(index));
+    for (Element alternative : alternatives) {
+      if (insideRemovedRevision(alternative)) continue;
+      var runs = alternative.getElementsByTagNameNS(XmlPartSupport.W, "r");
+      for (int runIndex = 0; runIndex < runs.getLength(); runIndex++) {
+        Element run = (Element) runs.item(runIndex);
+        if (!insideRemovedRevision(run)
+            && run.getElementsByTagNameNS(XmlPartSupport.W, "t").getLength() > 0) return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean removedRevision(Element element) {
+    return XmlPartSupport.W.equals(element.getNamespaceURI())
+        && ("del".equals(element.getLocalName()) || "moveFrom".equals(element.getLocalName()));
+  }
+
+  private static boolean alternateContent(Element element) {
+    return MARKUP_COMPATIBILITY.equals(element.getNamespaceURI())
+        && "AlternateContent".equals(element.getLocalName());
   }
 
   private List<HeadingBreakModel> parseChapterBreaks(byte[] xml, WordprocessingMLPackage pkg,
@@ -937,6 +1178,8 @@ public final class Docx4jDocumentParser {
   private static void collectParagraphElements(Element element, List<Element> paragraphs) {
     if ("http://schemas.openxmlformats.org/markup-compatibility/2006".equals(element.getNamespaceURI())
         && "Fallback".equals(element.getLocalName())) return;
+    if (XmlPartSupport.W.equals(element.getNamespaceURI())
+        && "txbxContent".equals(element.getLocalName()) && insideAlternateContent(element)) return;
     if (XmlPartSupport.W.equals(element.getNamespaceURI()) && "p".equals(element.getLocalName())) paragraphs.add(element);
     for (Node child = element.getFirstChild(); child != null; child = child.getNextSibling())
       if (child instanceof Element childElement) collectParagraphElements(childElement, paragraphs);
@@ -944,6 +1187,13 @@ public final class Docx4jDocumentParser {
 
   private static Element parseXml(byte[] bytes) throws Exception {
     return XmlPartSupport.parse(bytes).getDocumentElement();
+  }
+
+  private static boolean insideAlternateContent(Element element) {
+    for (Node parent = element.getParentNode(); parent instanceof Element ancestor; parent = parent.getParentNode())
+      if (MARKUP_COMPATIBILITY.equals(ancestor.getNamespaceURI())
+          && "AlternateContent".equals(ancestor.getLocalName())) return true;
+    return false;
   }
 
   private static Element firstElement(Element root, String namespace, String local) {
@@ -1190,6 +1440,9 @@ public final class Docx4jDocumentParser {
         return null;
       }
     });
+    boolean structurallyBlankParagraph = isPureBlankParagraph(xmlParagraph);
+    RunModel blankParagraphMarkFormat = runs.isEmpty() && structurallyBlankParagraph
+        ? blankParagraphMarkFormat(pkg, paragraph, path) : null;
     String numberingLabel = null;
     NumberingSpacingEvidence numberingSpacing = null;
     var numPr = effectivePPr == null ? null : effectivePPr.getNumPr();
@@ -1233,7 +1486,69 @@ public final class Docx4jDocumentParser {
         generatedTocField, hangingIndentTwips, hangingIndentChars,
         automaticNumberingActive, firstLineEvidenceInvalid, hangingEvidenceInvalid, leftEvidenceInvalid,
         beforeSpacingTwips, afterSpacingTwips, paragraphStyleId(xmlParagraph), lineSpacing.invalid(),
-        isInsideTextBox(xmlParagraph), paragraphStyleName(stylesRoot, xmlParagraph));
+        isInsideTextBox(xmlParagraph), paragraphStyleName(stylesRoot, xmlParagraph),
+        blankParagraphMarkFormat, structurallyBlankParagraph);
+  }
+
+  /** A paragraph mark controls a truly empty line, but is never a visible text run. */
+  private static boolean isPureBlankParagraph(Element xmlParagraph) {
+    for (Node child = xmlParagraph.getFirstChild(); child != null; child = child.getNextSibling()) {
+      if (!(child instanceof Element element)) continue;
+      if (!XmlPartSupport.W.equals(element.getNamespaceURI())) return false;
+      if (BLANK_PARAGRAPH_NON_TEXT_CHILDREN.contains(element.getLocalName())) continue;
+      if (!"r".equals(element.getLocalName())) return false;
+      for (Node runChild = element.getFirstChild(); runChild != null; runChild = runChild.getNextSibling()) {
+        if (!(runChild instanceof Element runElement)) continue;
+        if (!XmlPartSupport.W.equals(runElement.getNamespaceURI())) return false;
+        switch (runElement.getLocalName()) {
+          case "rPr", "tab", "cr", "commentReference" -> { }
+          case "t" -> {
+            if (runElement.getTextContent().codePoints().anyMatch(codePoint ->
+                !Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)
+                    && codePoint != 0x200B && codePoint != 0x200C && codePoint != 0x200D
+                    && codePoint != 0x2060 && codePoint != 0xFEFF)) return false;
+          }
+          case "br" -> {
+            String type = runElement.getAttributeNS(XmlPartSupport.W, "type");
+            if ("page".equals(type) || "column".equals(type)) return false;
+          }
+          default -> { return false; }
+        }
+      }
+    }
+    return true;
+  }
+
+  private RunModel blankParagraphMarkFormat(WordprocessingMLPackage pkg, P paragraph,
+      List<Integer> path) throws Exception {
+    PPr pPr = paragraph.getPPr();
+    RPr directMarker = null;
+    if (pPr != null && pPr.getRPr() != null) {
+      var mark = pPr.getRPr();
+      directMarker = new RPr();
+      directMarker.setRStyle(mark.getRStyle());
+      directMarker.setRFonts(mark.getRFonts());
+      directMarker.setSz(mark.getSz());
+      directMarker.setSzCs(mark.getSzCs());
+      directMarker.setB(mark.getB());
+    }
+    RPr markerProperties = pkg.getMainDocumentPart().getPropertyResolver()
+        .getEffectiveRPr(directMarker, pPr);
+    if (markerProperties == null) return null;
+    RFonts fonts = markerProperties.getRFonts();
+    String ascii = runFont(fonts, false, pkg);
+    String highAnsi = runFont(fonts, true, pkg);
+    String eastAsia = eastAsiaRunFont(fonts, pkg);
+    String complex = complexRunFont(fonts, pkg);
+    Integer size = markerProperties.getSz() == null ? null
+        : XmlInteger.exact(markerProperties.getSz().getVal());
+    Integer complexSize = markerProperties.getSzCs() == null ? null
+        : XmlInteger.exact(markerProperties.getSzCs().getVal());
+    if (ascii == null && highAnsi == null && eastAsia == null && complex == null
+        && size == null && complexSize == null) return null;
+    return new RunModel("", ascii, highAnsi, eastAsia, complex, size, complexSize,
+        markerProperties.getB() == null ? null : markerProperties.getB().isVal(),
+        null, new SourceAddress("word/document.xml", path, 0, 0));
   }
 
   private static boolean isInsideTextBox(Element element) {
@@ -1408,6 +1723,7 @@ public final class Docx4jDocumentParser {
   private record NumberingSpacingEvidence(Integer suffixSpaces, Integer formatTrailingSpaces) { }
   private record LineSpacingEvidence(Integer twips, boolean invalid) { }
   private record FontResolution(boolean defined, String name) { }
+  private record PageFieldResult(List<Element> runs, boolean unresolvedBranch) { }
   private record FooterKey(String partName, PageNumberModel.FooterVariant variant) { }
 
   private SectionModel parseSection(SectPr section, Element rawSection, SourceAddress source, boolean terminal,
@@ -1420,6 +1736,9 @@ public final class Docx4jDocumentParser {
     Element rawPageNumber = directElement(rawSection, XmlPartSupport.W, "pgNumType");
     boolean pageNumberFormatInvalid = !XmlEnum.isValid(rawPageNumber, "fmt", PAGE_NUMBER_FORMATS);
     String rawFormat = pageNumberFormatInvalid ? null : XmlEnum.value(rawPageNumber, "fmt", PAGE_NUMBER_FORMATS);
+    // The schema default belongs to a present pgNumType, not a missing element.
+    String pageNumberFormat = pageNumberFormatInvalid ? null
+        : rawFormat != null ? rawFormat : rawPageNumber == null ? null : "decimal";
     boolean topMarginInvalid = invalidMargin(rawSection, "top", margins == null ? null : margins.getTop());
     boolean rightMarginInvalid = invalidMargin(rawSection, "right", margins == null ? null : margins.getRight());
     boolean bottomMarginInvalid = invalidMargin(rawSection, "bottom", margins == null ? null : margins.getBottom());
@@ -1431,7 +1750,7 @@ public final class Docx4jDocumentParser {
         marginValue(rawSection, "left", margins == null ? null : margins.getLeft()),
         margins == null ? null : margins.getGutter() == null ? 0 : XmlInteger.exact(margins.getGutter()),
         source,
-        rawFormat != null ? rawFormat : pageNumberType == null || pageNumberType.getFmt() == null ? null : pageNumberType.getFmt().value(),
+        pageNumberFormat,
         pageNumberFormatInvalid,
         pageNumberStart,
         pageNumberStartInvalid,
@@ -1462,6 +1781,8 @@ public final class Docx4jDocumentParser {
       List<List<Integer>> paths, List<Element> paragraphs) {
     if ("http://schemas.openxmlformats.org/markup-compatibility/2006".equals(element.getNamespaceURI())
         && "Fallback".equals(element.getLocalName())) return;
+    if (XmlPartSupport.W.equals(element.getNamespaceURI())
+        && "txbxContent".equals(element.getLocalName()) && insideAlternateContent(element)) return;
     if ("http://schemas.openxmlformats.org/wordprocessingml/2006/main".equals(element.getNamespaceURI())
         && "p".equals(element.getLocalName())) {
       paths.add(path);

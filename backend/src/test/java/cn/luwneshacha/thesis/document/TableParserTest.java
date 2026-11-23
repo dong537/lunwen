@@ -9,6 +9,152 @@ import org.junit.jupiter.api.Test;
 
 class TableParserTest {
   @Test
+  void internalCellEvidenceDoesNotLeakIntoReportJson() throws Exception {
+    String xml = "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body>"
+        + "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>说明</w:t></w:r></w:p></w:tc></w:tr>"
+        + "</w:tbl></w:body></w:document>";
+    var table = new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8)).get(0);
+
+    String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(table);
+
+    assertFalse(json.contains("cellEvidence"));
+    assertTrue(json.contains("headerTexts"));
+  }
+
+  @Test
+  void preservesCellPathAndProvenDescriptionHeaderForEquationClassification() {
+    String xml = "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body>"
+        + "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>属性</w:t></w:r></w:p></w:tc>"
+        + "<w:tc><w:p><w:r><w:t>说明</w:t></w:r></w:p></w:tc></w:tr>"
+        + "<w:tr><w:tc><w:p><w:r><w:t>温度</w:t></w:r></w:p></w:tc>"
+        + "<w:tc><w:p><w:r><w:t>实际温度 = t1/10</w:t></w:r></w:p></w:tc></w:tr>"
+        + "</w:tbl></w:body></w:document>";
+
+    var table = new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8)).get(0);
+    var explanation = table.cellEvidence().stream()
+        .filter(cell -> cell.rowIndex() == 1 && "说明".equals(cell.columnHeader()))
+        .findFirst().orElseThrow();
+
+    assertEquals(List.of(0, 0, 1, 1), explanation.source().elementPath());
+    assertEquals(1, explanation.paragraphCount());
+    assertFalse(explanation.fullWidth());
+  }
+
+  @Test
+  void mergedDataRowDoesNotBorrowAColumnHeader() {
+    String xml = "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body>"
+        + "<w:tbl><w:tblGrid><w:gridCol w:w='1000'/><w:gridCol w:w='1000'/></w:tblGrid>"
+        + "<w:tr><w:tc><w:p><w:r><w:t>属性</w:t></w:r></w:p></w:tc>"
+        + "<w:tc><w:p><w:r><w:t>说明</w:t></w:r></w:p></w:tc></w:tr>"
+        + "<w:tr><w:tc><w:tcPr><w:gridSpan w:val='2'/></w:tcPr>"
+        + "<w:p><w:r><w:t>x=a+b</w:t></w:r></w:p></w:tc></w:tr>"
+        + "</w:tbl></w:body></w:document>";
+
+    var table = new TableParser().parse(xml.getBytes(StandardCharsets.UTF_8)).get(0);
+    var merged = table.cellEvidence().stream().filter(cell -> cell.rowIndex() == 1)
+        .findFirst().orElseThrow();
+
+    assertTrue(merged.fullWidth());
+    assertNull(merged.columnHeader());
+  }
+
+  @Test
+  void usesOnlyTheFirstSupportedTableBranchAtItsOriginalPath() {
+    String row = "<w:tr><w:tc><w:p><w:r><w:t>%s</w:t></w:r></w:p></w:tc></w:tr>";
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><w:body>"
+        + "<mc:AlternateContent><mc:Choice Requires=\"w\"><w:tbl>" + row.formatted("first")
+        + "</w:tbl></mc:Choice><mc:Choice Requires=\"w\"><w:tbl>" + row.formatted("second")
+        + "</w:tbl></mc:Choice><mc:Fallback><w:tbl>" + row.formatted("fallback")
+        + "</w:tbl></mc:Fallback></mc:AlternateContent></w:body></w:document>";
+
+    var inventory = new TableParser().parseInventory(xml.getBytes(StandardCharsets.UTF_8), null, null);
+
+    assertTrue(inventory.complete());
+    assertEquals(1, inventory.tables().size());
+    assertEquals(List.of("first"), inventory.tables().get(0).headerTexts());
+    assertEquals(List.of(0, 0, 0, 0), inventory.tables().get(0).source().elementPath());
+  }
+
+  @Test
+  void unknownTableBranchCannotMakeInventoryCompleteByEqualRawAndModeledCounts() {
+    String row = "<w:tr><w:tc><w:p><w:r><w:t>fallback</w:t></w:r></w:p></w:tc></w:tr>";
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" "
+        + "xmlns:future=\"urn:example:future-office\"><w:body>"
+        + "<mc:AlternateContent><mc:Choice Requires=\"future\"><w:tbl>" + row
+        + "</w:tbl></mc:Choice><mc:Fallback><w:tbl>" + row
+        + "</w:tbl></mc:Fallback></mc:AlternateContent></w:body></w:document>";
+
+    var inventory = new TableParser().parseInventory(xml.getBytes(StandardCharsets.UTF_8), null, null);
+
+    assertTrue(inventory.tables().isEmpty());
+    assertFalse(inventory.complete());
+  }
+
+  @Test
+  void deletedAndFormerTableBranchesDoNotBecomeVisibleTables() {
+    String row = "<w:tr><w:tc><w:p><w:r><w:t>%s</w:t></w:r></w:p></w:tc></w:tr>";
+    String alternate = "<mc:AlternateContent><mc:Choice Requires=\"w\"><w:tbl>"
+        + row.formatted("deleted choice") + "</w:tbl></mc:Choice>"
+        + "<mc:Fallback><w:tbl>" + row.formatted("deleted fallback")
+        + "</w:tbl></mc:Fallback></mc:AlternateContent>";
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><w:body>"
+        + "<w:tbl>" + row.formatted("visible") + "</w:tbl>"
+        + "<w:del>" + alternate + "</w:del><w:moveFrom>" + alternate + "</w:moveFrom>"
+        + "<w:p><w:pPr><w:pPrChange>" + alternate + "</w:pPrChange></w:pPr></w:p>"
+        + "</w:body></w:document>";
+
+    var inventory = new TableParser().parseInventory(xml.getBytes(StandardCharsets.UTF_8), null, null);
+
+    assertTrue(inventory.complete());
+    assertEquals(1, inventory.tables().size());
+    assertEquals(List.of("visible"), inventory.tables().get(0).headerTexts());
+  }
+
+  @Test
+  void deletedAlternateRowsDoNotChangeVisibleTableGeometry() {
+    String row = "<w:tr><w:tc><w:p><w:r><w:t>%s</w:t></w:r></w:p></w:tc></w:tr>";
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\"><w:body>"
+        + "<w:tbl>" + row.formatted("visible")
+        + "<w:del><mc:AlternateContent><mc:Choice Requires=\"w\">" + row.formatted("old choice")
+        + "</mc:Choice><mc:Fallback>" + row.formatted("old fallback")
+        + "</mc:Fallback></mc:AlternateContent></w:del></w:tbl></w:body></w:document>";
+
+    var inventory = new TableParser().parseInventory(xml.getBytes(StandardCharsets.UTF_8), null, null);
+
+    assertTrue(inventory.complete());
+    assertEquals(1, inventory.tables().size());
+    assertEquals(1, inventory.tables().get(0).rows());
+    assertEquals(List.of("visible"), inventory.tables().get(0).headerTexts());
+  }
+
+  @Test
+  void reconcilesRawTableNodesAndDistinguishesFlowPositions() {
+    String cell = "<w:tr><w:tc><w:p/></w:tc></w:tr>";
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+        + "<w:tbl>" + cell + "</w:tbl>"
+        + "<w:tbl><w:tblPr><w:tblpPr w:tblpX=\"0\"/></w:tblPr>" + cell + "</w:tbl>"
+        + "<w:tbl><w:tr><w:tc><w:p/><w:tbl>" + cell + "</w:tbl></w:tc></w:tr></w:tbl>"
+        + "<w:p><w:r><w:drawing><w:txbxContent><w:tbl>" + cell
+        + "</w:tbl></w:txbxContent></w:drawing></w:r></w:p>"
+        + "</w:body></w:document>";
+
+    var inventory = new TableParser().parseInventory(xml.getBytes(StandardCharsets.UTF_8), null, null);
+
+    assertTrue(inventory.complete());
+    assertEquals(List.of(TableModel.FlowPosition.INLINE_BODY, TableModel.FlowPosition.FLOATING,
+        TableModel.FlowPosition.INLINE_BODY, TableModel.FlowPosition.UNKNOWN,
+        TableModel.FlowPosition.UNKNOWN),
+        inventory.tables().stream().map(TableModel::flowPosition).toList());
+    assertEquals(List.of(List.of(0, 0), List.of(0, 1), List.of(0, 2),
+        List.of(0, 2, 0, 0, 1), List.of(0, 3, 0, 0, 0, 0)), inventory.tables().stream()
+            .map(table -> table.source().elementPath()).toList());
+  }
+
+  @Test
   void linksCaptionBeforeTableAndReadsThreeLineEvidence() {
     String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
         + "<w:p><w:r><w:t>表1-1 测试数据</w:t></w:r></w:p><w:tbl><w:tblPr><w:tblBorders>"

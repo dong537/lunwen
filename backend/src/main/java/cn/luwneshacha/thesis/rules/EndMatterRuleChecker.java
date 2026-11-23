@@ -13,8 +13,15 @@ final class EndMatterRuleChecker implements RuleModule {
 
   @Override
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
+    return evaluate(document, rules).results();
+  }
+
+  @Override
+  public Evaluation evaluate(ParsedDocument document, RuleSet rules) {
     List<ParagraphModel> paragraphs = document.paragraphs();
     var results = new ArrayList<CheckResult>();
+    int[] candidates = new int[2];
+    int[] unknown = new int[2];
     for (int index = 0; index < paragraphs.size(); index++) {
       ParagraphModel heading = paragraphs.get(index);
       if (regions.isInsideTable(heading, document.tables())) continue;
@@ -34,6 +41,8 @@ final class EndMatterRuleChecker implements RuleModule {
       } else {
         continue;
       }
+      int ruleIndex = "REF-01-BLANK".equals(ruleId) ? 0 : 1;
+      candidates[ruleIndex]++;
       int next = index + 1;
       int blankLines = ManualLineBreakSupport.blankLinesAfter(heading);
       while (next < paragraphs.size() && !regions.isInsideTable(paragraphs.get(next), document.tables())
@@ -44,6 +53,7 @@ final class EndMatterRuleChecker implements RuleModule {
       if (blankLines == 1) continue;
       boolean missing = blankLines == 0;
       if (missing && next >= paragraphs.size()) {
+        unknown[ruleIndex]++;
         results.add(result(ruleId, "空一行", "文档末尾无下一段可确认",
             missingReason, Judgement.REVIEW, heading.source()));
         continue;
@@ -52,7 +62,12 @@ final class EndMatterRuleChecker implements RuleModule {
       results.add(result(ruleId, "空一行", missing ? "未空一行" : String.valueOf(blankLines),
           missing ? missingReason : countReason, Judgement.FAIL, source));
     }
-    return List.copyOf(results);
+    var runs = new ArrayList<RuleRun>();
+    if (candidates[0] > 0) runs.add(new RuleRun("REF-01-BLANK", getClass().getSimpleName(),
+        candidates[0], candidates[0] - unknown[0], unknown[0], null));
+    if (candidates[1] > 0) runs.add(new RuleRun("END-01-BLANK", getClass().getSimpleName(),
+        candidates[1], candidates[1] - unknown[1], unknown[1], null));
+    return new Evaluation(List.copyOf(results), List.copyOf(runs));
   }
 
   private static String text(ParagraphModel paragraph) {

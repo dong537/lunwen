@@ -10,4 +10,11 @@ import java.util.List;
 @FunctionalInterface
 interface RuleModule {
   List<CheckResult> check(ParsedDocument document, RuleSet rules);
+
+  /** Modules without candidate evidence stay unknown instead of inheriting a pass. */
+  default Evaluation evaluate(ParsedDocument document, RuleSet rules) {
+    return new Evaluation(check(document, rules), List.of());
+  }
+
+  record Evaluation(List<CheckResult> results, List<RuleRun> ruleRuns) {}
 }

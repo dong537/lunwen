@@ -32,27 +32,58 @@ final class CitationRuleModule implements RuleModule {
 
   @Override
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
+    return evaluate(document, rules).results();
+  }
+
+  @Override
+  public Evaluation evaluate(ParsedDocument document, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
     var firstCitationSources = new LinkedHashMap<String, SourceAddress>();
     var validCitationNumbers = new LinkedHashSet<String>();
     var unresolved = new LinkedHashSet<SourceAddress>();
     boolean inMainBody = false;
+    boolean bodyStartFound = false;
+    int citationCandidates = 0;
+    int citationUnknown = 0;
     for (ParagraphModel paragraph : document.paragraphs()) {
       if (paragraph.insideTextBox()) continue;
       String text = paragraphText(paragraph);
       boolean insideTable = regions.isInsideTable(paragraph, document.tables());
-      if (!insideTable && regions.isBodyChapterStart(paragraph, document)) inMainBody = true;
+      if (!insideTable && regions.isBodyChapterStart(paragraph, document)) {
+        inMainBody = true;
+        bodyStartFound = true;
+      }
       if (!insideTable && inMainBody && regions.isEndMatterHeading(paragraph, document)) inMainBody = false;
       if (!inMainBody || isVisualBlank(paragraph) || insideTable
           || isTocEntry(paragraph, text) || isHeading(paragraph) || CAPTION.matcher(text).find()
           || isCodeParagraph(paragraph)) continue;
-      checkCitationFormatting(results, paragraph, firstCitationSources, validCitationNumbers, unresolved);
+      CitationAssessment assessment = checkCitationFormatting(results, paragraph,
+          firstCitationSources, validCitationNumbers, unresolved);
+      if (assessment.found()) {
+        citationCandidates++;
+        if (assessment.unknown()) citationUnknown++;
+      }
     }
     checkReferenceCitations(results, document, firstCitationSources, validCitationNumbers, unresolved);
-    return List.copyOf(results);
+    var runs = new ArrayList<RuleRun>();
+    String moduleId = getClass().getSimpleName();
+    if (citationCandidates > 0) runs.add(new RuleRun("CITE-01", moduleId, citationCandidates,
+        citationCandidates - citationUnknown, citationUnknown, null));
+    int relationshipCandidates = document.references().size() + firstCitationSources.size()
+        + unresolved.size();
+    if (relationshipCandidates > 0) {
+      boolean relationshipKnown = bodyStartFound && !firstCitationSources.isEmpty()
+          && unresolved.isEmpty() && document.references().stream()
+              .allMatch(reference -> !reference.needsReview() && reference.number() != null
+                  && !reference.number().isBlank());
+      runs.add(new RuleRun("REF-03", moduleId, relationshipCandidates,
+          relationshipKnown ? relationshipCandidates : 0,
+          relationshipKnown ? 0 : relationshipCandidates, null));
+    }
+    return new Evaluation(List.copyOf(results), List.copyOf(runs));
   }
 
-  private void checkCitationFormatting(List<CheckResult> results, ParagraphModel paragraph,
+  private CitationAssessment checkCitationFormatting(List<CheckResult> results, ParagraphModel paragraph,
       Map<String, SourceAddress> firstCitationSources, Set<String> validCitationNumbers,
       Set<SourceAddress> unresolved) {
     String text = rawText(paragraph);
@@ -88,7 +119,7 @@ final class CitationRuleModule implements RuleModule {
         offset = end;
       }
     }
-    if (!found) return;
+    if (!found) return new CitationAssessment(false, false);
     if (wrongPosition) results.add(result("CITE-01", "句末标注", "引用后仍有正文内容",
         "CITATION_POSITION_MISMATCH", Judgement.FAIL, paragraph.source()));
     if (failed) results.add(result("CITE-01", "小四号 Times New Roman / 上标", "format mismatch",
@@ -97,7 +128,10 @@ final class CitationRuleModule implements RuleModule {
         "CITATION_FORMAT_UNKNOWN", Judgement.REVIEW, paragraph.source()));
     else results.add(result("CITE-01", "小四号 Times New Roman / 上标", "matched", "",
         Judgement.PASS, paragraph.source()));
+    return new CitationAssessment(true, unknown);
   }
+
+  private record CitationAssessment(boolean found, boolean unknown) {}
 
   private void checkReferenceCitations(List<CheckResult> results, ParsedDocument document,
       Map<String, SourceAddress> firstCitationSources, Set<String> validCitationNumbers,

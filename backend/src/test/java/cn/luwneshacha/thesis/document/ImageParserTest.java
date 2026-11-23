@@ -11,6 +11,33 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class ImageParserTest {
   @Test
+  void reportsAnUnrecognizedDrawingAsIncompleteImageInventory() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\"><w:body>"
+        + "<w:p><w:r><w:drawing><a:graphic><a:graphicData uri=\"urn:unrecognized-shape\"/>"
+        + "</a:graphic></w:drawing></w:r></w:p></w:body></w:document>";
+
+    var inventory = new ImageParser().parseInventory(xml.getBytes(StandardCharsets.UTF_8), null);
+
+    assertTrue(inventory.images().isEmpty());
+    assertFalse(inventory.complete());
+  }
+
+  @Test
+  void confirmsInventoryForARecognizedPictureAndIgnoredDeletedShape() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body>"
+        + "<w:p><w:r><w:drawing><pic:pic/></w:drawing></w:r></w:p>"
+        + "<w:p><w:del><w:r><w:drawing/></w:r></w:del></w:p>"
+        + "</w:body></w:document>";
+
+    var inventory = new ImageParser().parseInventory(xml.getBytes(StandardCharsets.UTF_8), null);
+
+    assertEquals(1, inventory.images().size());
+    assertTrue(inventory.complete());
+  }
+
+  @Test
   void readsDrawingSizeAndFollowingFigureCaption() {
     String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
         + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
@@ -533,5 +560,88 @@ class ImageParserTest {
     assertEquals("图1-2 锚定图表", images.get(1).captionText());
     assertEquals(java.util.List.of(0, 2), images.get(1).source().elementPath());
     assertEquals(java.util.List.of(0, 3), images.get(1).captionSource().elementPath());
+  }
+
+  @Test
+  void doesNotTreatMultipleImageChoicesAsMultipleFigures() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" "
+        + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+        + "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body>"
+        + "<w:p><w:r><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"c\"><w:drawing><wp:inline><wp:extent cx=\"100\" cy=\"100\"/>"
+        + "<a:graphic><c:chart/></a:graphic></wp:inline></w:drawing></mc:Choice>"
+        + "<mc:Choice Requires=\"c\"><w:drawing><wp:inline><wp:extent cx=\"200\" cy=\"200\"/>"
+        + "<a:graphic><c:chart/></a:graphic></wp:inline></w:drawing></mc:Choice>"
+        + "<mc:Fallback><w:drawing><wp:inline><wp:extent cx=\"300\" cy=\"300\"/>"
+        + "<a:graphic><pic:pic/></a:graphic></wp:inline></w:drawing></mc:Fallback>"
+        + "</mc:AlternateContent></w:r></w:p></w:body></w:document>";
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    assertEquals(100L, images.get(0).widthEmu());
+  }
+
+  @Test
+  void doesNotModelAnUnknownPictureBranchAsVisible() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" "
+        + "xmlns:future=\"urn:example:future-office\" "
+        + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body>"
+        + "<w:p><w:r><mc:AlternateContent><mc:Choice Requires=\"future\">"
+        + "<w:drawing><wp:inline><a:graphic><pic:pic/></a:graphic></wp:inline></w:drawing>"
+        + "</mc:Choice><mc:Fallback><w:drawing><wp:inline><wp:extent cx=\"300\" cy=\"300\"/>"
+        + "<a:graphic><pic:pic/></a:graphic></wp:inline></w:drawing></mc:Fallback>"
+        + "</mc:AlternateContent></w:r></w:p></w:body></w:document>";
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertTrue(images.isEmpty());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"del", "moveFrom"})
+  void ignoresAllImageAlternativesInsideRemovedRevisions(String revision) {
+    String drawing = "<w:drawing><wp:inline><wp:extent cx=\"100\" cy=\"100\"/>"
+        + "<a:graphic><pic:pic/></a:graphic></wp:inline></w:drawing>";
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" "
+        + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body><w:p>"
+        + "<w:" + revision + "><w:r><mc:AlternateContent>"
+        + "<mc:Choice Requires=\"pic\">" + drawing + "</mc:Choice>"
+        + "<mc:Fallback>" + drawing + "</mc:Fallback>"
+        + "</mc:AlternateContent></w:r></w:" + revision + ">"
+        + "<w:r>" + drawing + "</w:r></w:p></w:body></w:document>";
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+  }
+
+  @Test
+  void skipsDeletedTextBoxAndFindsCurrentCaption() {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body>"
+        + "<w:p><w:r><w:drawing><wp:inline><a:graphic><pic:pic/></a:graphic>"
+        + "</wp:inline></w:drawing></w:r></w:p>"
+        + "<w:p><w:del><w:r><w:drawing><wp:inline><w:txbxContent>"
+        + "<w:p><w:r><w:t>\u56fe1-1 deleted caption</w:t></w:r></w:p>"
+        + "</w:txbxContent></wp:inline></w:drawing></w:r></w:del></w:p>"
+        + "<w:p><w:r><w:t>\u56fe1-1 current caption</w:t></w:r></w:p>"
+        + "</w:body></w:document>";
+
+    var images = new ImageParser().parse(xml.getBytes(StandardCharsets.UTF_8));
+
+    assertEquals(1, images.size());
+    assertEquals("\u56fe1-1 current caption", images.get(0).captionText());
   }
 }

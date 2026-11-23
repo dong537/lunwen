@@ -30,6 +30,30 @@ class RuleDescriptionsTest {
   }
 
   @Test
+  void continuationPositionAdviceExplainsTheFirstBodyLineWithoutCountingTheHeader() {
+    CheckResult misplaced = result("TAB-09", "TABLE_CONTINUATION_NOT_FIRST_BODY_LINE",
+        "续表编号行位于所在页正文第一行", "第3页正文第2行", Judgement.FAIL);
+    CheckResult unknown = result("TAB-09", "TABLE_CONTINUATION_PAGE_POSITION_UNKNOWN",
+        "续表编号行位于所在页正文第一行", "无法可靠确认页面位置", Judgement.REVIEW);
+
+    assertEquals("续表页首位置", RuleDescriptions.name("TAB-09"));
+    assertTrue(RuleDescriptions.reason(misplaced).contains("第一行"));
+    assertTrue(RuleDescriptions.suggestion(misplaced).contains("正文第一行"));
+    assertTrue(RuleDescriptions.suggestion(unknown).contains("确认"));
+  }
+
+  @Test
+  void firstLevelBlankLineAdviceNamesTheExactFontAndSize() {
+    CheckResult font = result("HEAD-02-BLANK-FONT", "FIRST_LEVEL_BLANK_LINE_FONT_MISMATCH");
+    CheckResult size = result("HEAD-02-BLANK-SIZE", "FIRST_LEVEL_BLANK_LINE_SIZE_MISMATCH");
+
+    assertEquals("一级标题下空行字体", RuleDescriptions.name(font.ruleId()));
+    assertEquals("一级标题下空行字号", RuleDescriptions.name(size.ruleId()));
+    assertTrue(RuleDescriptions.suggestion(font).contains("黑体"));
+    assertTrue(RuleDescriptions.suggestion(size).contains("三号"));
+  }
+
+  @Test
   void tableBorderAdviceIdentifiesTheMissingLinesAndTheirWordBorderLocations() {
     for (String reason : List.of("TABLE_BORDER_INVALID", "TABLE_CONTINUATION_BORDER_INVALID")) {
       CheckResult middle = result("TAB-02", reason, "表头下横线", "缺少符合规范的表头下横线", Judgement.FAIL);
@@ -296,6 +320,15 @@ class RuleDescriptionsTest {
     assertEquals("英文关键词应为3至5个", RuleDescriptions.reason(result));
     assertTrue(RuleDescriptions.suggestion(result).contains("3 至 5 个"));
     assertTrue(RuleDescriptions.suggestion(result).contains("分号"));
+  }
+
+  @Test
+  void misspelledChineseKeywordLabelHasSpecificCorrection() {
+    CheckResult result = result("ABSTRACT-KEYWORD-FORMAT", "KEYWORD_LABEL_MISMATCH");
+
+    assertEquals("中文摘要的关键词标签写成了“关键字”，应写“关键词”", RuleDescriptions.reason(result));
+    assertEquals("将“关键字：”改为“关键词：”；保留后面的关键词，并检查末尾不要有标点。",
+        RuleDescriptions.suggestion(result));
   }
 
   @Test

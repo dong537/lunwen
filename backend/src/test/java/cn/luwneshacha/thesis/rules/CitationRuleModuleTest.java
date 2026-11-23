@@ -82,6 +82,28 @@ class CitationRuleModuleTest {
         results.toString());
   }
 
+  @Test
+  void checksEachCitationBracketWhenNumberAndBracketsAreSeparateRuns() {
+    var source = source(1);
+    var chapter = numberedChapter("引言", "第1章", 0);
+    var citation = new ParagraphModel(List.of(
+        new RunModel("正文引用", "Times New Roman", "宋体", null, 24, false, null, source),
+        new RunModel("[", "Times New Roman", "宋体", null, 24, false, "superscript", source),
+        new RunModel("1", "Times New Roman", "宋体", null, 24, false, "superscript", source),
+        new RunModel("]", "宋体", "宋体", null, 24, false, "superscript", source),
+        new RunModel("。", "Times New Roman", "宋体", null, 24, false, null, source)),
+        null, null, null, null, null, null, source, null, null, null);
+    var reference = new ReferenceEntryModel(source(2), "1", "[1] 文献[J]", "J", false);
+    var document = new ParsedDocument("source", List.of(chapter, citation), List.of(), List.of(),
+        List.of(), List.of(), List.of(reference));
+
+    var results = new CitationRuleModule(new HeadingRuleChecker(new ParagraphFormatChecker()))
+        .check(document, RuleSet.schoolV1());
+
+    assertTrue(results.stream().anyMatch(result -> "CITE-01".equals(result.ruleId())
+        && "CITATION_FORMAT_MISMATCH".equals(result.reasonCode())), results.toString());
+  }
+
   private static ParagraphModel numberedChapter(String title, String label, int index) {
     var source = source(index);
     return new ParagraphModel(List.of(new RunModel(title, "Times New Roman", "Times New Roman", "黑体",

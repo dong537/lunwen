@@ -7,12 +7,15 @@ import cn.luwneshacha.thesis.document.TableModel;
 import cn.luwneshacha.thesis.document.ImageModel;
 import cn.luwneshacha.thesis.document.PageNumberModel;
 import cn.luwneshacha.thesis.document.HeadingBreakModel;
+import cn.luwneshacha.thesis.rendering.RenderedLayoutEvidence;
 import java.util.List;
 
 public record InspectionReport(String sourceSha256, String ruleSetId, List<CheckResult> results, List<String> diagnostics,
     List<TableModel> tables, List<EquationModel> equations, List<ReferenceEntryModel> references,
     List<ImageModel> images, List<PageNumberModel> pageNumbers, List<HeadingBreakModel> chapterBreaks,
-    List<RuleCoverage> ruleCoverage, List<UncheckedRegion> uncheckedRegions) {
+    List<RuleCoverage> ruleCoverage, List<UncheckedRegion> uncheckedRegions,
+    RuleExecutionEvidence ruleExecution,
+    RenderedLayoutEvidence.Provenance layoutEvidence) {
   public InspectionReport {
     results = List.copyOf(results); diagnostics = List.copyOf(diagnostics);
     tables = List.copyOf(tables); equations = List.copyOf(equations); references = List.copyOf(references);
@@ -21,6 +24,24 @@ public record InspectionReport(String sourceSha256, String ruleSetId, List<Check
     chapterBreaks = List.copyOf(chapterBreaks);
     ruleCoverage = List.copyOf(ruleCoverage);
     uncheckedRegions = List.copyOf(uncheckedRegions);
+  }
+
+  public InspectionReport(String sourceSha256, String ruleSetId, List<CheckResult> results,
+      List<String> diagnostics, List<TableModel> tables, List<EquationModel> equations,
+      List<ReferenceEntryModel> references, List<ImageModel> images,
+      List<PageNumberModel> pageNumbers, List<HeadingBreakModel> chapterBreaks,
+      List<RuleCoverage> ruleCoverage, List<UncheckedRegion> uncheckedRegions,
+      RuleExecutionEvidence ruleExecution) {
+    this(sourceSha256, ruleSetId, results, diagnostics, tables, equations, references,
+        images, pageNumbers, chapterBreaks, ruleCoverage, uncheckedRegions, ruleExecution, null);
+  }
+
+  public InspectionReport(String sourceSha256, String ruleSetId, List<CheckResult> results, List<String> diagnostics,
+      List<TableModel> tables, List<EquationModel> equations, List<ReferenceEntryModel> references,
+      List<ImageModel> images, List<PageNumberModel> pageNumbers, List<HeadingBreakModel> chapterBreaks,
+      List<RuleCoverage> ruleCoverage, List<UncheckedRegion> uncheckedRegions) {
+    this(sourceSha256, ruleSetId, results, diagnostics, tables, equations, references, images,
+        pageNumbers, chapterBreaks, ruleCoverage, uncheckedRegions, null);
   }
 
   public InspectionReport(String sourceSha256, String ruleSetId, List<CheckResult> results, List<String> diagnostics) {

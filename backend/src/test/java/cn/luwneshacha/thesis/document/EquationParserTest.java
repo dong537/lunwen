@@ -6,6 +6,80 @@ import org.junit.jupiter.api.Test;
 
 class EquationParserTest {
   @Test
+  void countsOnlyTheChoiceFormulaFromAlternateContent() {
+    var equations = parse("<w:p><mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">"
+        + "<mc:Choice Requires=\"m\"><m:oMath><m:r><m:t>choice</m:t></m:r></m:oMath></mc:Choice>"
+        + "<mc:Fallback><m:oMath><m:r><m:t>fallback</m:t></m:r></m:oMath></mc:Fallback>"
+        + "</mc:AlternateContent></w:p>");
+
+    assertEquals(1, equations.size());
+    assertEquals("choice", equations.get(0).summary());
+  }
+
+  @Test
+  void selectsOneOfTwoSupportedFormulaChoices() {
+    var equations = parse("<w:p><mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">"
+        + "<mc:Choice Requires=\"m\"><m:oMath><m:r><m:t>first</m:t></m:r></m:oMath></mc:Choice>"
+        + "<mc:Choice Requires=\"m\"><m:oMath><m:r><m:t>second</m:t></m:r></m:oMath></mc:Choice>"
+        + "<mc:Fallback><m:oMath><m:r><m:t>fallback</m:t></m:r></m:oMath></mc:Fallback>"
+        + "</mc:AlternateContent></w:p>");
+
+    assertEquals(1, equations.size());
+    assertEquals("first", equations.get(0).summary());
+  }
+
+  @Test
+  void unknownChoiceIsNotModeledAsAVisibleFormula() {
+    var inventory = inventory("<w:p><mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" "
+        + "xmlns:future=\"urn:example:future-office\">"
+        + "<mc:Choice Requires=\"future\"><m:oMath><m:r><m:t>future</m:t></m:r></m:oMath></mc:Choice>"
+        + "<mc:Fallback><m:oMath><m:r><m:t>fallback</m:t></m:r></m:oMath></mc:Fallback>"
+        + "</mc:AlternateContent></w:p>");
+
+    assertTrue(inventory.equations().isEmpty());
+    assertFalse(inventory.complete());
+  }
+
+  @Test
+  void ignoresEquationsAndOpaqueObjectsInDeletedOrMovedOutContent() {
+    var inventory = inventory("<w:p>"
+        + "<w:del><m:oMath><m:r><m:t>deleted</m:t></m:r></m:oMath>"
+        + "<w:r><w:drawing><a:graphic/></w:drawing></w:r></w:del>"
+        + "<w:moveFrom><w:object><o:OLEObject ProgID=\"Equation.3\"/></w:object></w:moveFrom>"
+        + "<w:ins><m:oMath><m:r><m:t>visible</m:t></m:r></m:oMath></w:ins>"
+        + "</w:p>");
+
+    assertEquals(1, inventory.equations().size());
+    assertEquals("visible", inventory.equations().get(0).summary());
+    assertTrue(inventory.possibleObjects().isEmpty());
+  }
+
+  @Test
+  void ignoresUnselectedFormulaAlternativesInsideRemovedRevisions() {
+    String deleted = "<mc:AlternateContent xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">"
+        + "<mc:Choice Requires=\"m\"><m:oMath><m:r><m:t>old-choice</m:t></m:r></m:oMath></mc:Choice>"
+        + "<mc:Fallback><m:oMath><m:r><m:t>old-fallback</m:t></m:r></m:oMath></mc:Fallback>"
+        + "</mc:AlternateContent>";
+    var inventory = inventory("<w:p><w:del>" + deleted + "</w:del><w:moveFrom>" + deleted
+        + "</w:moveFrom><m:oMath><m:r><m:t>current</m:t></m:r></m:oMath></w:p>");
+
+    assertEquals(1, inventory.equations().size());
+    assertEquals("current", inventory.equations().get(0).summary());
+    assertTrue(inventory.complete());
+  }
+
+  @Test
+  void doesNotPairAVisibleFormulaWithADeletedNumber() {
+    var equations = parse("<w:p><w:del><w:r><w:t>(3-1)</w:t></w:r></w:del>"
+        + "<m:oMath><m:r><m:t>x</m:t></m:r></m:oMath>"
+        + "<w:r><w:t>(3-2)</w:t></w:r></w:p>");
+
+    assertEquals(1, equations.size());
+    assertEquals("3-2", equations.get(0).number());
+    assertEquals(0, equations.get(0).numberSource().start());
+  }
+
+  @Test
   void usesXmlTextLengthRatherThanDisplaySummaryForFractionAnchor() {
     var equation = parse("<w:p><m:oMathPara><m:oMath><m:eqArr><m:e>"
         + "<m:r><m:t>BreakfastRate=</m:t></m:r><m:f>"
@@ -128,6 +202,99 @@ class EquationParserTest {
   @Test
   void ordinaryPicturesAndExcelObjectsAreNotEquations() {
     assertTrue(parse("<w:p><w:r><w:drawing><a:graphic/></w:drawing><w:object><o:OLEObject ProgID=\"Excel.Sheet.12\"/></w:object></w:r></w:p>").isEmpty());
+  }
+
+  @Test
+  void recordsOpaqueMediaAsPossibleFormulaObjectsWithoutCallingThemEquations() {
+    var inventory = inventory("<w:p><w:r><w:drawing><a:graphic/></w:drawing>"
+        + "<w:object><o:OLEObject ProgID=\"Excel.Sheet.12\"/></w:object></w:r></w:p>");
+
+    assertTrue(inventory.complete());
+    assertTrue(inventory.equations().isEmpty());
+    assertEquals(java.util.List.of("DRAWING", "OLE"), inventory.possibleObjects().stream()
+        .map(EquationParser.PossibleObject::kind).toList());
+  }
+
+  @Test
+  void explicitEquationOleDoesNotBecomeAnAdditionalUnknownObject() {
+    var inventory = inventory("<w:p><w:r><w:object>"
+        + "<o:OLEObject ProgID=\"Equation.3\"/></w:object><w:t>(3-1)</w:t></w:r></w:p>");
+
+    assertEquals(1, inventory.equations().size());
+    assertTrue(inventory.possibleObjects().isEmpty());
+  }
+
+  @Test
+  void excelOlePreviewCountsOnceAsUnknownObjectNotAsAPictureEquation() {
+    var inventory = inventory("<w:p><w:r><w:drawing><a:graphic><a:graphicData "
+        + "uri=\"http://schemas.openxmlformats.org/presentationml/2006/ole\">"
+        + "<o:OLEObject ProgID=\"Excel.Sheet.12\"/><pic:pic/>"
+        + "</a:graphicData></a:graphic></w:drawing><w:t>(3-1)</w:t></w:r></w:p>");
+
+    assertTrue(inventory.equations().isEmpty());
+    assertEquals(java.util.List.of("OLE"), inventory.possibleObjects().stream()
+        .map(EquationParser.PossibleObject::kind).toList());
+  }
+
+  private EquationParser.Inventory inventory(String body) {
+    String xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+        + "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\" "
+        + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+        + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\" "
+        + "xmlns:o=\"urn:schemas-microsoft-com:office:office\"><w:body>"
+        + body + "</w:body></w:document>";
+    return new EquationParser().parseInventory(xml.getBytes(StandardCharsets.UTF_8),
+        null, java.util.Map.of());
+  }
+
+  @Test
+  void genericOleDrawingWithExcelProgIdIsNotAnEquation() {
+    var equations = parse("<w:p><w:r><w:drawing><a:graphic><a:graphicData "
+        + "uri=\"http://schemas.openxmlformats.org/presentationml/2006/ole\">"
+        + "<o:OLEObject ProgID=\"Excel.Sheet.12\"/>"
+        + "</a:graphicData></a:graphic></w:drawing><w:t>(3-1)</w:t></w:r></w:p>");
+
+    assertTrue(equations.isEmpty());
+  }
+
+  @Test
+  void genericOleDrawingWithoutFormulaProgIdIsNotAnEquation() {
+    var equations = parse("<w:p><w:r><w:drawing><a:graphic><a:graphicData "
+        + "uri=\"http://schemas.openxmlformats.org/presentationml/2006/ole\">"
+        + "<o:OLEObject/>"
+        + "</a:graphicData></a:graphic></w:drawing></w:r></w:p>");
+
+    assertTrue(equations.isEmpty());
+  }
+
+  @Test
+  void olePreviewPictureDoesNotTurnAnExcelObjectIntoAPictureEquation() {
+    var equations = parse("<w:p><w:r><w:drawing><a:graphic><a:graphicData "
+        + "uri=\"http://schemas.openxmlformats.org/presentationml/2006/ole\">"
+        + "<o:OLEObject ProgID=\"Excel.Sheet.12\"/><pic:pic/>"
+        + "</a:graphicData></a:graphic></w:drawing><w:t>(3-1)</w:t></w:r></w:p>");
+
+    assertTrue(equations.isEmpty());
+  }
+
+  @Test
+  void explicitFormulaProgIdsAreRecognizedInLegacyAndDrawingMlObjects() {
+    for (String progId : java.util.List.of("Equation.4", "MathType.MTEF.8",
+        "Mathcad.Application", "WPS.Math.1")) {
+      var legacy = parse("<w:p><w:r><w:object><o:OLEObject ProgID=\"" + progId
+          + "\"/></w:object><w:t>(3-1)</w:t></w:r></w:p>");
+      var drawing = parse("<w:p><w:r><w:drawing><a:graphic><a:graphicData "
+          + "uri=\"http://schemas.openxmlformats.org/presentationml/2006/ole\">"
+          + "<o:OLEObject ProgID=\"" + progId + "\"/>"
+          + "</a:graphicData></a:graphic></w:drawing><w:t>(3-1)</w:t></w:r></w:p>");
+
+      assertEquals(1, legacy.size(), progId);
+      assertEquals(1, drawing.size(), progId);
+      assertEquals("3-1", legacy.get(0).number(), progId);
+      assertEquals("3-1", drawing.get(0).number(), progId);
+      assertEquals(progId, legacy.get(0).objectEvidence().progId(), progId);
+      assertEquals(progId, drawing.get(0).objectEvidence().progId(), progId);
+    }
   }
 
   @Test
@@ -420,6 +587,54 @@ class EquationParserTest {
     assertTrue(equations.get(0).standalone());
     assertEquals("3-1", equations.get(0).number());
     assertEquals(java.util.List.of(0, 0, 0, 1, 0), equations.get(0).numberSource().elementPath());
+  }
+
+  @Test
+  void doesNotPairDeletedSiblingCellNumberWithVisibleEquation() {
+    var equations = parse("<w:tbl><w:tr>"
+        + "<w:tc><w:p><m:oMathPara><m:oMath><m:r><m:t>x</m:t></m:r></m:oMath></m:oMathPara></w:p></w:tc>"
+        + "<w:tc><w:p><w:del><w:r><w:t>(3-1)</w:t></w:r></w:del></w:p></w:tc>"
+        + "</w:tr></w:tbl>");
+
+    assertEquals(1, equations.size());
+    assertNull(equations.get(0).number());
+    assertNull(equations.get(0).numberSource());
+  }
+
+  @Test
+  void pairsOnlyVisibleSiblingCellNumberAfterDeletedRevision() {
+    var equations = parse("<w:tbl><w:tr>"
+        + "<w:tc><w:p><m:oMathPara><m:oMath><m:r><m:t>x</m:t></m:r></m:oMath></m:oMathPara></w:p></w:tc>"
+        + "<w:tc><w:p><w:del><w:r><w:t>(3-1)</w:t></w:r></w:del>"
+        + "<w:r><w:t>(3-2)</w:t></w:r></w:p></w:tc>"
+        + "</w:tr></w:tbl>");
+
+    assertEquals(1, equations.size());
+    assertEquals("3-2", equations.get(0).number());
+    assertEquals(5, equations.get(0).numberSource().end());
+  }
+
+  @Test
+  void deletedVariableExplanationDoesNotSatisfyVisibleEquation() {
+    var equations = parse("<w:p><m:oMathPara><m:oMath><m:r><m:t>x</m:t></m:r></m:oMath></m:oMathPara>"
+        + "<w:r><w:t>(3-1)</w:t></w:r></w:p>"
+        + "<w:p><w:del><w:r><w:t>式中：x 为变量</w:t></w:r></w:del>"
+        + "<w:r><w:t>普通说明</w:t></w:r></w:p>");
+
+    assertEquals(1, equations.size());
+    assertNull(equations.get(0).variableExplanation());
+  }
+
+  @Test
+  void deletedTableCaptionDoesNotHideVisibleEquationNumberCell() {
+    var equations = parse("<w:p><w:del><w:r><w:t>表3-1 已删除的表题</w:t></w:r></w:del></w:p>"
+        + "<w:tbl><w:tr>"
+        + "<w:tc><w:p><m:oMathPara><m:oMath><m:r><m:t>x</m:t></m:r></m:oMath></m:oMathPara></w:p></w:tc>"
+        + "<w:tc><w:p><w:r><w:t>(3-1)</w:t></w:r></w:p></w:tc>"
+        + "</w:tr></w:tbl>");
+
+    assertEquals(1, equations.size());
+    assertEquals("3-1", equations.get(0).number());
   }
 
   @Test

@@ -8,10 +8,160 @@ import cn.luwneshacha.thesis.document.ParsedDocument;
 import cn.luwneshacha.thesis.document.RunModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.document.TableModel;
+import cn.luwneshacha.thesis.rendering.RenderedLayoutEvidence;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class AbstractRuleCheckerTest {
+  @Test
+  void recordsOnlyTheAbstractParagraphsAndKeywordChecksThatWereVisited() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("摘    要", 0, "黑体", 32, true, "center"),
+        paragraph("", 1, "宋体", 24, false, "left"),
+        paragraph("摘要正文", 2, "宋体", 24, false, "both"),
+        paragraph("", 3, "宋体", 24, false, "left"),
+        paragraph("关键词：智能；系统；推荐", 4, "宋体", 24, true, "both")),
+        List.of(), List.of());
+    var checker = new AbstractRuleChecker(new ParagraphFormatChecker());
+
+    var evaluation = checker.evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(checker.check(document, RuleSet.schoolV1()), evaluation.results());
+    for (String ruleId : List.of("ABSTRACT-FONT", "ABSTRACT-SIZE", "ABSTRACT-INDENT",
+        "ABSTRACT-LINE")) {
+      assertEquals(new RuleRun(ruleId, "AbstractRuleChecker", 2, 2, 0, null), run(evaluation, ruleId));
+    }
+    for (String ruleId : List.of("ABSTRACT-KEYWORD-BOLD", "ABSTRACT-KEYWORD-FORMAT",
+        "ABSTRACT-KEYWORD-ALIGN", "ZH-01-SPACING", "ZH-02-BLANK", "ZH-04-BLANK")) {
+      assertEquals(new RuleRun(ruleId, "AbstractRuleChecker", 1, 1, 0, null), run(evaluation, ruleId));
+    }
+  }
+
+  @Test
+  void checksMisspelledChineseKeywordLabelInsteadOfDroppingItsRuleOwners() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("摘    要", 0, "黑体", 32, true, "center"),
+        paragraph("", 1, "宋体", 24, false, "left"),
+        paragraph("摘要正文", 2, "宋体", 24, false, "both"),
+        paragraph("", 3, "宋体", 24, false, "left"),
+        paragraph("关键字：智能；系统；推荐；", 4, "宋体", 24, true, "both")),
+        List.of(), List.of());
+
+    var evaluation = new AbstractRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    for (String ruleId : List.of("ABSTRACT-KEYWORD-BOLD", "ABSTRACT-KEYWORD-FORMAT",
+        "ABSTRACT-KEYWORD-ALIGN", "ZH-04-BLANK")) {
+      assertEquals(new RuleRun(ruleId, "AbstractRuleChecker", 1, 1, 0, null),
+          run(evaluation, ruleId));
+    }
+    var format = evaluation.results().stream()
+        .filter(result -> result.ruleId().equals("ABSTRACT-KEYWORD-FORMAT"))
+        .findFirst().orElseThrow();
+    assertEquals(Judgement.FAIL, format.judgement());
+    assertEquals("KEYWORD_LABEL_MISMATCH", format.reasonCode());
+  }
+
+  @Test
+  void doesNotCloseTheTitleGapUntilAFollowingParagraphIsSeen() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("摘    要", 0, "黑体", 32, true, "center")), List.of(), List.of());
+
+    var evaluation = new AbstractRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(new RuleRun("ZH-02-BLANK", "AbstractRuleChecker", 1, 0, 1, null),
+        run(evaluation, "ZH-02-BLANK"));
+  }
+
+  @Test
+  void leavesUnseenAbstractRulesWithoutInventedEvidence() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("正文内容", 0, "宋体", 24, false, "both")), List.of(), List.of());
+
+    var evaluation = new AbstractRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    assertTrue(evaluation.ruleRuns().isEmpty());
+  }
+
+  @Test
+  void keepsWrappedEnglishKeywordAlignmentUnknownWithoutHangingIndentEvidence() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("ABSTRACT", 0, "Times New Roman", 32, true, "center"),
+        paragraph("", 1, "Times New Roman", 24, false, "left"),
+        paragraph("Keywords: Alpha; Beta\nGamma", 2, "Times New Roman", 24, false, "left")),
+        List.of(), List.of());
+
+    var evaluation = new AbstractRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(new RuleRun("EN-03-ALIGNMENT", "AbstractRuleChecker", 1, 0, 1, null),
+        run(evaluation, "EN-03-ALIGNMENT"));
+    assertEquals(new RuleRun("EN-03-FORMAT", "AbstractRuleChecker", 1, 1, 0, null),
+        run(evaluation, "EN-03-FORMAT"));
+  }
+
+  @Test
+  void reportsEnglishKeywordWrapAsUnknownWhenXmlHasNoExplicitBreak() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("ABSTRACT", 0, "Times New Roman", 32, true, "center"),
+        paragraph("", 1, "Times New Roman", 24, false, "left"),
+        paragraph("Keywords: Alpha; Beta; Gamma", 2, "Times New Roman", 24, false, "left")),
+        List.of(), List.of());
+
+    var evaluation = new AbstractRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    var finding = evaluation.results().stream()
+        .filter(result -> result.ruleId().equals("EN-03-ALIGNMENT"))
+        .findFirst().orElseThrow();
+    assertEquals(Judgement.REVIEW, finding.judgement());
+    assertEquals("ENGLISH_KEYWORD_AUTO_WRAP_UNKNOWN", finding.reasonCode());
+    assertEquals("当前无法确认页面是否自动换行，请在 Word 中检查续行是否与第一个关键词对齐；如未对齐，请调整段落格式",
+        finding.actual());
+    assertEquals(new RuleRun("EN-03-ALIGNMENT", "AbstractRuleChecker", 1, 0, 1, null),
+        run(evaluation, "EN-03-ALIGNMENT"));
+  }
+
+  @Test
+  void usesUniqueRenderedKeywordCoordinatesToResolveAutomaticWrap() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("ABSTRACT", 0, "Times New Roman", 32, true, "center"),
+        paragraph("", 1, "Times New Roman", 24, false, "left"),
+        paragraph("Keywords: Alpha; Beta; Gamma", 2, "Times New Roman", 24, false, "left")),
+        List.of(), List.of());
+    var provenance = new RenderedLayoutEvidence.Provenance("available", "source", "pdf",
+        "LibreOffice", "24.2", "2026-11-18T00:00:00Z", null, 1);
+    var aligned = new RenderedLayoutEvidence(provenance, List.of(
+        new RenderedLayoutEvidence.TextLine(1, 100, List.of(
+            new RenderedLayoutEvidence.Glyph("Keywords:", 30),
+            new RenderedLayoutEvidence.Glyph("Alpha; Beta;", 80))),
+        new RenderedLayoutEvidence.TextLine(1, 118, List.of(
+            new RenderedLayoutEvidence.Glyph("Gamma", 80)))));
+    var misaligned = new RenderedLayoutEvidence(provenance, List.of(
+        aligned.lines().get(0),
+        new RenderedLayoutEvidence.TextLine(1, 118, List.of(
+            new RenderedLayoutEvidence.Glyph("Gamma", 30)))));
+
+    var passed = new AbstractRuleChecker(new ParagraphFormatChecker(), aligned)
+        .evaluate(document, RuleSet.schoolV1());
+    var failed = new AbstractRuleChecker(new ParagraphFormatChecker(), misaligned)
+        .evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(Judgement.PASS, passed.results().stream()
+        .filter(row -> row.ruleId().equals("EN-03-ALIGNMENT")).findFirst().orElseThrow().judgement());
+    assertEquals(Judgement.FAIL, failed.results().stream()
+        .filter(row -> row.ruleId().equals("EN-03-ALIGNMENT")).findFirst().orElseThrow().judgement());
+    assertEquals(new RuleRun("EN-03-ALIGNMENT", "AbstractRuleChecker", 1, 1, 0, null),
+        run(passed, "EN-03-ALIGNMENT"));
+  }
+
+  private static RuleRun run(RuleModule.Evaluation evaluation, String ruleId) {
+    return evaluation.ruleRuns().stream().filter(value -> value.ruleId().equals(ruleId))
+        .findFirst().orElseThrow();
+  }
+
   @Test
   void reportsReviewWhenChineseKeywordAlignmentIsUnknown() {
     var title = paragraph("摘    要", 0, "黑体", 32, true, "center");
@@ -19,11 +169,15 @@ class AbstractRuleCheckerTest {
     var keywords = paragraph("关键词：智能；系统；推荐", 2, "宋体", 24, true, null);
     var document = new ParsedDocument("source", List.of(title, blank, keywords), List.of(), List.of());
 
-    var finding = new AbstractRuleChecker(new ParagraphFormatChecker()).check(document, RuleSet.schoolV1()).stream()
+    var evaluation = new AbstractRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+    var finding = evaluation.results().stream()
         .filter(result -> result.reasonCode().equals("KEYWORD_ALIGNMENT_UNKNOWN"))
         .findFirst().orElseThrow();
 
     assertEquals(Judgement.REVIEW, finding.judgement());
+    assertEquals(new RuleRun("ABSTRACT-KEYWORD-ALIGN", "AbstractRuleChecker", 1, 0, 1, null),
+        run(evaluation, "ABSTRACT-KEYWORD-ALIGN"));
   }
 
   @Test
@@ -129,7 +283,7 @@ class AbstractRuleCheckerTest {
   }
 
   @Test
-  void acceptsWrappedEnglishKeywordsWhenHangingIndentEvidenceExists() {
+  void keepsWrappedEnglishKeywordAlignmentUnknownEvenWhenIndentEvidenceExists() {
     var source = new SourceAddress("word/document.xml", List.of(0, 2), 0, 30);
     var keywordParagraph = new ParagraphModel(List.of(
         run("Keywords: alpha;\n", 0, true), run("beta; gamma", 1, false)),
@@ -144,7 +298,30 @@ class AbstractRuleCheckerTest {
         .filter(result -> result.ruleId().equals("EN-03-ALIGNMENT"))
         .findFirst().orElseThrow();
 
-    assertEquals(Judgement.PASS, finding.judgement());
+    assertEquals(Judgement.REVIEW, finding.judgement());
+    assertEquals("ENGLISH_KEYWORD_WRAP_ALIGNMENT_UNKNOWN", finding.reasonCode());
+    assertEquals("当前无法确认续行是否与第一个关键词首字母对齐，请在 Word 中检查；如未对齐，请调整段落格式",
+        finding.actual());
+  }
+
+  @Test
+  void keepsAlignmentUnknownWhenExplicitContinuationHasZeroIndent() {
+    var source = new SourceAddress("word/document.xml", List.of(0, 2), 0, 28);
+    var keywordParagraph = new ParagraphModel(List.of(
+        run("Keywords: alpha;\n", 0, true), run("beta; gamma", 1, false)),
+        null, 0, null, null, 360, "auto", source, null, null, "left", null, null, null,
+        false, 0, 0, false, false, false, false, null, null);
+    var document = new ParsedDocument("source", List.of(
+        paragraph("ABSTRACT", 0, "Times New Roman", 32, true, "center"),
+        paragraph("", 1, "Times New Roman", 24, false, "left"), keywordParagraph),
+        List.of(), List.of());
+
+    var finding = new AbstractRuleChecker(new ParagraphFormatChecker()).check(document, RuleSet.schoolV1()).stream()
+        .filter(result -> result.ruleId().equals("EN-03-ALIGNMENT"))
+        .findFirst().orElseThrow();
+
+    assertEquals(Judgement.REVIEW, finding.judgement());
+    assertEquals("ENGLISH_KEYWORD_WRAP_ALIGNMENT_UNKNOWN", finding.reasonCode());
   }
 
   @Test

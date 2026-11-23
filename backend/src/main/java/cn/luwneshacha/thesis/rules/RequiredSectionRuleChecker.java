@@ -19,10 +19,19 @@ final class RequiredSectionRuleChecker implements RuleModule {
 
   @Override
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
-    return check(document);
+    return evaluate(document, rules).results();
   }
 
   List<CheckResult> check(ParsedDocument document) {
+    return evaluateDocument(document).results();
+  }
+
+  @Override
+  public Evaluation evaluate(ParsedDocument document, RuleSet rules) {
+    return evaluateDocument(document);
+  }
+
+  private Evaluation evaluateDocument(ParsedDocument document) {
     List<String> texts = document.paragraphs().stream().map(RequiredSectionRuleChecker::text).toList();
     DocumentRegionClassifier regions = new DocumentRegionClassifier();
     List<String> sectionTexts = new ArrayList<>(texts.size());
@@ -72,16 +81,17 @@ final class RequiredSectionRuleChecker implements RuleModule {
       int nonEmptyParagraphs = (int) texts.stream().filter(text -> !text.isBlank()).count();
       boolean hasThesisSignal = hasChapter || hasCoverMarker || sectionSignals > 0;
       if (!hasThesisSignal && nonEmptyParagraphs > MAX_UNCLASSIFIED_SHORT_DOCUMENT_PARAGRAPHS) {
-        return List.of();
+        return new Evaluation(List.of(), List.of());
       }
       SourceAddress reviewAnchor = document.paragraphs().stream()
           .filter(paragraph -> !regions.isInsideTable(paragraph, document.tables()))
           .filter(paragraph -> !text(paragraph).isBlank())
           .map(ParagraphModel::source).findFirst()
           .orElseGet(RequiredSectionRuleChecker::documentAnchor);
-      return List.of(new CheckResult("SECTION-REQUIRED", Applicability.APPLICABLE,
+      return new Evaluation(List.of(new CheckResult("SECTION-REQUIRED", Applicability.APPLICABLE,
           ExecutionStatus.EXECUTED, Judgement.REVIEW, "毕业论文结构识别", "结构线索不足",
-          "THESIS_DOCUMENT_CLASSIFICATION_REVIEW", reviewAnchor));
+          "THESIS_DOCUMENT_CLASSIFICATION_REVIEW", reviewAnchor)),
+          List.of(new RuleRun("SECTION-REQUIRED", getClass().getSimpleName(), 1, 0, 1, null)));
     }
 
     SourceAddress anchor = document.paragraphs().stream()
@@ -111,7 +121,14 @@ final class RequiredSectionRuleChecker implements RuleModule {
     }
     requireSection(results, "结论", hasConclusion, anchor);
     checkCoverFields(results, coverTexts, anchor, hasSchool, hasCoverType, coverImage);
-    return List.copyOf(results);
+    boolean coverUnknown = results.stream().anyMatch(result -> result.ruleId().equals("COVER-05")
+        && (result.judgement() == Judgement.REVIEW
+            || result.applicability() == Applicability.UNKNOWN
+            || result.executionStatus() != ExecutionStatus.EXECUTED));
+    return new Evaluation(List.copyOf(results), List.of(
+        new RuleRun("SECTION-REQUIRED", getClass().getSimpleName(), 1, 1, 0, null),
+        new RuleRun("COVER-05", getClass().getSimpleName(), 1,
+            coverUnknown ? 0 : 1, coverUnknown ? 1 : 0, null)));
   }
 
   private static void checkCoverFields(List<CheckResult> results, List<String> texts, SourceAddress anchor,

@@ -31,6 +31,8 @@ public final class RuleDescriptions {
       case "HEAD-01-SPACING" -> "一级标题编号空格";
       case "HEAD-01-ALIGNMENT" -> "一级标题对齐";
       case "HEAD-02-BLANK" -> "章标题后空行";
+      case "HEAD-02-BLANK-FONT" -> "一级标题下空行字体";
+      case "HEAD-02-BLANK-SIZE" -> "一级标题下空行字号";
       case "HEAD-EMBEDDED" -> "标题独立成段";
       case "HEAD-02-SPACING", "HEAD-03-SPACING" -> "标题编号空格";
       case "HEAD-03-INDENT" -> "三级标题缩进";
@@ -89,6 +91,7 @@ public final class RuleDescriptions {
       case "TAB-03" -> "表号与表题"; case "TAB-04" -> "表格量和单位";
       case "TAB-05" -> "表号连续性"; case "TAB-06" -> "表格重复文字";
       case "TAB-07" -> "表注位置"; case "TAB-08" -> "续列表头";
+      case "TAB-09" -> "续表页首位置";
       case "FIG-01" -> "图片正文引用"; case "FIG-02" -> "图片和图题位置";
       case "FIG-03" -> "图号与图题格式"; case "FIG-04" -> "图片尺寸"; case "FIG-05" -> "图号连续性";
       case "CAPTION-FONT" -> "图表题字体"; case "CAPTION-SIZE" -> "图表题字号";
@@ -142,6 +145,7 @@ public final class RuleDescriptions {
       case "TABLE_CAPTION_MISSING" -> "缺少表号和表题";
       case "TABLE_CAPTION_BELOW" -> "表题放在了表格下方";
       case "FIGURE_CAPTION_MISSING" -> "缺少图号和图题";
+      case "FIGURE_SCOPE_UNRESOLVED" -> "无法确认图片是否属于正文插图，不能判定缺少图题";
       case "FIGURE_CAPTION_NUMBER_FORMAT" -> "图号与图题之间的格式不对";
       case "TABLE_CAPTION_NUMBER_FORMAT" -> "表号与表题之间应留一个空格";
       case "TOC_NUMBER_SPACING_MISMATCH" -> "目录编号后空格不符合要求";
@@ -219,6 +223,12 @@ public final class RuleDescriptions {
       case "TABLE_CONTINUATION_HEADER_MISMATCH" -> "续表表头与原表表头不一致";
       case "TABLE_CONTINUATION_ORIGINAL_MISSING" -> "未找到与续表编号对应的前置原表";
       case "TABLE_CONTINUATION_HEADER_UNREADABLE" -> "未能读取原表的表头结构";
+      case "TABLE_CONTINUATION_NOT_FIRST_BODY_LINE" -> "续表编号行没有位于所在页正文的第一行";
+      case "TABLE_CONTINUATION_PAGE_POSITION_UNKNOWN" -> "无法可靠确认续表编号行在最终页面中的位置";
+      case "FIRST_LEVEL_BLANK_LINE_FONT_MISMATCH" -> "一级标题下空行的字体与一级标题不一致";
+      case "FIRST_LEVEL_BLANK_LINE_FONT_UNKNOWN" -> "无法读取一级标题下空行的字体设置";
+      case "FIRST_LEVEL_BLANK_LINE_SIZE_MISMATCH" -> "一级标题下空行的字号与一级标题不一致";
+      case "FIRST_LEVEL_BLANK_LINE_SIZE_UNKNOWN" -> "无法读取一级标题下空行的字号设置";
       case "TABLE_REPEATED_PLACEHOLDER" -> "表格中不能用“同前”“同左”代替内容";
       case "PAGE_NUMBER_FORMAT_MISMATCH" -> "正文到附录应使用阿拉伯数字页码";
       case "PAGE_NUMBER_START_MISMATCH" -> "正文第一页页码应从 1 开始";
@@ -277,6 +287,7 @@ public final class RuleDescriptions {
           : "Keywords 标签后的" + result.actual() + "；规范只要求标签加粗";
       case "KEYWORD_CONTENT_BOLD_UNKNOWN" -> "无法读取 Keywords 标签后内容的字重，暂不能确认是否保持常规字重";
       case "KEYWORD_LIST_MISMATCH" -> "关键词数量、分隔符或结尾标点不符合要求";
+      case "KEYWORD_LABEL_MISMATCH" -> "中文摘要的关键词标签写成了“关键字”，应写“关键词”";
       case "KEYWORD_SEPARATOR_MISMATCH" -> "关键词分隔符或结尾标点不符合要求";
       case "PAGE_NUMBER_FONT_MISMATCH" -> "页码字体不是 Times New Roman";
       case "PAGE_NUMBER_NOT_CENTERED" -> "页码没有居中";
@@ -318,6 +329,8 @@ public final class RuleDescriptions {
     }
     if ("REFERENCE_PAGE_RANGE_SPACING".equals(result.reasonCode()))
       return "请删除页码范围连接号两侧的空格，写成“140-145”这样的格式。";
+    if ("KEYWORD_LABEL_MISMATCH".equals(result.reasonCode()))
+      return "将“关键字：”改为“关键词：”；保留后面的关键词，并检查末尾不要有标点。";
     if ("REFERENCE_NUMBER_SPACING_MISMATCH".equals(result.reasonCode())) {
       String actual = result.actual() == null ? "" : result.actual();
       if (actual.contains("没有空格"))
@@ -359,6 +372,7 @@ public final class RuleDescriptions {
       return switch (result.reasonCode()) {
         case "CITATION_FORMAT_UNKNOWN" -> "请在 Word 中检查该引用的字体、字号和上标状态；确认确实不符合规范后再调整。";
         case "FIGURE_LAYOUT_REVIEW" -> "请在 Word 中确认图题是否确实位于图片下方并居中；确认不符合规范后再调整。";
+        case "FIGURE_SCOPE_UNRESOLVED" -> "请确认这张图片是否为正文插图；若是，再检查图下方是否有图号和图题。";
         case "FIGURE_REFERENCE_NEEDS_REVIEW" -> "请在 Word 中确认正文是否已经引用该图；只有确认缺少时再补充引用。";
         case "TABLE_LAYOUT_REVIEW" -> "请在 Word 中确认表题是否确实位于表格上方；确认不符合规范后再调整。";
         case "TABLE_BORDER_EVIDENCE_UNRESOLVED", "TABLE_BORDER_REVIEW", "TABLE_CONTINUATION_BORDER_REVIEW" -> "请在 Word 中确认表格是否缺少三条必需横线；确认缺少后再调整边框。";
@@ -427,6 +441,8 @@ public final class RuleDescriptions {
       case "HEAD-01-ALIGNMENT" -> "将一级标题段落设为居中。";
       case "HEAD-02-SPACING", "HEAD-03-SPACING" -> "标题序数后留一个空格，再写标题。";
       case "HEAD-02-BLANK" -> "章标题与正文之间空一行。";
+      case "HEAD-02-BLANK-FONT" -> "选中一级标题下的空行，将中文字体设为黑体，字母和数字设为 Times New Roman，与一级标题保持一致。";
+      case "HEAD-02-BLANK-SIZE" -> "选中一级标题下的空行，将字号设为三号（16 磅），与一级标题保持一致。";
       case "HEAD-03-INDENT" -> "该三级标题的首行缩进应为 2 字符；请在 Word 的“段落”设置中把“特殊格式”设为“首行”，并将首行缩进设为 2 字符。";
       case "HEAD-05-INDENT" -> {
         String actual = result.actual() == null ? "" : result.actual();
@@ -499,6 +515,7 @@ public final class RuleDescriptions {
         case "TABLE_CONTINUATION_HEADER_UNREADABLE" -> "将原表整理为可读取的表格行，再核对续表是否重复完整表头。";
         default -> "续表重复原表的表头内容，并保持单元格顺序一致。";
       };
+      case "TAB-09" -> "将“续表”及表号放在续表所在页的正文第一行，页眉不计入正文行。";
       case "CAPTION-FONT" -> "图题和表题中文用宋体，字母和数字用 Times New Roman。";
       case "CAPTION-SIZE" -> "图题和表题统一调整为五号。";
       case "FIG-01" -> "在正文相关位置补充对该图的引用。";
@@ -527,8 +544,8 @@ public final class RuleDescriptions {
       case "REF-04" -> "按文献类别补齐该条目的必要信息，并统一标点格式。";
       case "REF-05" -> "参考文献补足到至少 10 篇。";
       case "REF-07" -> "参考文献编号从 [1] 开始，按正文首次引用顺序连续排列。";
-      case "REF-SIZE" -> "参考文献中文用小四号宋体，字母和数字用 Times New Roman。";
-      case "REF-FONT" -> "参考文献中文用宋体，字母和数字用 Times New Roman。";
+      case "REF-SIZE" -> "参考文献内容统一使用小四号字。";
+      case "REF-FONT" -> "参考文献中文及全角标点用宋体，字母、数字及半角标点用 Times New Roman。";
       case "REF-LINE" -> "将参考文献段落行距调整为 1.5 倍。";
       case "APP-01" -> "附录按 A、B、C 顺序编号，并在附录图、表、公式编号前加对应字母。";
       case "APP-02-SPACING" -> "附录标题按“附    录”书写，中间留四个空格。";
@@ -710,6 +727,7 @@ public final class RuleDescriptions {
       case "EQUATION_NUMBER_FORMAT_UNKNOWN" -> "系统没有读到公式编号的完整字体或字号设置，暂时不能判定对错；请在 Word 中把编号设为五号 Times New Roman 后重新检查。";
       case "EQUATION_OBJECT_UNSUPPORTED" -> "当前对象无法确认内部字体、变量斜体、上下标和内部结构；如需自动检查这些内容，请转换为 Word 原生公式（OMML）后重新检查。";
       case "FIGURE_LAYOUT_REVIEW" -> "请在 Word 中确认图题是否位于图片下方并居中；若位置不对，再将图题移到图片下方并居中。";
+      case "FIGURE_SCOPE_UNRESOLVED" -> "请确认这张图片是否为正文插图；只有属于正文插图时，才需要在图片下方补充图号和图题。";
       case "FIGURE_NUMBER_UNKNOWN" -> "按一级标题重新编排图号并显式写入图题。";
       case "FIGURE_REFERENCE_NEEDS_REVIEW" -> "请在 Word 中检查正文是否出现该图号的引用；只有确认缺少时再补充引用。";
       case "TABLE_LAYOUT_REVIEW" -> "请在 Word 中确认表题是否位于表格上方并居中；只有确认位置不对时再调整。";
@@ -718,6 +736,10 @@ public final class RuleDescriptions {
       case "TABLE_BORDER_EVIDENCE_UNRESOLVED" -> "请在 Word 中确认表格是否为三线表；只有确认边框缺失或错误时再调整为三线表。";
       case "TABLE_XML_NUMERIC_INVALID" -> "在 Word 中重新设置表格列宽、行高、单元格合并和边框数值，删除非法或损坏的表格属性后重新检查。";
       case "TABLE_UNIT_DIMENSION_UNKNOWN" -> "将表头改为明确的量名称，并标注对应单位，例如“长度/mm”或“温度/℃”。";
+      case "TABLE_CONTINUATION_PAGE_POSITION_UNKNOWN" -> "请在 Word 的页面视图中确认续表编号行是否位于该页正文第一行；只有确认不在首行时再调整。";
+      case "TABLE_CONTINUATION_NOT_FIRST_BODY_LINE" -> "将“续表”及表号移到该页正文第一行，置于续表表头之前。";
+      case "FIRST_LEVEL_BLANK_LINE_FONT_UNKNOWN" -> "在 Word 中确认一级标题下空行的中文字体为黑体、字母数字为 Times New Roman。";
+      case "FIRST_LEVEL_BLANK_LINE_SIZE_UNKNOWN" -> "在 Word 中确认一级标题下空行的字号为三号（16 磅）。";
       case "KEYWORD_ALIGNMENT_UNKNOWN" -> "将关键词段落显式设置为两端对齐。";
       case "ENGLISH_KEYWORD_WRAP_ALIGNMENT_UNKNOWN" -> "请在 Word 中确认英文关键词换行位置；将新行对齐到第一个关键词的首字母。";
       case "ENGLISH_KEYWORD_WRAP_ALIGNMENT_MISMATCH" -> "将英文关键词换行后的新行起始位置移到第一个关键词的首字母处。";

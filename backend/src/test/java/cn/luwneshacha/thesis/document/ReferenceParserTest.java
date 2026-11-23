@@ -163,6 +163,22 @@ class ReferenceParserTest {
   }
 
   @Test
+  void parsesFullWidthAndMixedReferenceAndCategoryBrackets() {
+    var entries = new ReferenceParser().parse(List.of(
+        p("参考文献"),
+        p("［1］ 作者. 学位论文［D］. 四川：四川大学，2024：1-5."),
+        p("[2］ 作者. 期刊文章［J]. 期刊名，2024，10(2)：6-8."),
+        p("［3] 作者. 专著[M］. 北京：出版社，2023：9-12.")));
+
+    assertEquals(List.of("1", "2", "3"), entries.stream().map(ReferenceEntryModel::number).toList());
+    assertEquals(List.of("D", "J", "M"), entries.stream().map(ReferenceEntryModel::category).toList());
+    assertEquals(List.of("四川：四川大学", "期刊名", "北京：出版社"),
+        entries.stream().map(ReferenceEntryModel::sourceText).toList());
+    assertEquals(List.of("1-5", "6-8", "9-12"),
+        entries.stream().map(ReferenceEntryModel::pagesText).toList());
+  }
+
+  @Test
   void recognizesReferenceHeadingWithChineseSpacing() {
     var entries = new ReferenceParser().parse(List.of(
         p("参 考 文 献"), p("[1] 作者. 书名[M]. 出版社")));

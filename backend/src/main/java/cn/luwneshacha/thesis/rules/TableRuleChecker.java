@@ -11,6 +11,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class TableRuleChecker {
+  record Evidence(String ruleId, boolean checked) {}
+  record Evaluation(List<CheckResult> results, List<Evidence> evidence) {}
+
   private static final String UNIT = "(?:km/h|m/s|cm/s|mm/s|km·h⁻¹|m·s⁻¹|mm|cm|km|μm|nm|mL|L|kg|mg|g|ms|min|h|s|Hz|kHz|mV|V|mA|A|kW|W|kPa|MPa|Pa|mol|cd|K|N|J|C|F|Ω|S|Wb|T|H|lm|lx|Bq|Gy|Sv|kat|m|℃|°C|%)";
   private static final Pattern UNIT_LABEL = Pattern.compile(
       "(?:[（(]\\s*(" + UNIT + ")([·.]?(?:cm|mm|m|s|2|3|²|³))?\\s*[）)]|[/／]\\s*(" + UNIT
@@ -27,7 +30,12 @@ final class TableRuleChecker {
       Pattern.CASE_INSENSITIVE);
 
   List<CheckResult> check(ParsedDocument document, TableModel table, RuleSet rules) {
+    return evaluate(document, table, rules).results();
+  }
+
+  Evaluation evaluate(ParsedDocument document, TableModel table, RuleSet rules) {
     var results = new ArrayList<CheckResult>();
+    var evidence = new ArrayList<Evidence>();
     TableModel headerOwner = table.fragmentEvidence() == null ? table : document.tables().stream()
         .filter(candidate -> candidate.source().equals(table.fragmentEvidence().originalSource()))
         .findFirst().orElse(table);
@@ -55,7 +63,10 @@ final class TableRuleChecker {
       if (!unverifiableUnits.isEmpty())
         results.add(fail("TAB-04", "可识别的量名称和对应单位",
             String.join("、", unverifiableUnits), "TABLE_UNIT_DIMENSION_UNKNOWN", table.source()));
+      evidence.add(new Evidence("TAB-04", unverifiableUnits.isEmpty()));
     }
+    // The parser scans the table cells for these literal placeholders, including when none occur.
+    evidence.add(new Evidence("TAB-06", true));
     if (table.repeatedPlaceholderText()) {
       results.add(fail("TAB-06", "重复写出完整内容", "同前/同左",
           "TABLE_REPEATED_PLACEHOLDER", table.source()));
@@ -72,16 +83,20 @@ final class TableRuleChecker {
         results.add(fail("TAB-07", "left", note.alignment(), "TABLE_NOTE_NOT_LEFT_ALIGNED",
             noteSource));
       }
+      evidence.add(new Evidence("TAB-07", note != null && note.alignment() != null));
     }
-    checkContinuationHeader(results, document, table);
-    return List.copyOf(results);
+    String caption = table.captionText();
+    if (caption != null && caption.stripLeading().startsWith("续表")) {
+      evidence.add(new Evidence("TAB-08", checkContinuationHeader(results, document, table)));
+    }
+    return new Evaluation(List.copyOf(results), List.copyOf(evidence));
   }
 
-  private void checkContinuationHeader(List<CheckResult> results, ParsedDocument document,
+  private boolean checkContinuationHeader(List<CheckResult> results, ParsedDocument document,
       TableModel continuation) {
     Matcher continuationNumber = CONTINUATION_CAPTION.matcher(continuation.captionText() == null
         ? "" : continuation.captionText());
-    if (!continuationNumber.matches()) return;
+    if (!continuationNumber.matches()) return false;
     String number = continuationNumber.group(1);
     List<TableModel> tables = document.tables();
     int continuationIndex = indexOfSource(tables, continuation.source());
@@ -89,7 +104,7 @@ final class TableRuleChecker {
       results.add(fail("TAB-08", "前文存在编号相同的原表", continuation.captionText(),
           "TABLE_CONTINUATION_ORIGINAL_MISSING",
           continuation.captionSource() == null ? continuation.source() : continuation.captionSource()));
-      return;
+      return false;
     }
     TableModel adjacent = tables.get(continuationIndex - 1);
     TableModel original = adjacent;
@@ -109,13 +124,13 @@ final class TableRuleChecker {
       results.add(fail("TAB-08", "紧邻前文存在编号相同的原表", continuation.captionText(),
           "TABLE_CONTINUATION_ORIGINAL_MISSING",
           continuation.captionSource() == null ? continuation.source() : continuation.captionSource()));
-      return;
+      return false;
     }
     if (original.headerTexts().isEmpty()) {
       results.add(fail("TAB-08", "可读取的原表和续列表头", "表头结构为空",
           "TABLE_CONTINUATION_HEADER_UNREADABLE",
           continuation.captionSource() == null ? continuation.source() : continuation.captionSource()));
-      return;
+      return false;
     }
     List<String> originalHeader = original.headerTexts();
     List<String> continuationHeader = repeatedHeader == null
@@ -125,6 +140,7 @@ final class TableRuleChecker {
           String.join(" | ", continuationHeader), "TABLE_CONTINUATION_HEADER_MISMATCH",
           continuation.captionSource() == null ? continuation.source() : continuation.captionSource()));
     }
+    return !continuationHeader.isEmpty();
   }
 
   private static int indexOfSource(List<TableModel> tables, SourceAddress source) {

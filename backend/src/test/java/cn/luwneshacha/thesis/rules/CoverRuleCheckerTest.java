@@ -13,6 +13,126 @@ import org.junit.jupiter.api.Test;
 
 class CoverRuleCheckerTest {
   @Test
+  void recordsOnlyActuallyVisitedCoverCandidates() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("本科生毕业设计（论文）", List.of(0, 0)),
+        paragraph("题目：毕业论文", List.of(0, 1)),
+        paragraph("指导教师：李四", List.of(0, 2)),
+        paragraph("2026年6月", List.of(0, 3)),
+        paragraph("2026年6月", List.of(0, 4)),
+        paragraph("摘要", List.of(0, 5))), List.of(), List.of());
+    var checker = new CoverRuleChecker(new ParagraphFormatChecker());
+
+    var evaluation = checker.evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(checker.check(document, RuleSet.schoolV1()), evaluation.results());
+    for (String ruleId : List.of("COVER-01-FONT", "COVER-01-SIZE",
+        "COVER-02-FONT", "COVER-02-SIZE", "COVER-03-FONT", "COVER-03-SIZE",
+        "COVER-03-BOLD", "COVER-03-LABEL")) {
+      assertEquals(new RuleRun(ruleId, "CoverRuleChecker", 1, 1, 0, null),
+          run(evaluation, ruleId), ruleId);
+    }
+    for (String ruleId : List.of("COVER-04-FONT", "COVER-04-SIZE", "COVER-04-BOLD")) {
+      assertEquals(new RuleRun(ruleId, "CoverRuleChecker", 2, 2, 0, null),
+          run(evaluation, ruleId), ruleId);
+    }
+    assertEquals(new RuleRun("COVER-01-ALIGNMENT", "CoverRuleChecker", 1, 0, 1, null),
+        run(evaluation, "COVER-01-ALIGNMENT"));
+    assertEquals(new RuleRun("COVER-04-CONSISTENCY", "CoverRuleChecker", 1, 1, 0, null),
+        run(evaluation, "COVER-04-CONSISTENCY"));
+  }
+
+  @Test
+  void recordsOnePassForEachMatchingCoverDateAfterTheFirst() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("本科生毕业设计（论文）", List.of(0, 0)),
+        paragraph("2026年6月", List.of(0, 1)),
+        paragraph("2026年6月", List.of(0, 2)),
+        paragraph("2026年6月", List.of(0, 3)),
+        paragraph("摘要", List.of(0, 4))), List.of(), List.of());
+
+    var evaluation = new CoverRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+    var decisions = evaluation.results().stream()
+        .filter(result -> "COVER-04-CONSISTENCY".equals(result.ruleId())).toList();
+
+    assertEquals(new RuleRun("COVER-04-CONSISTENCY", "CoverRuleChecker", 2, 2, 0, null),
+        run(evaluation, "COVER-04-CONSISTENCY"));
+    assertEquals(2, decisions.size());
+    assertTrue(decisions.stream().allMatch(result -> result.judgement() == Judgement.PASS));
+    assertEquals(List.of(List.of(0, 2), List.of(0, 3)),
+        decisions.stream().map(result -> result.source().elementPath()).toList());
+  }
+
+  @Test
+  void preservesMismatchAndMatchingDecisionsForLaterCoverDates() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("本科生毕业设计（论文）", List.of(0, 0)),
+        paragraph("2026年6月", List.of(0, 1)),
+        paragraph("2026年7月", List.of(0, 2)),
+        paragraph("2026年6月", List.of(0, 3)),
+        paragraph("摘要", List.of(0, 4))), List.of(), List.of());
+
+    var evaluation = new CoverRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+    var decisions = evaluation.results().stream()
+        .filter(result -> "COVER-04-CONSISTENCY".equals(result.ruleId())).toList();
+
+    assertEquals(2, decisions.size());
+    assertEquals(List.of(Judgement.FAIL, Judgement.PASS),
+        decisions.stream().map(CheckResult::judgement).toList());
+    assertEquals(new RuleRun("COVER-04-CONSISTENCY", "CoverRuleChecker", 2, 2, 0, null),
+        run(evaluation, "COVER-04-CONSISTENCY"));
+  }
+
+  @Test
+  void oneCoverDateHasNoComparisonCandidateAfterTheAbstractBoundary() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("本科生毕业设计（论文）", List.of(0, 0)),
+        paragraph("2026年6月", List.of(0, 1)),
+        paragraph("摘要", List.of(0, 2))), List.of(), List.of());
+    var checker = new CoverRuleChecker(new ParagraphFormatChecker());
+
+    var evaluation = checker.evaluate(document, RuleSet.schoolV1());
+
+    assertEquals(new RuleRun("COVER-04-CONSISTENCY", "CoverRuleChecker", 0, 0, 0,
+        "SINGLE_COVER_DATE"), run(evaluation, "COVER-04-CONSISTENCY"));
+    assertTrue(evaluation.results().stream()
+        .noneMatch(result -> "COVER-04-CONSISTENCY".equals(result.ruleId())));
+    assertEquals(checker.check(document, RuleSet.schoolV1()), evaluation.results());
+  }
+
+  @Test
+  void oneDateWithoutAnAbstractBoundaryDoesNotProveAnEmptyComparisonScope() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("本科生毕业设计（论文）", List.of(0, 0)),
+        paragraph("2026年6月", List.of(0, 1))), List.of(), List.of());
+
+    var evaluation = new CoverRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    assertTrue(evaluation.ruleRuns().stream()
+        .noneMatch(run -> "COVER-04-CONSISTENCY".equals(run.ruleId())));
+  }
+
+  @Test
+  void missingCoverTypeDoesNotInventFormattingEvidence() {
+    var document = new ParsedDocument("source", List.of(
+        paragraph("题目：毕业论文", List.of(0, 0)),
+        paragraph("摘要", List.of(0, 1))), List.of(), List.of());
+
+    var evaluation = new CoverRuleChecker(new ParagraphFormatChecker())
+        .evaluate(document, RuleSet.schoolV1());
+
+    assertTrue(evaluation.ruleRuns().isEmpty());
+  }
+
+  private static RuleRun run(RuleModule.Evaluation evaluation, String ruleId) {
+    return evaluation.ruleRuns().stream().filter(item -> item.ruleId().equals(ruleId))
+        .findFirst().orElseThrow();
+  }
+
+  @Test
   void acceptsCorrectTitleWhenLabelAndValueShareARunAfterLeadingAlignmentWhitespace() {
     String titleText = "\t题 目：基于 SpringBoot 的在线技能学习平台";
     var coverType = paragraph("本科生毕业设计（论文）", List.of(0, 0));

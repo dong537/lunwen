@@ -11,11 +11,61 @@ import cn.luwneshacha.thesis.document.SectionModel;
 import cn.luwneshacha.thesis.document.SourceAddress;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class HeaderRuleModuleTest {
   private static final SourceAddress BODY = new SourceAddress("word/document.xml", List.of(0), 0, 6);
   private static final SourceAddress SECTION = new SourceAddress("word/document.xml", List.of(0), 0, 0);
+
+  @Test
+  void recordsEachRequiredHeaderRuleOnlyAfterItsCandidatesWereChecked() {
+    var evaluated = new HeaderRuleModule().evaluate(document(header(
+        "山东石油化工学院本科毕业设计（论文）", true, "黑体", "黑体", 21)), RuleSet.schoolV1());
+
+    assertTrue(evaluated.results().isEmpty());
+    assertEquals(Set.of("HEADER-01-SCOPE", "HEADER-01-MISSING", "HEADER-01-TEXT",
+        "HEADER-01-ALIGNMENT", "HEADER-01-FONT", "HEADER-01-SIZE"),
+        evaluated.ruleRuns().stream().map(RuleRun::ruleId).collect(java.util.stream.Collectors.toSet()));
+    for (RuleRun run : evaluated.ruleRuns()) {
+      assertEquals("HeaderRuleModule", run.moduleId());
+      assertEquals(1, run.candidateCount(), run.ruleId());
+      assertEquals(1, run.checkedCount(), run.ruleId());
+      assertEquals(0, run.unknownCount(), run.ruleId());
+    }
+  }
+
+  @Test
+  void countsSharedHeaderOnceForFormatButEachRequiredSectionVariantForPresence() {
+    HeaderModel shared = header("山东石油化工学院本科毕业设计（论文）", true,
+        "黑体", "黑体", 21, HeaderModel.Type.DEFAULT, List.of(0, 1));
+    var evaluated = new HeaderRuleModule().evaluate(documentWithText(List.of(shared),
+        List.of(section(1, false, false, false), section(3, true, false, false)),
+        "第一章 绪论", "正文"), RuleSet.schoolV1());
+
+    assertEquals(2, run(evaluated, "HEADER-01-SCOPE").candidateCount());
+    assertEquals(2, run(evaluated, "HEADER-01-MISSING").candidateCount());
+    assertEquals(1, run(evaluated, "HEADER-01-TEXT").candidateCount());
+    assertEquals(1, run(evaluated, "HEADER-01-FONT").candidateCount());
+  }
+
+  @Test
+  void leavesMissingHeaderFormatUnprovedAndMarksUnreadableSectionUnknown() {
+    var missing = new HeaderRuleModule().evaluate(document(null), RuleSet.schoolV1());
+    assertEquals(Set.of("HEADER-01-SCOPE", "HEADER-01-MISSING"),
+        missing.ruleRuns().stream().map(RuleRun::ruleId).collect(java.util.stream.Collectors.toSet()));
+    assertEquals(1, run(missing, "HEADER-01-MISSING").checkedCount());
+
+    SectionModel unreadable = new SectionModel(1474, 1474, 1474, 1474, null, null, null, false);
+    var unknown = new HeaderRuleModule().evaluate(document(null, List.of(unreadable)), RuleSet.schoolV1());
+    assertEquals(List.of("HEADER-01-SCOPE"), unknown.ruleRuns().stream().map(RuleRun::ruleId).toList());
+    assertEquals(1, run(unknown, "HEADER-01-SCOPE").unknownCount());
+    assertEquals(0, run(unknown, "HEADER-01-SCOPE").checkedCount());
+  }
+
+  private RuleRun run(RuleModule.Evaluation evaluation, String ruleId) {
+    return evaluation.ruleRuns().stream().filter(run -> run.ruleId().equals(ruleId)).findFirst().orElseThrow();
+  }
 
   @Test
   void acceptsRequiredHeaderForBodySection() {
@@ -128,13 +178,18 @@ class HeaderRuleModuleTest {
             new SourceAddress("word/header1.xml", List.of(0, 0), 0, 0))),
         Map.of(HeaderModel.Type.DEFAULT, List.of(0)));
 
-    var result = new HeaderRuleModule().check(document(header), RuleSet.schoolV1());
+    var evaluated = new HeaderRuleModule().evaluate(document(header), RuleSet.schoolV1());
+    var result = evaluated.results();
 
     assertEquals(3, result.size());
     assertTrue(result.stream().allMatch(item -> item.judgement() == Judgement.REVIEW), result.toString());
     assertTrue(result.stream().anyMatch(item -> item.reasonCode().equals("HEADER_ALIGNMENT_UNKNOWN")));
     assertTrue(result.stream().anyMatch(item -> item.reasonCode().equals("HEADER_FONT_UNKNOWN")));
     assertTrue(result.stream().anyMatch(item -> item.reasonCode().equals("HEADER_SIZE_UNKNOWN")));
+    assertEquals(1, run(evaluated, "HEADER-01-ALIGNMENT").unknownCount());
+    assertEquals(1, run(evaluated, "HEADER-01-FONT").unknownCount());
+    assertEquals(1, run(evaluated, "HEADER-01-SIZE").unknownCount());
+    assertEquals(1, run(evaluated, "HEADER-01-TEXT").checkedCount());
   }
 
   @Test
@@ -143,11 +198,14 @@ class HeaderRuleModuleTest {
     HeaderModel defaultHeader = header("山东石油化工学院本科毕业设计（论文）", true,
         "黑体", "黑体", 21, HeaderModel.Type.DEFAULT);
 
-    var result = new HeaderRuleModule().check(document(defaultHeader, List.of(section)), RuleSet.schoolV1());
+    var evaluated = new HeaderRuleModule().evaluate(document(defaultHeader, List.of(section)), RuleSet.schoolV1());
+    var result = evaluated.results();
 
     assertEquals(1, result.size());
     assertEquals("HEADER_MISSING", result.get(0).reasonCode());
     assertTrue(result.get(0).actual().contains("first"));
+    assertEquals(2, run(evaluated, "HEADER-01-MISSING").candidateCount());
+    assertEquals(1, run(evaluated, "HEADER-01-TEXT").candidateCount());
   }
 
   @Test

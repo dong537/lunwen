@@ -30,33 +30,52 @@ public final class ImageParser {
   }
 
   public List<ImageModel> parse(byte[] xml, byte[] stylesXml) {
+    return parseInventory(xml, stylesXml).images();
+  }
+
+  public record Inventory(List<ImageModel> images, boolean complete) {
+    public Inventory { images = List.copyOf(images); }
+  }
+
+  public Inventory parseInventory(byte[] xml, byte[] stylesXml) {
     try {
       var result = new ArrayList<ImageModel>();
       Element styles = stylesXml == null ? null : XmlPartSupport.parse(stylesXml).getDocumentElement();
-      collect(XmlPartSupport.parse(xml).getDocumentElement(), styles, List.of(), result);
-      return List.copyOf(result);
+      var document = XmlPartSupport.parse(xml);
+      boolean[] complete = {true};
+      collect(document.getDocumentElement(), styles, List.of(), result, complete);
+      return new Inventory(result, complete[0] && XmlPartSupport.compatibilityGaps(document).isEmpty());
     } catch (Exception e) {
       throw new IllegalArgumentException("unable to parse images", e);
     }
   }
 
-  private void collect(Element element, Element styles, List<Integer> path, List<ImageModel> result) {
-    if ("http://schemas.openxmlformats.org/markup-compatibility/2006".equals(element.getNamespaceURI())
-        && "Fallback".equals(element.getLocalName())) return;
-    boolean drawingPicture = XmlPartSupport.W.equals(element.getNamespaceURI())
-        && "drawing".equals(element.getLocalName()) && first(element, PICTURE, "pic") != null;
-    boolean drawingChart = XmlPartSupport.W.equals(element.getNamespaceURI())
-        && "drawing".equals(element.getLocalName()) && first(element, CHART, "chart") != null;
-    boolean vmlPicture = XmlPartSupport.W.equals(element.getNamespaceURI()) && "pict".equals(element.getLocalName())
-        && hasVmlImageMediaReference(element);
+  private void collect(Element element, Element styles, List<Integer> path, List<ImageModel> result,
+      boolean[] complete) {
+    if (excludedFromCurrentDocument(element)) return;
+    boolean wordElement = XmlPartSupport.W.equals(element.getNamespaceURI());
+    boolean drawing = wordElement && "drawing".equals(element.getLocalName());
+    boolean pict = wordElement && "pict".equals(element.getLocalName());
+    boolean object = wordElement && "object".equals(element.getLocalName());
+    boolean drawingPicture = drawing && first(element, PICTURE, "pic") != null;
+    boolean drawingChart = drawing && first(element, CHART, "chart") != null;
+    boolean vmlMedia = (pict || object) && hasVmlImageMediaReference(element);
+    boolean vmlPicture = pict && vmlMedia;
+    boolean objectPreview = object && (vmlMedia
+        || first(element, PICTURE, "pic") != null || first(element, CHART, "chart") != null);
     // Visio may place its VML preview directly inside w:object. Wrapped
     // previews are collected from their pict/drawing node to avoid duplicates.
-    boolean directVmlObject = XmlPartSupport.W.equals(element.getNamespaceURI())
-        && "object".equals(element.getLocalName())
-        && hasVmlImageMediaReference(element)
+    boolean directVmlObject = object && vmlMedia
         && element.getElementsByTagNameNS(XmlPartSupport.W, "pict").getLength() == 0
         && element.getElementsByTagNameNS(XmlPartSupport.W, "drawing").getLength() == 0;
-    if ((drawingPicture || drawingChart || vmlPicture || directVmlObject) && !isEquationPreview(element)) {
+    boolean equationPreview = (drawing || pict || object) && isEquationPreview(element);
+    // A shape, SmartArt object or OLE body can consume a page even when it
+    // cannot be represented as an ImageModel. Do not certify a complete image
+    // inventory merely because every recognized picture was parsed.
+    if ((drawing || pict || object)
+        && !(drawingPicture || drawingChart || vmlPicture || objectPreview || equationPreview))
+      complete[0] = false;
+    if ((drawingPicture || drawingChart || vmlPicture || directVmlObject) && !equationPreview) {
       Element paragraph = ancestor(element, XmlPartSupport.W, "p");
       if (paragraph != null) {
         Element extent = drawingPicture || drawingChart ? first(element, DRAW, "extent") : null;
@@ -76,13 +95,13 @@ public final class ImageParser {
             transformWidthValue.invalid() || transformHeightValue.invalid(),
             caption != null && caption.fragment(), caption != null && caption.numberAmbiguous(),
             caption == null ? List.of() : caption.candidateChapters()));
-      }
+      } else complete[0] = false;
     }
     int index = 0;
     for (Element child : XmlPartSupport.children(element)) {
       var childPath = new ArrayList<>(path);
       childPath.add(index++);
-      collect(child, styles, List.copyOf(childPath), result);
+      collect(child, styles, List.copyOf(childPath), result, complete);
     }
   }
 
@@ -112,9 +131,12 @@ public final class ImageParser {
     var chapters = new ArrayList<String>();
     var boxes = outerParagraph.getElementsByTagNameNS(XmlPartSupport.W, "txbxContent");
     for (int boxIndex = 0; boxIndex < boxes.getLength(); boxIndex++) {
-      var paragraphs = ((Element) boxes.item(boxIndex)).getElementsByTagNameNS(XmlPartSupport.W, "p");
+      Element box = (Element) boxes.item(boxIndex);
+      if (insideExcludedRevision(box, outerParagraph)) continue;
+      var paragraphs = box.getElementsByTagNameNS(XmlPartSupport.W, "p");
       for (int paragraphIndex = 0; paragraphIndex < paragraphs.getLength(); paragraphIndex++) {
         Element innerParagraph = (Element) paragraphs.item(paragraphIndex);
+        if (insideExcludedRevision(innerParagraph, box)) continue;
         String text = paragraphOwnText(innerParagraph);
         if (!CAPTION.matcher(text).find()) continue;
         var chapter = CAPTION_CHAPTER.matcher(text);
@@ -132,7 +154,7 @@ public final class ImageParser {
   }
 
   private static boolean hasTextBoxes(Element paragraph) {
-    return paragraph.getElementsByTagNameNS(XmlPartSupport.W, "txbxContent").getLength() > 0;
+    return hasVisibleElement(paragraph, "txbxContent");
   }
 
   private static String paragraphOwnText(Element paragraph) {
@@ -142,6 +164,7 @@ public final class ImageParser {
   }
 
   private static void appendOwnText(Element root, Element element, StringBuilder text) {
+    if (excludedFromCurrentDocument(element)) return;
     if (element != root && XmlPartSupport.W.equals(element.getNamespaceURI())) {
       String local = element.getLocalName();
       if ("p".equals(local) || "pict".equals(local) || "drawing".equals(local)
@@ -170,10 +193,27 @@ public final class ImageParser {
     String local = element.getLocalName();
     if ("bookmarkStart".equals(local) || "bookmarkEnd".equals(local)
         || "proofErr".equals(local) || "permStart".equals(local) || "permEnd".equals(local)) return true;
-    return "p".equals(local) && XmlPartSupport.isBlankText(XmlPartSupport.text(element))
-        && element.getElementsByTagNameNS(XmlPartSupport.W, "drawing").getLength() == 0
-        && element.getElementsByTagNameNS(XmlPartSupport.W, "pict").getLength() == 0
-        && element.getElementsByTagNameNS(XmlPartSupport.W, "object").getLength() == 0;
+    return "p".equals(local) && XmlPartSupport.isBlankText(paragraphOwnText(element))
+        && !hasVisibleElement(element, "drawing")
+        && !hasVisibleElement(element, "pict")
+        && !hasVisibleElement(element, "object");
+  }
+
+  private static boolean hasVisibleElement(Element root, String localName) {
+    var nodes = root.getElementsByTagNameNS(XmlPartSupport.W, localName);
+    for (int index = 0; index < nodes.getLength(); index++) {
+      if (!insideExcludedRevision((Element) nodes.item(index), root)) return true;
+    }
+    return false;
+  }
+
+  private static boolean insideExcludedRevision(Element element, Element boundary) {
+    Node node = element;
+    while (node instanceof Element current && current != boundary) {
+      if (excludedFromCurrentDocument(current)) return true;
+      node = current.getParentNode();
+    }
+    return false;
   }
 
   private static Boolean centered(Element paragraph, Element styles) {
@@ -238,6 +278,13 @@ public final class ImageParser {
       current = parent.getParentNode();
     }
     return null;
+  }
+
+  private static boolean excludedFromCurrentDocument(Element element) {
+    if (!XmlPartSupport.W.equals(element.getNamespaceURI())) return false;
+    String localName = element.getLocalName();
+    return "del".equals(localName) || "moveFrom".equals(localName)
+        || "delInstrText".equals(localName) || localName.endsWith("PrChange");
   }
 
   private static Element first(Element root, String namespace, String localName) {

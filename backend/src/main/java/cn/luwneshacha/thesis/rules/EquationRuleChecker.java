@@ -153,8 +153,7 @@ final class EquationRuleChecker {
       centered = "center".equalsIgnoreCase(paragraph.alignment());
     if (centered == null || (equation.numberSource() == null && equation.numberEvidence() == null))
       return result("EQ-03", "公式居中；公式号右对齐", "未读取到完整对齐证据",
-          "EQUATION_ALIGNMENT_UNKNOWN",
-          paragraph == null || paragraph.alignment() == null ? Judgement.FAIL : Judgement.REVIEW,
+          "EQUATION_ALIGNMENT_UNKNOWN", Judgement.REVIEW,
           equation.source());
     Boolean right = equation.layoutEvidence() == null ? null : equation.layoutEvidence().numberRightAligned();
     if (right == null) right = equation.numberRightAligned();

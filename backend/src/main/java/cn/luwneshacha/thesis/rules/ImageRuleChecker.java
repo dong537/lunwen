@@ -21,7 +21,7 @@ final class ImageRuleChecker implements RuleModule {
       "图[\\s\\p{Zs}]*((?:\\d+[\\t\\p{Zs}]*[-－][\\t\\p{Zs}]*\\d+)|(?:[A-Z]\\d+))(?![A-Za-z\\d-])");
   private static final Pattern UNNUMBERED_FIGURE_REFERENCE = Pattern.compile("(?:如|见|参见)图(?!\\s*\\d)(?:所示|如下)?|下图所示");
   private static final Pattern FIGURE_CAPTION_FORMAT = Pattern.compile("^\\s*图(?:\\d+-\\d+|[A-Z]\\d+) \\S.*");
-  private static final Pattern FIGURE_SEQUENCE = Pattern.compile("^\\s*图(\\d+)-(\\d+)(?![\\d-])");
+  private static final Pattern FIGURE_SEQUENCE = Pattern.compile("^\\s*图[\\t\\p{Zs}]*(\\d+)-(\\d+)(?![\\d-])");
   private static final Pattern TABLE_OR_FIGURE_CAPTION = Pattern.compile("^(续表|表|图)\\s*[0-9一二三四五六七八九十]+", Pattern.CASE_INSENSITIVE);
 
   private final ParagraphFormatChecker paragraphFormatChecker = new ParagraphFormatChecker();
@@ -29,14 +29,35 @@ final class ImageRuleChecker implements RuleModule {
 
   @Override
   public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
+    return evaluate(document, rules).results();
+  }
+
+  @Override
+  public Evaluation evaluate(ParsedDocument document, RuleSet rules) {
     // School rules cover figure captions and references, but do not set an
     // image-size requirement. Use only relationships the parser can prove.
     var results = new ArrayList<CheckResult>();
+    var referenceRun = new FigureReferenceRun();
+    var layoutRun = new EvidenceCounter("FIG-02");
+    var captionRun = new EvidenceCounter("FIG-03");
+    var sequenceRun = new EvidenceCounter("FIG-05");
+    var captionFontRun = new EvidenceCounter("CAPTION-FONT");
+    var captionSizeRun = new EvidenceCounter("CAPTION-SIZE");
+    boolean bodyBoundaryKnown = document.paragraphs().stream()
+        .anyMatch(paragraph -> !paragraph.insideTextBox()
+            && regions.isBodyChapterStart(paragraph, document));
     for (ImageModel image : document.images()) {
       if (regions.isBeforeMainBody(document, image.source())) continue;
+      boolean referenceRequired = regions.appendixLetterAt(document, image.source()) == null;
       if (image.captionText() == null) {
-        results.add(result("FIG-03", "图下方有图号和图题", "未找到图题", "FIGURE_CAPTION_MISSING",
-            Judgement.FAIL, image.source()));
+        if (referenceRequired) referenceRun.unknown();
+        if (!bodyBoundaryKnown && referenceRequired)
+          results.add(review("FIG-03", "正文插图下方有图号和图题",
+              "FIGURE_SCOPE_UNRESOLVED", image.source()));
+        else
+          results.add(result("FIG-03", "图下方有图号和图题", "未找到图题", "FIGURE_CAPTION_MISSING",
+              Judgement.FAIL, image.source()));
+        captionRun.record(results.getLast(), bodyBoundaryKnown);
       } else {
         if (image.captionFragment())
           results.add(review("FIG-03", "图号与完整图题位于同一可辨认题注", "FIGURE_CAPTION_FRAGMENTED",
@@ -47,8 +68,9 @@ final class ImageRuleChecker implements RuleModule {
         else
           results.add(result("FIG-03", "图号-序号 + 1 空格 + 图题", image.captionText(), "",
               Judgement.PASS, image.captionSource()));
+        captionRun.record(results.getLast(), bodyBoundaryKnown);
         Matcher figureNumber = FIGURE_NUMBER.matcher(image.captionText());
-        if (regions.appendixLetterAt(document, image.source()) == null) {
+        if (referenceRequired) {
           if (image.captionNumberAmbiguous())
             results.add(review("FIG-01", "正文引用可确认的图号", "FIGURE_NUMBER_AMBIGUOUS",
                 image.captionSource()));
@@ -64,6 +86,8 @@ final class ImageRuleChecker implements RuleModule {
           else
             results.add(result("FIG-01", "body reference to figure " + figureNumber.group(1), figureNumber.group(1),
                 "FIGURE_NOT_CITED_IN_BODY", Judgement.FAIL, image.captionSource()));
+          // Exactly one reference finding is produced for each numbered image.
+          referenceRun.record(bodyBoundaryKnown ? results.getLast().judgement() : Judgement.REVIEW);
         }
       }
       if (image.captionNumberAmbiguous()) {
@@ -71,8 +95,22 @@ final class ImageRuleChecker implements RuleModule {
             "FIGURE_CAPTION_TYPOGRAPHY_UNRESOLVED", image.captionSource()));
         results.add(review("CAPTION-SIZE", "21",
             "FIGURE_CAPTION_TYPOGRAPHY_UNRESOLVED", image.captionSource()));
+        captionFontRun.unknown();
+        captionSizeRun.unknown();
       } else {
-        captionParagraph(document, image.captionSource()).ifPresent(paragraph -> addCaptionResults(results, paragraph, rules));
+        var paragraph = captionParagraph(document, image.captionSource());
+        if (paragraph.isPresent()) {
+          int candidatesBefore = captionFontRun.candidates;
+          addCaptionResults(results, paragraph.orElseThrow(), rules, bodyBoundaryKnown,
+              captionFontRun, captionSizeRun);
+          if (captionFontRun.candidates == candidatesBefore) {
+            captionFontRun.unknown();
+            captionSizeRun.unknown();
+          }
+        } else {
+          captionFontRun.unknown();
+          captionSizeRun.unknown();
+        }
       }
       if (image.captionText() != null) {
         if (image.captionFragment())
@@ -90,13 +128,63 @@ final class ImageRuleChecker implements RuleModule {
         else
           results.add(result("FIG-02", "caption below image and centered", "caption alignment verified from DOCX XML", "",
               Judgement.PASS, image.captionSource()));
+        layoutRun.record(results.getLast(), bodyBoundaryKnown);
+      } else {
+        if (image.placementNeedsReview())
+          results.add(review("FIG-02", "图题位于图下方并居中",
+              "FIGURE_LAYOUT_REVIEW", image.source()));
+        layoutRun.unknown();
       }
     }
-    checkFigureNumberSequences(results, document);
-    return List.copyOf(results);
+    checkFigureNumberSequences(results, document, sequenceRun, bodyBoundaryKnown);
+    var runs = new ArrayList<RuleRun>(referenceRun.runs());
+    for (var evidence : List.of(layoutRun, captionRun, sequenceRun, captionFontRun, captionSizeRun)) {
+      if (evidence.candidates > 0) runs.add(evidence.toRun());
+    }
+    return new Evaluation(List.copyOf(results), List.copyOf(runs));
   }
 
-  private void checkFigureNumberSequences(List<CheckResult> results, ParsedDocument document) {
+  private static final class EvidenceCounter {
+    private final String ruleId;
+    private int candidates;
+    private int unknown;
+
+    private EvidenceCounter(String ruleId) { this.ruleId = ruleId; }
+
+    private void record(CheckResult result, boolean scopeKnown) {
+      candidates++;
+      if (!scopeKnown || result.judgement() == Judgement.REVIEW
+          || result.applicability() == Applicability.UNKNOWN
+          || result.executionStatus() != ExecutionStatus.EXECUTED) unknown++;
+    }
+
+    private void unknown() { candidates++; unknown++; }
+
+    private RuleRun toRun() {
+      return new RuleRun(ruleId, "ImageRuleChecker", candidates, candidates - unknown, unknown, null);
+    }
+  }
+
+  private static final class FigureReferenceRun {
+    private int checked;
+    private int unknown;
+
+    private void record(Judgement judgement) {
+      if (judgement == Judgement.REVIEW) unknown();
+      else checked++;
+    }
+
+    private void unknown() { unknown++; }
+
+    private List<RuleRun> runs() {
+      int candidates = checked + unknown;
+      if (candidates == 0) return List.of();
+      return List.of(new RuleRun("FIG-01", "ImageRuleChecker", candidates, checked, unknown, null));
+    }
+  }
+
+  private void checkFigureNumberSequences(List<CheckResult> results, ParsedDocument document,
+      EvidenceCounter sequenceRun, boolean bodyBoundaryKnown) {
     Map<String, BigInteger> next = new java.util.HashMap<>();
     Set<SourceAddress> seenCaptions = new LinkedHashSet<>();
     Set<String> uncertainChapters = new HashSet<>();
@@ -112,15 +200,21 @@ final class ImageRuleChecker implements RuleModule {
           uncertainChapters.addAll(image.ambiguousCaptionChapters());
         else if (matcher.find()) uncertainChapters.add(matcher.group(1));
         else unknownChapterAmbiguity = true;
+        sequenceRun.unknown();
         continue;
       }
-      if (!matcher.find()) continue;
+      if (!matcher.find()) {
+        sequenceRun.unknown();
+        continue;
+      }
       if (unknownChapterAmbiguity || uncertainChapters.contains(matcher.group(1))) {
         results.add(review("FIG-05", "同章图号连续", "FIGURE_SEQUENCE_UNRESOLVED_AFTER_AMBIGUOUS_CAPTION",
             captionSource));
+        sequenceRun.record(results.getLast(), bodyBoundaryKnown);
         continue;
       }
       checkNumberSequence(results, next, matcher.group(1), matcher.group(2), image.captionText(), captionSource);
+      sequenceRun.record(results.getLast(), bodyBoundaryKnown);
     }
   }
 
@@ -139,15 +233,18 @@ final class ImageRuleChecker implements RuleModule {
     nextByChapter.put(chapterText, expected.max(sequence).add(BigInteger.ONE));
   }
 
-  private void addCaptionResults(List<CheckResult> results, ParagraphModel paragraph, RuleSet rules) {
+  private void addCaptionResults(List<CheckResult> results, ParagraphModel paragraph, RuleSet rules,
+      boolean bodyBoundaryKnown, EvidenceCounter fontRun, EvidenceCounter sizeRun) {
     for (RunModel run : paragraph.runs()) {
       if (ParagraphFormatChecker.isLayoutControlOnly(run)) continue;
       results.add(paragraphFormatChecker.checkFont(run, rules, "CAPTION-FONT"));
+      fontRun.record(results.getLast(), bodyBoundaryKnown);
       if (run.fontSizeHalfPoints() == null)
         results.add(result("CAPTION-SIZE", "21", "unknown", "SIZE_UNKNOWN", Judgement.REVIEW, run.source()));
       else
         results.add(result("CAPTION-SIZE", "21", String.valueOf(run.fontSizeHalfPoints()), "",
             run.fontSizeHalfPoints() == 21 ? Judgement.PASS : Judgement.FAIL, run.source()));
+      sizeRun.record(results.getLast(), bodyBoundaryKnown);
     }
   }
 

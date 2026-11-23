@@ -1,6 +1,7 @@
 package cn.luwneshacha.thesis.rules;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import cn.luwneshacha.thesis.document.ParsedDocument;
 import java.util.List;
@@ -43,5 +44,28 @@ class RuleModulePipelineTest {
         RuleSet.schoolV1());
 
     assertEquals(List.of(first, second), results);
+  }
+
+  @Test
+  void recordsOnlyModulesThatActuallyCompletedEvenWithoutFindings() {
+    var pipeline = new RuleModulePipeline(List.of(new NoFindingsModule(), new FailureModule()));
+
+    assertThrows(IllegalStateException.class, () -> pipeline.checkWithExecution(
+        new ParsedDocument("sha", List.of(), List.of(), List.of()), RuleSet.schoolV1()));
+
+    var completed = new RuleModulePipeline(List.of(new NoFindingsModule())).checkWithExecution(
+        new ParsedDocument("sha", List.of(), List.of(), List.of()), RuleSet.schoolV1());
+    assertEquals(List.of(), completed.results());
+    assertEquals(List.of("NoFindingsModule"), completed.completedModuleIds());
+  }
+
+  private static final class NoFindingsModule implements RuleModule {
+    @Override public List<CheckResult> check(ParsedDocument document, RuleSet rules) { return List.of(); }
+  }
+
+  private static final class FailureModule implements RuleModule {
+    @Override public List<CheckResult> check(ParsedDocument document, RuleSet rules) {
+      throw new IllegalStateException("module failed");
+    }
   }
 }
