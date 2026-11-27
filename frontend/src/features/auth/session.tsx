@@ -70,7 +70,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }}
     >
       <Fragment
-        key={`${session.data?.id ?? 'anonymous'}:${session.data?.role ?? ''}:${session.data?.collegeCode ?? 'unassigned'}`}
+        key={`${session.data?.id ?? 'anonymous'}:${session.data?.role ?? ''}:${session.data?.collegeCode ?? 'unassigned'}:${session.data?.mustChangePassword ?? false}`}
       >
         {children}
       </Fragment>
