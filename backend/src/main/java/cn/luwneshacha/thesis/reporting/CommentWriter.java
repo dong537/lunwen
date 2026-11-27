@@ -387,7 +387,12 @@ public final class CommentWriter {
   private static Element resolve(Document document, SourceAddress address) throws AnchorException {
     Element current = document.getDocumentElement();
     for (Integer index : address.elementPath()) {
-      List<Element> children = elementChildren(current);
+      // Source paths count every original element, including existing comment markers.
+      // Visible-run traversal has different filtering semantics and must stay separate.
+      List<Element> children = new ArrayList<>();
+      for (Node child = current.getFirstChild(); child != null; child = child.getNextSibling()) {
+        if (child instanceof Element element) children.add(element);
+      }
       if (index < 0 || index >= children.size()) throw new AnchorException("PATH_OUT_OF_RANGE");
       current = children.get(index);
     }

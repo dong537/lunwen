@@ -8,6 +8,7 @@
 - `TableModel.fragmentEvidence()` 为可空的只读关系证据，含 `originalSource`、`continuationSource` 和 `DATA_ROW/REPEATED_HEADER` 类型；旧构造器默认无证据。
 - `TableRuleModule` 只据明确 `DATA_ROW` 证据从真实尾片段读取底线；`TableRuleChecker` 和附录对象编号使用同一证据，不另行凭物理表列表回退两项猜关系。
 - `CommentWriter.writeCopy(source, target, expectedSourceSha256, results, replies)` 只写输出副本。检测的 `SourceAddress` 是原始 DOM 的元素路径；新旧批注移除前必须完成所有定位、范围校验与页首回退引用捕获。
+  `elementPath` 每层按全部原始元素子节点计数，包含已有批注起止标记，不计文本或排版空白节点。写入端不得复用可见 run 枚举的批注标记过滤器来解析来源路径；先冻结原始节点引用，再刷新系统批注。已有批注与嵌套 OMML 编号共段、编号数组多行及重复审核必须走正式解析到写入链路验证；非法路径仍明确拒绝。
 
 ## 数据与配置契约
 显式续表的三段数据尾片段关联至少要求同一容器相邻、合法完整且精确一致的列网格、同号续表、原续表头一致和无独立表题。独立重复表头必须与原表头一致，允许重复同号表题；后续纯数据块不必再重复表头，由已证实的独立表头提供证据。中间只允许已核验的空段及无内容布局标记；正文、图片/图形/公式/对象、分节、复杂域和修订边界阻断关联。无关联证据不等于可免检。
