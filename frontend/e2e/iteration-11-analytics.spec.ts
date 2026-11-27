@@ -233,6 +233,7 @@ test('教师统计筛选、规则覆盖和导出使用同一条件', async ({ pa
   await expect(page.getByText('规则明细已覆盖 1 / 2 份最近成功审核')).toBeVisible()
   await expect(page.getByText('规则明细覆盖 1 / 2 份最近成功审核')).toHaveCount(0)
   await expect(page.getByText('高频格式问题 TOP10', { exact: true })).toBeVisible()
+  await expect(page.getByText('学生明细', { exact: true })).toHaveCount(0)
   const ranking = page.getByRole('table', { name: '问题数与触达人数', exact: true })
   await expect(ranking.getByRole('columnheader', { name: '问题数', exact: true })).toBeVisible()
   await expect(ranking.getByRole('columnheader', { name: '触达人数', exact: true })).toBeVisible()
@@ -240,7 +241,7 @@ test('教师统计筛选、规则覆盖和导出使用同一条件', async ({ pa
   await expect(rankedRule.getByRole('cell', { name: '4', exact: true })).toBeVisible()
   await expect(rankedRule.getByRole('cell', { name: '1人', exact: true })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: '正文首行缩进' })).toBeVisible()
-  await expect(page.getByRole('row', { name: /23000001/ })).toBeVisible()
+  await expect(page.getByRole('row', { name: /23000001/ })).toHaveCount(0)
   await page.screenshot({
     path: testInfo.outputPath('teacher-statistics-populated.png'),
     fullPage: true,
@@ -349,7 +350,8 @@ test('教师统计空态在 375px 可阅读且没有整页横向溢出', async (
   await expect(page.getByText('所选范围内没有提交记录')).toBeVisible()
   await expect(page.getByText('所选范围内暂无可展示的规则明细')).toBeVisible()
   await expect(page.getByText('规则明细覆盖 0 / 0 份最近成功审核')).toHaveCount(0)
-  await expect(page.getByText('所选范围内没有学生记录。')).toBeVisible()
+  await expect(page.getByText('学生明细', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('所选范围内没有学生记录。')).toHaveCount(0)
   await expect(page.getByText('—', { exact: true })).toBeVisible()
   await page.screenshot({
     path: testInfo.outputPath('teacher-statistics-empty-375.png'),

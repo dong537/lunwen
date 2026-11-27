@@ -11,13 +11,10 @@ import {
   Select,
   Space,
   Statistic,
-  Table,
   Typography,
 } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
-import { Link } from 'react-router-dom'
-import type { ColumnsType } from 'antd/es/table'
-import type { StatisticsRange, TeacherInsights } from '../../shared/api/contracts'
+import type { StatisticsRange } from '../../shared/api/contracts'
 import { blocksCachedData } from '../../shared/api/http'
 import {
   DailyTrend,
@@ -25,62 +22,8 @@ import {
   IssueHeatmap,
   RankedBars,
 } from '../../shared/AnalyticsVisuals'
-import { formatTime } from '../../shared/files'
 import { ApiAlert, CenterSpin, PageHeader, useDocumentTitle } from '../../shared/ui'
 import { teacherApi } from './api'
-
-type InsightStudent = TeacherInsights['students']['items'][number]
-
-const reviewStatus = {
-  PENDING: '等待审核',
-  PROCESSING: '审核中',
-  SUCCESS: '审核成功',
-  FAILED: '审核失败',
-}
-
-const studentColumns: ColumnsType<InsightStudent> = [
-  { title: '学号', dataIndex: 'username', key: 'username' },
-  { title: '姓名', dataIndex: 'name', key: 'name' },
-  {
-    title: '年级',
-    dataIndex: 'grade',
-    key: 'grade',
-    render: (value: number | null) => (value === null ? '未填写' : value + '年'),
-  },
-  {
-    title: '专业',
-    dataIndex: 'major',
-    key: 'major',
-    render: (value: string | null) => value || '—',
-  },
-  {
-    title: '最近成功审核',
-    dataIndex: 'lastSubmittedAt',
-    key: 'lastSubmittedAt',
-    render: (value: string | null) => formatTime(value),
-  },
-  {
-    title: '最新问题数',
-    dataIndex: 'latestProblemCount',
-    key: 'latestProblemCount',
-    align: 'right',
-    render: (value: number | null) => (value === null ? '—' : value),
-  },
-  {
-    title: '当前状态',
-    dataIndex: 'latestReviewStatus',
-    key: 'latestReviewStatus',
-    render: (value: InsightStudent['latestReviewStatus']) =>
-      value ? reviewStatus[value] : '未提交',
-  },
-  {
-    title: '操作',
-    key: 'action',
-    render: (_: unknown, student: InsightStudent) => (
-      <Link to={'/teacher/students/' + student.id}>查看</Link>
-    ),
-  },
-]
 
 export function TeacherStatisticsPage() {
   useDocumentTitle('指导统计')
@@ -88,14 +31,13 @@ export function TeacherStatisticsPage() {
   const [gradeDraft, setGradeDraft] = useState<number | null>(null)
   const [grade, setGrade] = useState<number | 'UNSET' | null>(null)
   const [range, setRange] = useState<StatisticsRange>('30')
-  const [page, setPage] = useState(1)
   const statistics = useQuery({
     queryKey: ['teacher-statistics', grade],
     queryFn: ({ signal }) => teacherApi.statistics(grade, signal),
   })
   const insights = useQuery({
-    queryKey: ['teacher-insights', grade, range, page],
-    queryFn: ({ signal }) => teacherApi.insights(grade, range, page, signal),
+    queryKey: ['teacher-insights', grade, range],
+    queryFn: ({ signal }) => teacherApi.insights(grade, range, 1, signal),
   })
   const exportFile = useMutation({
     mutationFn: () => teacherApi.exportStatistics(grade, range),
@@ -142,7 +84,6 @@ export function TeacherStatisticsPage() {
                 return
               }
               setGrade(gradeDraft)
-              setPage(1)
             }}
           >
             筛选年级
@@ -152,7 +93,6 @@ export function TeacherStatisticsPage() {
             onClick={() => {
               setGradeDraft(null)
               setGrade('UNSET')
-              setPage(1)
             }}
           >
             未填写年级
@@ -163,7 +103,6 @@ export function TeacherStatisticsPage() {
             style={{ width: 150 }}
             onChange={(next) => {
               setRange(next)
-              setPage(1)
             }}
             options={[
               { value: '30', label: '近 30 天' },
@@ -283,23 +222,6 @@ export function TeacherStatisticsPage() {
               </Card>
             </Col>
           </Row>
-          <Card title="学生明细">
-            <Table<InsightStudent>
-              size="small"
-              rowKey="id"
-              columns={studentColumns}
-              dataSource={insight.students.items}
-              scroll={{ x: 'max-content' }}
-              pagination={{
-                current: insight.students.page,
-                pageSize: insight.students.size,
-                total: insight.students.total,
-                showTotal: (total) => '共 ' + total + ' 名学生',
-                onChange: setPage,
-              }}
-              locale={{ emptyText: '所选范围内没有学生记录。' }}
-            />
-          </Card>
         </>
       )}
     </>
