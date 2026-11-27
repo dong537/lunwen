@@ -1152,6 +1152,8 @@ public final class CommentWriter {
 
   private record TextRunRange(Element run, int start, int end) { }
 
+  private record BlankLineCommentKey(SourceAddress source, SourceAddress contextSource) { }
+
   private static boolean shortTextRule(String ruleId) {
     return ruleId.startsWith("HEADING-") || ruleId.startsWith("HEAD-")
         || ruleId.startsWith("END-") || ruleId.startsWith("CAPTION-")
@@ -1197,25 +1199,55 @@ public final class CommentWriter {
   private static Element comment(Document comments, int id, String paraId, List<CheckResult> results,
       Element anchorParagraph, Map<CheckResult, PageStartAnchorResolver.Placement> placements,
       Map<CheckResult, String> originalLocations) {
-    String text = results.stream().map(result -> {
+    Map<BlankLineCommentKey, List<CheckResult>> blankLines = new LinkedHashMap<>();
+    for (CheckResult result : results) {
+      if (isBlankLineTypography(result))
+        blankLines.computeIfAbsent(new BlankLineCommentKey(result.source(), result.contextSource()),
+            ignored -> new ArrayList<>()).add(result);
+    }
+    List<String> messages = new ArrayList<>();
+    for (CheckResult result : results) {
       String location = placements.containsKey(result) || isBlankLineTypography(result)
           ? originalLocations.getOrDefault(result, "") : "";
       if (isBlankLineTypography(result)) {
-        String property = result.ruleId().endsWith("-FONT") ? "中文字体" : "字号";
-        if (result.judgement() == Judgement.REVIEW || result.actual() == null)
-          return location + "未能读取该空行的" + property + "，请在 Word 中确认并设为"
-              + result.expected() + "。";
-        String actual = result.actual().replaceFirst("^中文=", "");
-        return location + "当前" + property + "为" + actual + "，应为" + result.expected() + "。"
-            + "请选中上述空行后修改" + property + "。";
+        List<CheckResult> blankFindings = blankLines.remove(
+            new BlankLineCommentKey(result.source(), result.contextSource()));
+        if (blankFindings != null)
+          messages.add(blankLineTypographyComment(blankFindings, location, placements.containsKey(result)));
+      } else {
+        messages.add(location + suggestion(result, anchorParagraph));
       }
-      return location + suggestion(result, anchorParagraph);
-    }).distinct()
+    }
+    String text = messages.stream().distinct()
         .collect(java.util.stream.Collectors.joining("\n"));
     String notes = results.stream().map(result -> placementNote(result, placements.get(result)))
         .filter(note -> !note.isEmpty()).distinct().collect(java.util.stream.Collectors.joining("\n"));
     if (!notes.isEmpty()) text += "\n" + notes;
     return commentWithText(comments, id, paraId, COMMENT_AUTHOR, text);
+  }
+
+  private static String blankLineTypographyComment(List<CheckResult> findings, String location,
+      boolean separateParagraph) {
+    List<String> descriptions = new ArrayList<>();
+    List<String> changes = new ArrayList<>();
+    for (CheckResult result : findings) {
+      String property = result.ruleId().endsWith("-FONT") ? "中文字体" : "字号";
+      if (result.judgement() == Judgement.REVIEW || result.actual() == null) {
+        descriptions.add("未能读取该空行的" + property + "，请在 Word 中确认是否为"
+            + result.expected() + "。");
+      } else {
+        String actual = result.actual().replaceFirst("^中文=", "");
+        descriptions.add("该空白行当前" + property + "为" + actual + "，应为" + result.expected() + "。");
+        changes.add(property + "设为" + result.expected());
+      }
+    }
+    String selection = separateParagraph ? "整个空白行（包括其中的空格、换行标记和段落标记）"
+        : "该空白行的换行标记及其中的空格";
+    String action = changes.isEmpty() ? "确认上述设置。"
+        : "将" + changes.stream().distinct().collect(java.util.stream.Collectors.joining("、")) + "。";
+    return "本条检查标题下方的空白行，不是标题文字。\n" + location + "\n"
+        + descriptions.stream().distinct().collect(java.util.stream.Collectors.joining(""))
+        + "\n请在 Word/WPS 中打开“显示段落标记”，选中" + selection + "，" + action;
   }
 
   private static String originalLocation(CheckResult result, Element source,
