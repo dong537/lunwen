@@ -50,6 +50,8 @@ class RuleDescriptionsTest {
     assertEquals("一级标题下空行字体", RuleDescriptions.name(font.ruleId()));
     assertEquals("一级标题下空行字号", RuleDescriptions.name(size.ruleId()));
     assertTrue(RuleDescriptions.suggestion(font).contains("黑体"));
+    assertFalse(RuleDescriptions.suggestion(font).contains("Times New Roman"));
+    assertFalse(RuleDescriptions.suggestion(font).contains("字母和数字"));
     assertTrue(RuleDescriptions.suggestion(size).contains("三号"));
   }
 

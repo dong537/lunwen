@@ -441,7 +441,7 @@ public final class RuleDescriptions {
       case "HEAD-01-ALIGNMENT" -> "将一级标题段落设为居中。";
       case "HEAD-02-SPACING", "HEAD-03-SPACING" -> "标题序数后留一个空格，再写标题。";
       case "HEAD-02-BLANK" -> "章标题与正文之间空一行。";
-      case "HEAD-02-BLANK-FONT" -> "选中一级标题下的空行，将中文字体设为黑体，字母和数字设为 Times New Roman，与一级标题保持一致。";
+      case "HEAD-02-BLANK-FONT" -> "选中一级标题下的空行，将中文字体设为黑体，与一级标题的规范字体保持一致。";
       case "HEAD-02-BLANK-SIZE" -> "选中一级标题下的空行，将字号设为三号（16 磅），与一级标题保持一致。";
       case "HEAD-03-INDENT" -> "该三级标题的首行缩进应为 2 字符；请在 Word 的“段落”设置中把“特殊格式”设为“首行”，并将首行缩进设为 2 字符。";
       case "HEAD-05-INDENT" -> {

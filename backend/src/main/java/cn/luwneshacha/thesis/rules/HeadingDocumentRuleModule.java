@@ -318,19 +318,18 @@ final class HeadingDocumentRuleModule implements RuleModule {
     List<RunModel> formatting = blankRuns.isEmpty() && paragraph.blankParagraphMarkFormat() != null
         ? List.of(paragraph.blankParagraphMarkFormat()) : blankRuns;
     if (formatting.isEmpty()) {
-      add(findings, evidence, result("HEAD-02-BLANK-FONT", "黑体/Times New Roman", "无法读取空行字体",
+      add(findings, evidence, result("HEAD-02-BLANK-FONT", "黑体", "无法读取空行字体",
           "FIRST_LEVEL_BLANK_LINE_FONT_UNKNOWN", Judgement.REVIEW, paragraph.source()));
       add(findings, evidence, result("HEAD-02-BLANK-SIZE", "三号（16 磅）", "无法读取空行字号",
           "FIRST_LEVEL_BLANK_LINE_SIZE_UNKNOWN", Judgement.REVIEW, paragraph.source()));
       return;
     }
     for (RunModel format : formatting) {
-      String fonts = "中文=" + format.eastAsiaFont() + "，字母数字=" + format.asciiFont();
-      boolean fontKnown = format.eastAsiaFont() != null && format.asciiFont() != null;
+      String fonts = "中文=" + format.eastAsiaFont();
+      boolean fontKnown = format.eastAsiaFont() != null;
       boolean fontMatches = fontKnown
-          && ParagraphFormatChecker.matchesChineseFont("黑体", format.eastAsiaFont())
-          && "Times New Roman".equals(format.asciiFont());
-      add(findings, evidence, result("HEAD-02-BLANK-FONT", "黑体/Times New Roman", fonts,
+          && ParagraphFormatChecker.matchesChineseFont("黑体", format.eastAsiaFont());
+      add(findings, evidence, result("HEAD-02-BLANK-FONT", "黑体", fonts,
           fontKnown ? fontMatches ? "" : "FIRST_LEVEL_BLANK_LINE_FONT_MISMATCH"
               : "FIRST_LEVEL_BLANK_LINE_FONT_UNKNOWN",
           fontKnown ? fontMatches ? Judgement.PASS : Judgement.FAIL : Judgement.REVIEW,
