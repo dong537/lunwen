@@ -42,7 +42,7 @@ public class UserService {
     if (role == Role.ADMIN) scope.school(actor);
     GradeFilter gradeFilter = parseGradeFilter(role, grade);
     String college = scope.college(actor, collegeCode, false);
-    var result = users.findAll(search(role, query, active, college, gradeFilter), PageParameters.of(page, size, Sort.by("username", "id")));
+    var result = users.findAll(search(List.of(role), query, active, college, gradeFilter), PageParameters.of(page, size, Sort.by("username", "id")));
     return new PageResponse<>(views(result.getContent()), result.getTotalElements(), page, size);
   }
 
@@ -50,7 +50,7 @@ public class UserService {
   public PageResponse<UserView> teachers(CurrentUser current, String query, String collegeCode, int page, int size) {
     College.fromCode(collegeCode);
     String college = scope.college(scope.actor(current), collegeCode, true);
-    var result = users.findAll(search(Role.TEACHER, query, true, college, null),
+    var result = users.findAll(search(List.of(Role.TEACHER, Role.ADMIN), query, true, college, null),
         PageParameters.of(page, size, Sort.by("username", "id")));
     return new PageResponse<>(views(result.getContent()), result.getTotalElements(), page, size);
   }
@@ -98,7 +98,7 @@ public class UserService {
     if (current == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "请先登录");
     User teacher = (lock ? users.findByIdForUpdate(current.id()) : users.findById(current.id()))
         .orElseThrow(UserService::teacherForbidden);
-    if (teacher.getRole() != Role.TEACHER || !teacher.isActive() || teacher.isMustChangePassword()) throw teacherForbidden();
+    if (!SupervisionScope.isSupervisor(teacher) || !teacher.isActive() || teacher.isMustChangePassword()) throw teacherForbidden();
     return teacher;
   }
   private static ApiException teacherForbidden() {
@@ -120,7 +120,7 @@ public class UserService {
     User actor = scope.actorForWrite(current);
     User user = managed(actor, id);
     String college = scope.college(actor, request.collegeCode(), true);
-    if (user.getRole() == Role.TEACHER && user.getCollegeCode() != null
+    if (SupervisionScope.isSupervisor(user) && user.getCollegeCode() != null
         && !college.equals(user.getCollegeCode()) && users.countByTeacherId(id) > 0)
       throw new ApiException(HttpStatus.CONFLICT, "TEACHER_HAS_STUDENTS", "请先重新分配该教师名下学生，再修改教师学院");
     Integer grade = user.getRole() == Role.STUDENT && request.grade() == null ? user.getGrade() : request.grade();
@@ -134,7 +134,7 @@ public class UserService {
     User user = managed(scope.actorForWrite(current), id);
     user.setActive(active);
     users.saveAndFlush(user);
-    long assigned = user.getRole() == Role.TEACHER ? users.countByTeacherId(id) : 0;
+    long assigned = SupervisionScope.isSupervisor(user) ? users.countByTeacherId(id) : 0;
     String message = !active && assigned > 0 ? "该教师名下还有 " + assigned + " 名学生，请及时重新分配" : null;
     return new ActiveResult(view(user), assigned, message);
   }
@@ -149,7 +149,7 @@ public class UserService {
   @Transactional
   public DeleteResult delete(CurrentUser current, long id) {
     User user = managed(scope.actorForWrite(current), id);
-    boolean referenced = user.getRole() == Role.TEACHER ? users.countByTeacherId(id) > 0
+    boolean referenced = SupervisionScope.isSupervisor(user) ? users.countByTeacherId(id) > 0
         : user.getRole() == Role.STUDENT && submissions.existsByStudentId(id);
     if (referenced) {
       user.setActive(false);
@@ -188,7 +188,7 @@ public class UserService {
     catch (NumberFormatException e) { throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TEACHER", "指导教师编号不正确"); }
     User teacher = (lockTeacher ? users.findByIdForUpdate(id) : users.findById(id))
         .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TEACHER", "指导教师不存在"));
-    if (teacher.getRole() != Role.TEACHER || !teacher.isActive() || !college.equals(teacher.getCollegeCode()))
+    if (!SupervisionScope.isSupervisor(teacher) || !teacher.isActive() || !college.equals(teacher.getCollegeCode()))
       throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TEACHER", "请选择本学院已启用的指导教师");
     return teacher.getId();
   }
@@ -229,12 +229,12 @@ public class UserService {
     return new GradeFilter(year, false);
   }
 
-  private static Specification<User> search(Role role, String query, Boolean active, String college, GradeFilter grade) {
+  private static Specification<User> search(List<Role> roles, String query, Boolean active, String college, GradeFilter grade) {
     if (query != null && query.length() > 100)
       throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_QUERY", "搜索内容不能超过100个字符");
     return (root, criteria, cb) -> {
       var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
-      predicates.add(cb.equal(root.get("role"), role));
+      predicates.add(root.get("role").in(roles));
       if (college != null) predicates.add(cb.equal(root.get("collegeCode"), college));
       if (grade != null) predicates.add(grade.unset()
           ? cb.isNull(root.get("grade")) : cb.equal(root.get("grade"), grade.year()));

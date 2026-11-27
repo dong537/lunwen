@@ -35,7 +35,7 @@ public class MajorService {
   public List<MajorView> teacherMajors(CurrentUser current) {
     if (current == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "请先登录");
     User teacher = users.findById(current.id()).orElseThrow(AdminScope::forbidden);
-    if (teacher.getRole() != Role.TEACHER || !teacher.isActive() || teacher.isMustChangePassword()) throw AdminScope.forbidden();
+    if (!SupervisionScope.isSupervisor(teacher) || !teacher.isActive() || teacher.isMustChangePassword()) throw AdminScope.forbidden();
     if (teacher.getCollegeCode() == null) throw new ApiException(HttpStatus.CONFLICT, "COLLEGE_UNASSIGNED", "教师账号尚未分配学院，请联系管理员");
     return majors.findByCollegeCodeAndActiveTrueOrderByNameAsc(teacher.getCollegeCode()).stream().map(MajorView::from).toList();
   }
@@ -43,14 +43,28 @@ public class MajorService {
   public MajorView create(CurrentUser current, CreateMajor request) {
     String college = scope.college(scope.actorForWrite(current), request.collegeCode(), true);
     String name = request.name().trim();
+    validateName(name);
     if (majors.findByCollegeCodeAndName(college, name).isPresent()) throw duplicate();
     try { return MajorView.from(majors.saveAndFlush(new MajorCatalog(college, name))); }
     catch (DataIntegrityViolationException e) { throw duplicate(); }
   }
   @Transactional
+  public MajorView rename(CurrentUser current, long id, RenameMajor request) {
+    User actor = scope.actorForWrite(current);
+    MajorCatalog major = requiredForWrite(id);
+    scope.college(actor, major.getCollegeCode(), true);
+    String name = request.name();
+    validateName(name);
+    if (major.getName().equals(name)) return MajorView.from(major);
+    if (majors.findByCollegeCodeAndName(major.getCollegeCode(), name).isPresent()) throw duplicate();
+    major.rename(name);
+    try { return MajorView.from(majors.saveAndFlush(major)); }
+    catch (DataIntegrityViolationException e) { throw duplicate(); }
+  }
+  @Transactional
   public MajorView setActive(CurrentUser current, long id, boolean active) {
     User actor = scope.actorForWrite(current);
-    MajorCatalog major = majors.findById(id).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "MAJOR_NOT_FOUND", "专业不存在"));
+    MajorCatalog major = requiredForWrite(id);
     scope.college(actor, major.getCollegeCode(), true);
     major.setActive(active);
     return MajorView.from(majors.saveAndFlush(major));
@@ -60,6 +74,16 @@ public class MajorService {
     if (major != null && !major.isBlank() && !majors.existsByCollegeCodeAndNameAndActiveTrue(collegeCode, major.trim()))
       throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_MAJOR", "请选择该学院已启用的专业");
   }
+  private MajorCatalog requiredForWrite(long id) {
+    return majors.findByIdForUpdate(id)
+        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "MAJOR_NOT_FOUND", "专业不存在"));
+  }
+  private static void validateName(String name) {
+    if (name == null || name.codePoints().allMatch(value -> Character.isWhitespace(value) || Character.isSpaceChar(value)))
+      throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "请填写专业");
+    if (name.length() > 64)
+      throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "专业不能超过64个字符");
+  }
   private static ApiException duplicate() { return new ApiException(HttpStatus.CONFLICT, "MAJOR_EXISTS", "该学院已有同名专业"); }
   public record Catalog(String schoolName, List<College.CollegeOption> colleges) {}
   public record MajorView(String id, String collegeCode, String name, boolean active) {
@@ -67,5 +91,9 @@ public class MajorService {
   }
   public record CreateMajor(@NotBlank(message = "请填写学院") String collegeCode,
       @NotBlank(message = "请填写专业") @Size(max = 64, message = "专业不能超过64个字符") String name) {}
+  public record RenameMajor(@NotBlank(message = "请填写专业")
+      @Size(max = 64, message = "专业不能超过64个字符") String name) {
+    public RenameMajor { name = name == null ? null : name.trim(); }
+  }
   public record ActiveRequest(@NotNull(message = "请选择专业状态") Boolean active) {}
 }

@@ -14,10 +14,16 @@ import {
   UserOutlined,
 } from '@ant-design/icons'
 import { api } from '../shared/api/http'
-import type { Role } from '../shared/api/contracts'
+import type { Role, User } from '../shared/api/contracts'
 import { ApiAlert, CenterSpin, PageHeader } from '../shared/ui'
 import { LoginPage, PasswordModal, ProfilePage } from '../features/auth/AuthPages'
-import { homeFor, roleNames, SessionProvider, useSession } from '../features/auth/session'
+import {
+  canGuideStudents,
+  homeFor,
+  roleNames,
+  SessionProvider,
+  useSession,
+} from '../features/auth/session'
 import {
   StudentSubmissionsPage,
   SubmissionDetailPage,
@@ -45,10 +51,17 @@ function RequireSession() {
   return user ? <Outlet /> : <Navigate to="/login" replace />
 }
 
-function RoleGuard({ roles }: { roles: Role[] }) {
+function RoleGuard({
+  roles = [],
+  allowStudentGuidance = false,
+}: {
+  roles?: Role[]
+  allowStudentGuidance?: boolean
+}) {
   const { user } = useSession()
   if (!user) return <Navigate to="/login" replace />
-  if (roles.includes(user.role)) return <Outlet />
+  if (roles.includes(user.role) || (allowStudentGuidance && canGuideStudents(user)))
+    return <Outlet />
   return (
     <>
       <PageHeader title="无权访问" description="你的账号没有访问此页面的权限。" />
@@ -72,7 +85,8 @@ function ForcePasswordModal() {
   return <PasswordModal open mandatory onClose={() => {}} />
 }
 
-function selectedKeyFor(role: Role, pathname: string): string {
+function selectedKeyFor(user: User, pathname: string): string {
+  const { role } = user
   if (role === 'STUDENT') {
     if (pathname === '/profile') return '/profile'
     return '/student/submissions'
@@ -82,6 +96,11 @@ function selectedKeyFor(role: Role, pathname: string): string {
     if (pathname.startsWith('/teacher/statistics')) return '/teacher/statistics'
     return '/teacher/students'
   }
+  if (
+    canGuideStudents(user) &&
+    (pathname.startsWith('/teacher/students') || pathname.startsWith('/submissions/'))
+  )
+    return '/teacher/students'
   if (pathname.startsWith('/admin/users')) return '/admin/users'
   if (pathname.startsWith('/admin/imports')) return '/admin/imports'
   if (pathname.startsWith('/admin/majors')) return '/admin/majors'
@@ -126,6 +145,9 @@ function Shell() {
             { key: '/admin/users', icon: <TeamOutlined />, label: '账号管理' },
             { key: '/admin/majors', icon: <AppstoreOutlined />, label: '专业目录' },
             { key: '/admin/imports', icon: <ImportOutlined />, label: '批量导入' },
+            ...(canGuideStudents(user)
+              ? [{ key: '/teacher/students', icon: <TeamOutlined />, label: '我的学生' }]
+              : []),
             { key: '/profile', icon: <UserOutlined />, label: '个人信息' },
           ]
   return (
@@ -177,7 +199,7 @@ function Shell() {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[selectedKeyFor(user.role, location.pathname)]}
+          selectedKeys={[selectedKeyFor(user, location.pathname)]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
         />
@@ -244,13 +266,15 @@ export function App() {
             <Route element={<RoleGuard roles={['STUDENT']} />}>
               <Route path="/student/submissions" element={<StudentSubmissionsPage />} />
             </Route>
-            <Route element={<RoleGuard roles={['STUDENT', 'TEACHER']} />}>
+            <Route element={<RoleGuard roles={['STUDENT']} allowStudentGuidance />}>
               <Route path="/submissions/:id" element={<SubmissionDetailPage />} />
             </Route>
-            <Route element={<RoleGuard roles={['TEACHER']} />}>
+            <Route element={<RoleGuard allowStudentGuidance />}>
               <Route path="/teacher/students" element={<TeacherStudentsPage />} />
               <Route path="/teacher/students/import" element={<TeacherImportPage />} />
               <Route path="/teacher/students/:id" element={<TeacherStudentDetailPage />} />
+            </Route>
+            <Route element={<RoleGuard roles={['TEACHER']} />}>
               <Route path="/teacher/statistics" element={<TeacherStatisticsPage />} />
             </Route>
             <Route element={<RoleGuard roles={['ADMIN']} />}>

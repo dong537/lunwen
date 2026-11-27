@@ -38,9 +38,9 @@ public class SubmissionController {
         .body(ApiResponse.ok(service.refreshUpload(user,id)));
   }
   @GetMapping("/submissions/transfer-mode")
-  public ResponseEntity<ApiResponse<Map<String,String>>> transferMode() {
+  public ResponseEntity<ApiResponse<Map<String,String>>> transferMode(@AuthenticationPrincipal CurrentUser user) {
     return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL,"no-store")
-        .body(ApiResponse.ok(Map.of("mode",service.transferMode())));
+        .body(ApiResponse.ok(Map.of("mode",service.transferMode(user))));
   }
   @GetMapping("/submissions")
   public ApiResponse<PageResponse<SubmissionView>> mine(@AuthenticationPrincipal CurrentUser user,@RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="20") int size) {return ApiResponse.ok(service.mine(user,page,size));}

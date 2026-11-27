@@ -32,7 +32,7 @@ import { ApiAlert, CenterSpin, PageHeader, useDocumentTitle } from '../../shared
 import { formatSize, formatTime, validateFile } from '../../shared/files'
 import { submissionApi } from './api'
 import { needsPolling, outcomeText } from './submission-state'
-import { useSession } from '../auth/session'
+import { canGuideStudents, useSession } from '../auth/session'
 
 function expiresSoon(value: string): boolean {
   return new Date(value).getTime() - Date.now() < 60_000
@@ -399,12 +399,11 @@ export function SubmissionDetailPage() {
   const data = blocksCachedData(detail.error) ? undefined : detail.data
   useDocumentTitle(data ? `第 ${data.submissionNumber} 次提交` : '提交详情')
   if (detail.isPending) return <CenterSpin tip="正在读取提交记录…" />
-  const back =
-    user?.role === 'TEACHER'
-      ? data
-        ? `/teacher/students/${data.studentId}`
-        : '/teacher/students'
-      : '/student/submissions'
+  const back = canGuideStudents(user)
+    ? data
+      ? `/teacher/students/${data.studentId}`
+      : '/teacher/students'
+    : '/student/submissions'
   return (
     <>
       <Link to={back}>

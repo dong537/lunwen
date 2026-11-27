@@ -36,7 +36,10 @@ public class UserImportService {
       String allowed = scope.college(scope.actor(current), collegeCode, false);
       String rowCollege = validateLocation(row);
       if (allowed != null && !allowed.equals(rowCollege)) throw invalidCollege();
-      if (role == Role.STUDENT) parseGrade(row.grade());
+      if (role == Role.STUDENT) {
+        validateStudentRequiredFields(row);
+        parseGrade(row.grade());
+      }
     }, row -> {
       String rowCollege = College.fromDisplayName(row.college()).name();
       String teacherId = null;
@@ -62,6 +65,17 @@ public class UserImportService {
     });
   }
 
+  private static void validateStudentRequiredFields(ExcelUserFile.RowInput row) {
+    var missing = new ArrayList<String>(2);
+    if (blankCell(row.major())) missing.add("专业");
+    if (blankCell(row.teacherUsername())) missing.add("指导教师工号");
+    if (!missing.isEmpty())
+      throw new ApiException(HttpStatus.BAD_REQUEST, "IMPORT_STUDENT_REQUIRED", "请填写" + String.join("、", missing));
+  }
+  private static boolean blankCell(String value) {
+    return value == null || value.codePoints()
+        .allMatch(codePoint -> Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint));
+  }
   private static String validateLocation(ExcelUserFile.RowInput row) {
     if (!College.SCHOOL_NAME.equals(row.school()))
       throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_SCHOOL", "学校须填写“" + College.SCHOOL_NAME + "”");

@@ -90,6 +90,7 @@ test('管理员按学院预检并导入账号，同一行的多个错误均保�
 
   await page.goto('/admin/imports')
   await expect(page.getByRole('heading', { name: '批量导入账号' })).toBeVisible()
+  await expect(page.getByText('专业和指导教师工号均为必填。', { exact: false })).toBeVisible()
   await expect(page.getByRole('button', { name: /预检文件/ })).toBeDisabled()
   await page.getByRole('combobox', { name: '导入所属学院' }).click()
   await page.locator('.ant-select-item-option[title="信息科学与工程学院"]').click()

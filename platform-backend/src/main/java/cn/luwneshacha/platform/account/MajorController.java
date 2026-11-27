@@ -24,6 +24,9 @@ public class MajorController {
   @PatchMapping("/api/admin/majors/{id}/active")
   public ApiResponse<MajorService.MajorView> active(@AuthenticationPrincipal CurrentUser current, @PathVariable long id,
       @Valid @RequestBody MajorService.ActiveRequest request) { return ApiResponse.ok(majors.setActive(current, id, request.active())); }
+  @PatchMapping("/api/admin/majors/{id}")
+  public ApiResponse<MajorService.MajorView> rename(@AuthenticationPrincipal CurrentUser current, @PathVariable long id,
+      @Valid @RequestBody MajorService.RenameMajor request) { return ApiResponse.ok(majors.rename(current, id, request)); }
   @GetMapping("/api/teacher/majors")
   public ApiResponse<List<MajorService.MajorView>> teacherMajors(@AuthenticationPrincipal CurrentUser current) {
     return ApiResponse.ok(majors.teacherMajors(current));

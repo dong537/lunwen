@@ -13,6 +13,7 @@
 | GET /api/admin/catalog | {schoolName,colleges:[{code,name}]}；校管返回三院，院管仅本院 |
 | GET /api/admin/majors?collegeCode= | [{id:string,collegeCode,name,active}]，包含停用项 |
 | POST /api/admin/majors | {collegeCode,name} → 201 MajorView |
+| PATCH /api/admin/majors/{id} | {name} → MajorView；仅修改专业目录名称，不改既有账号资料 |
 | PATCH /api/admin/majors/{id}/active | {active:boolean} → MajorView |
 | GET /api/admin/users | role 必传；q="",active?,collegeCode?,grade?,page=1,size=20 → PageResponse<UserView>；学生 grade=UNSET 可筛旧空值 |
 | GET /api/admin/teachers | collegeCode 必传，q="",page=1,size=20 → PageResponse<UserView>，不截断第101名之后的候选 |
@@ -35,8 +36,12 @@
 - 新账号必须有合法学院；校管创建的ADMIN只能是学院管理员。院管创建师生可继承自身学院，不能指定其他学院。
 - username为3–32位字母、数字、下划线；姓名非空且最多64字符；专业可空且最多64字符；teacherId可空，提供时为正整数字符串。学生须填写 2000–2100 的年级（旧账号可为 null）且可有导师；教师可有专业但无导师/年级；管理员无专业/导师/年级。
 - 专业名trim、非空、最多64字符；同院同名包含停用项，不因停用释放名称。新建或更改师生专业须在本院启用目录中。未改动的历史专业可保留；从已有非空学院转院必须重新校验。旧账号从未知学院补录时不猜测或抹去历史专业。
-- 学生导师须是同院、启用的教师；创建或更新学生时锁导师行。教师已有学生且原学院非空时，变更学院返回冲突；补录旧教师学院不自动修改其学生。
-- 删除按**受保护入向引用**判断：被学生引用的教师、有任意提交记录的学生原子停用，保留关联与历史，返回DEACTIVATED及账号；无此类引用时永久删除，返回DELETED、user=null。学生仅有teacherId、没有提交时允许删除，保留教师。
+- 专业改名只接受name，保留id、学院、启停状态；与启停共用专业行悲观锁，防止并发整行更新相互覆盖。账号专业当前为文本字段，目录改名不更新已有师生的major及updatedAt；前端编辑弹窗必须说明这项影响。成功后刷新majors和teacher-majors查询。
+- 管理员学生Excel导入在预检及执行时均要求专业、指导教师工号必填；空单元格和全空白（含全角及不换行空格）视为缺失。两项同时缺失时合并提示，failedCount仍按失败行计数；该校验在数据库已有账号跳过之前执行。不扩大到教师账号导入、手动账号表单或当前导师自导名单。
+- 学生导师须是同院、启用的教师或学院管理员（ADMIN且collegeCode非空），校级管理员不能担任导师。`/api/admin/teachers` 的导师候选包含这两类账号；账号管理的 `role=TEACHER` 分类仍仅列教师，不改变账号角色。创建、编辑及Excel导入共用导师校验，创建或更新学生时锁导师行。
+- 学院管理员“我的学生”资格只用于本人指导且同院的学生；管理全院账号不等于可读取全院论文。名单、学生详情、历史、论文详情及下载（含异步打开流前的重新核验）均按数据库当前角色、学院和teacherId授权。校级管理员没有这项能力，教师统计仍仅限教师角色。
+- 教师或学院管理员已有学生且原学院非空时，变更学院返回冲突；补录旧教师学院不自动修改其学生。院管停用提示同样返回名下学生数量。
+- 删除按**受保护入向引用**判断：被学生引用的教师或学院管理员、有任意提交记录的学生原子停用，保留关联与历史，返回DEACTIVATED及账号；无此类引用时永久删除，返回DELETED、user=null。学生仅有teacherId、没有提交时允许删除，保留教师。
 - 删除与新增关联共享被引用账号行锁：创建学生锁导师；代理上传与直传预留在短事务内再次锁定、核验学生后创建提交。停用/删除先提交时，迟到创建不得沿用事务外旧权限；创建先提交时，删除查到关联后停用。COS传输与签名不持有数据库行锁。数据库外键保留ON DELETE RESTRICT，不做级联删除。
 - 教师名单导入和统计的逐行事务、十项口径见[教师名单契约](teacher-roster-contract.md)；教师新增学生从数据库当前教师继承学院及teacherId。
 
@@ -52,7 +57,7 @@
 | 用户不存在 / 用户名重复 | 404 USER_NOT_FOUND / 409 USERNAME_EXISTS |
 | 校验注解不通过 / 搜索超过100字符 / 非法分页 | 400 VALIDATION_ERROR / 400 INVALID_QUERY / 400 INVALID_PAGE |
 | 管理员带专业/导师/年级，或教师带导师/年级 | 400 INVALID_PROFILE |
-| 导师不存在、停用、跨院、非教师、超long范围 | 400 INVALID_TEACHER；字符串格式不满足正整数为400 VALIDATION_ERROR |
+| 导师不存在、停用、跨院、不是教师或学院管理员、超long范围 | 400 INVALID_TEACHER；字符串格式不满足正整数为400 VALIDATION_ERROR |
 | 非本院启用专业 / 专业不存在 / 同院重名 | 400 INVALID_MAJOR / 404 MAJOR_NOT_FOUND / 409 MAJOR_EXISTS |
 | 有学生的教师转离原非空学院 | 409 TEACHER_HAS_STUDENTS |
 | 外键、唯一约束等数据库完整性冲突 | 409 DATA_CONFLICT，不伪造删除或创建成功 |
@@ -71,6 +76,8 @@
 - SubmissionIntegrationTest：真实PostgreSQL行锁下，代理上传和直传在并发学生停用提交前等待，提交后返回拒绝且无论文记录/存储对象；校验期间学生被删除也不能创建记录。
 - TeacherStudentIntegrationTest、TeacherStatisticsIntegrationTest：学院继承、专业目录、名单只归属于当前教师及统计口径；ReportAvailabilityMigrationTest：V1→latest保留旧账号和提交，学院保持null。
 - AdminScopeTest：校级与学院级作用域。执行Maven compile/testCompile与全量测试；数据库环境不可用时明确区分已通过单测和未执行的PostgreSQL断言，不以H2或mock冒充。
+- MajorRenameHttpTest：真实MVC/安全/服务边界验证请求、权限、重复名、输入错误及状态保留；MajorRenameIntegrationTest：真实PostgreSQL验证持久化、失败回滚、账号资料不变及改名/启停双方向并发。
+- AdminStudentImportRequiredFieldsTest：真实Excel读取与导入服务验证预检/执行的单项或双项缺失、多种空白、混合有效行、失败行计数、已有账号先验及教师导入/本人名单不回归。
 
 ## 7. Wrong vs Correct
 

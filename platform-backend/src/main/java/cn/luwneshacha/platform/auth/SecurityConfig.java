@@ -38,10 +38,15 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
             .requestMatchers("/api/auth/**").authenticated()
             .requestMatchers("/api/admin/**").hasRole("ADMIN")
+            .requestMatchers("/api/teacher/students", "/api/teacher/students/**", "/api/teacher/majors")
+                .hasAnyRole("TEACHER", "ADMIN")
             .requestMatchers("/api/teacher/**").hasRole("TEACHER")
             .requestMatchers("/api/submissions").hasRole("STUDENT")
             .requestMatchers(HttpMethod.POST, "/api/submissions/uploads",
                 "/api/submissions/*/upload-complete", "/api/submissions/*/upload-url").hasRole("STUDENT")
+            .requestMatchers(HttpMethod.GET, "/api/submissions/transfer-mode", "/api/submissions/{id:[0-9]+}",
+                "/api/submissions/{id:[0-9]+}/files/{kind}", "/api/submissions/{id:[0-9]+}/files/{kind}/url")
+                .hasAnyRole("STUDENT", "TEACHER", "ADMIN")
             .requestMatchers("/api/submissions/**").hasAnyRole("STUDENT", "TEACHER")
             .anyRequest().denyAll()).build();
   }

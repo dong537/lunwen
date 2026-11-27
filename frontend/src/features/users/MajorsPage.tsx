@@ -5,7 +5,9 @@ import {
   Button,
   Card,
   Empty,
+  Form,
   Input,
+  Modal,
   Select,
   Space,
   Table,
@@ -25,6 +27,7 @@ export function MajorsPage() {
   const client = useQueryClient()
   const [collegeCode, setCollegeCode] = useState(user?.collegeCode ?? '')
   const [name, setName] = useState('')
+  const [editing, setEditing] = useState<Major | null>(null)
   const catalog = useQuery({
     queryKey: ['school-catalog'],
     queryFn: ({ signal }) => userApi.catalog(signal),
@@ -78,11 +81,16 @@ export function MajorsPage() {
     {
       title: '操作',
       key: 'action',
-      width: 110,
+      width: 160,
       render: (_: unknown, major: Major) => (
-        <Button type="link" danger={major.active} onClick={() => toggle(major)}>
-          {major.active ? '停用' : '启用'}
-        </Button>
+        <Space size={0}>
+          <Button type="link" aria-label={'修改' + major.name} onClick={() => setEditing(major)}>
+            修改
+          </Button>
+          <Button type="link" danger={major.active} onClick={() => toggle(major)}>
+            {major.active ? '停用' : '启用'}
+          </Button>
+        </Space>
       ),
     },
   ]
@@ -159,6 +167,76 @@ export function MajorsPage() {
           {!collegeCode && <Empty description="请选择学院后维护专业。" />}
         </Space>
       </Card>
+      {editing && (
+        <MajorEditDialog
+          major={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null)
+            void client.invalidateQueries({ queryKey: ['majors'] })
+            void client.invalidateQueries({ queryKey: ['teacher-majors'] })
+          }}
+        />
+      )}
     </>
+  )
+}
+
+function MajorEditDialog({
+  major,
+  onClose,
+  onSaved,
+}: {
+  major: Major
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const { message } = AntdApp.useApp()
+  const [form] = Form.useForm<{ name: string }>()
+  const save = useMutation({
+    mutationFn: (values: { name: string }) => userApi.renameMajor(major.id, values.name.trim()),
+    onSuccess: () => {
+      void message.success('专业名称已修改。')
+      onSaved()
+    },
+  })
+  return (
+    <Modal
+      title="修改专业名称"
+      open
+      onCancel={() => {
+        if (!save.isPending) onClose()
+      }}
+      onOk={() => form.submit()}
+      confirmLoading={save.isPending}
+      cancelButtonProps={{ disabled: save.isPending }}
+      closable={!save.isPending}
+      okText="保存"
+      cancelText="取消"
+      destroyOnHidden
+    >
+      <Typography.Paragraph type="secondary">
+        修改后，已有账号中的专业名称保持不变。
+      </Typography.Paragraph>
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={{ name: major.name }}
+        onFinish={(values) => save.mutate(values)}
+      >
+        <Form.Item
+          label="专业名称"
+          name="name"
+          htmlFor="major-edit-name"
+          rules={[
+            { required: true, whitespace: true, message: '请填写专业名称' },
+            { max: 64, message: '专业名称不能超过64个字符' },
+          ]}
+        >
+          <Input id="major-edit-name" autoFocus disabled={save.isPending} />
+        </Form.Item>
+        <ApiAlert error={save.error} />
+      </Form>
+    </Modal>
   )
 }

@@ -12,8 +12,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class SubmissionControllerMappingTest {
   @Test void transferModeIsNotParsedAsSubmissionId() throws Exception {
     var service=mock(SubmissionService.class);
-    when(service.transferMode()).thenReturn("direct");
-    var mvc=MockMvcBuilders.standaloneSetup(new SubmissionController(service)).build();
+    when(service.transferMode(null)).thenReturn("direct");
+    var mvc=MockMvcBuilders.standaloneSetup(new SubmissionController(service))
+        .setCustomArgumentResolvers(new org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver())
+        .build();
     mvc.perform(get("/api/submissions/transfer-mode"))
         .andExpect(status().isOk())
         .andExpect(header().string("Cache-Control","no-store"))

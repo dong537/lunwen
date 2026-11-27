@@ -248,6 +248,55 @@ class TeacherStudentIntegrationTest {
         .andExpect(jsonPath("$.error.code").value("PASSWORD_CHANGE_REQUIRED"));
   }
 
+  @Test void collegeAdministratorCanUseOnlyOwnSameCollegeRosterWithoutTeacherStatistics() throws Exception {
+    User adviser = users.save(new User("college_adviser", passwords.encode("Password1"), Role.ADMIN, "院管导师", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    User unrelated = users.save(new User("unrelated_student", passwords.encode("Password1"), Role.STUDENT, "其他导师学生", null,
+        teacher.getId(), College.INFORMATION_ENGINEERING.name(), false));
+    User crossCollege = users.save(new User("cross_student", passwords.encode("Password1"), Role.STUDENT, "跨院关联", null,
+        adviser.getId(), College.EDUCATION_ARTS.name(), false));
+    var auth = login("college_adviser");
+    mvc.perform(get("/api/teacher/majors").session(auth.session())).andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].name").value("计算机"));
+    var created = mvc.perform(post("/api/teacher/students").session(auth.session()).header(auth.header(), auth.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of(
+            "username", "own_student", "name", "本人学生", "grade", 2023))))
+        .andExpect(status().isCreated()).andExpect(jsonPath("$.data.teacherId").value(adviser.getId().toString()))
+        .andReturn();
+    String id = json.readTree(created.getResponse().getContentAsByteArray()).path("data").path("id").asText();
+    mvc.perform(multipart("/api/teacher/students/imports/preview").file(workbook(new String[][] {{"imported_student", "导入学生", ""}}))
+        .session(auth.session()).header(auth.header(), auth.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.validRows").value(1));
+    assertFalse(users.existsByUsername("imported_student"));
+    mvc.perform(multipart("/api/teacher/students/imports/execute").file(workbook(new String[][] {{"imported_student", "导入学生", ""}}))
+        .session(auth.session()).header(auth.header(), auth.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.successCount").value(1));
+    assertEquals(adviser.getId(), users.findByUsername("imported_student").orElseThrow().getTeacherId());
+    mvc.perform(get("/api/teacher/students").session(auth.session()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(2));
+    mvc.perform(get("/api/teacher/students/" + id).session(auth.session())).andExpect(status().isOk());
+    mvc.perform(get("/api/teacher/students/" + id + "/submissions").session(auth.session()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(0));
+    mvc.perform(get("/api/teacher/students/" + unrelated.getId()).session(auth.session())).andExpect(status().isForbidden());
+    mvc.perform(get("/api/teacher/students/" + crossCollege.getId()).session(auth.session())).andExpect(status().isForbidden());
+    mvc.perform(get("/api/teacher/statistics").session(auth.session())).andExpect(status().isForbidden());
+    mvc.perform(post("/api/teacher/students").session(auth.session()).contentType("application/json")
+        .content(json.writeValueAsBytes(Map.of("username", "no_csrf", "name", "学生", "grade", 2023))))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test void schoolAdministratorCannotUseAnyStudentSupervisionEndpoint() throws Exception {
+    users.save(new User("school_admin", passwords.encode("Password1"), Role.ADMIN, "校管", null, null, false));
+    var auth = login("school_admin");
+    for (String path : new String[] {"/api/teacher/students", "/api/teacher/students/imports/template", "/api/teacher/majors"})
+      mvc.perform(get(path).session(auth.session())).andExpect(status().isForbidden());
+    mvc.perform(post("/api/teacher/students").session(auth.session()).header(auth.header(), auth.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of(
+            "username", "invalid_student", "name", "学生", "grade", 2023))))
+        .andExpect(status().isForbidden());
+    assertFalse(users.existsByUsername("invalid_student"));
+  }
+
   private Auth login(String username) throws Exception {
     var csrfResult = mvc.perform(get("/api/auth/csrf")).andReturn();
     var session = (MockHttpSession) csrfResult.getRequest().getSession();

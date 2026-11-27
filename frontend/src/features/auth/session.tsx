@@ -6,6 +6,8 @@ import type { User, Role } from '../../shared/api/contracts'
 export const roleNames: Record<Role, string> = { STUDENT: '学生', TEACHER: '教师', ADMIN: '管理员' }
 export const homeFor = (role: Role) =>
   role === 'STUDENT' ? '/student/submissions' : role === 'TEACHER' ? '/teacher/students' : '/admin'
+export const canGuideStudents = (user: User | null | undefined) =>
+  user?.role === 'TEACHER' || (user?.role === 'ADMIN' && !!user.collegeCode)
 const SessionContext = createContext<{
   user: User | null | undefined
   loading: boolean

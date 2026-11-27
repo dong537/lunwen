@@ -173,7 +173,7 @@ export function ImportsPage() {
             </Button>
             <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
               {role === 'STUDENT'
-                ? '列：学号、姓名、学校、学院、专业、年级、指导教师工号。'
+                ? '列：学号、姓名、学校、学院、专业、年级、指导教师工号。专业和指导教师工号均为必填。'
                 : '列：工号、姓名、学校、学院、专业。'}
               学校须填写山东石油化工学院，学院须填写全称；账号列请设为文本，保留前导零。
             </Typography.Paragraph>

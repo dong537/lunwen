@@ -67,7 +67,11 @@ public class SubmissionService {
     public String filename() {return filename;}
   }
 
-  public String transferMode() { return transfer.mode().name().toLowerCase(Locale.ROOT); }
+  public String transferMode(CurrentUser current) {
+    User actor=actor(current);
+    if (actor.getRole()!=Role.STUDENT) requireSupervisor(actor);
+    return transfer.mode().name().toLowerCase(Locale.ROOT);
+  }
 
   public UploadTicket createUpload(CurrentUser current, String filename, long size) {
     requireDirect();
@@ -234,13 +238,15 @@ public class SubmissionService {
       throw new ApiException(HttpStatus.CONFLICT, "FILE_NOT_AVAILABLE", "当前审核状态不允许下载该文件");
   }
   public PageResponse<StudentSummary> students(CurrentUser current, String query, int page, int size) {
-    User actor = actor(current); requireRole(actor, Role.TEACHER);
+    User actor = actor(current); requireSupervisor(actor);
     Pageable pageable = pageable(page,size,Sort.by("username"));
     String search = query == null ? "" : query.strip().toLowerCase(Locale.ROOT);
     if (search.length()>100) throw bad("INVALID_SEARCH", "搜索内容不能超过100字");
     String escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     Specification<User> spec = (root, cq, cb) -> cb.and(cb.equal(root.get("role"),Role.STUDENT),
         cb.equal(root.get("teacherId"),actor.getId()), cb.or(cb.like(cb.lower(root.get("username")),"%"+escaped+"%",'\\'),cb.like(cb.lower(root.get("name")),"%"+escaped+"%",'\\')));
+    if (actor.getRole()==Role.ADMIN)
+      spec=spec.and((root,cq,cb)->cb.equal(root.get("collegeCode"),actor.getCollegeCode()));
     Page<User> result=users.findAll(spec,pageable);
     List<Long> ids=result.getContent().stream().map(User::getId).toList();
     Map<Long,Long> counts=new HashMap<>(); Map<Long,Submission> latest=new HashMap<>();
@@ -255,11 +261,11 @@ public class SubmissionService {
     }).toList(), result.getTotalElements(),page,size);
   }
   public UserView student(CurrentUser current,long id) {
-    User actor=actor(current); requireRole(actor,Role.TEACHER); User student=assigned(actor,id);
+    User actor=actor(current); requireSupervisor(actor); User student=assigned(actor,id);
     return UserView.from(student,actor.getName());
   }
   public PageResponse<SubmissionView> studentSubmissions(CurrentUser current,long id,int page,int size) {
-    User actor=actor(current); requireRole(actor,Role.TEACHER); assigned(actor,id);
+    User actor=actor(current); requireSupervisor(actor); assigned(actor,id);
     return page(id,page,size);
   }
   public Dashboard dashboard(CurrentUser current) {
@@ -309,10 +315,10 @@ public class SubmissionService {
     return result;
   }
   private Submission authorized(User actor,long id) {
-    if (actor.getRole()==Role.ADMIN) throw forbidden();
+    if (actor.getRole()!=Role.STUDENT && !SupervisionScope.isSupervisor(actor)) throw forbidden();
     Submission item=submissions.findById(id).orElseThrow(SubmissionService::notFound);
     if (actor.getRole()==Role.STUDENT && item.getStudentId().equals(actor.getId())) return item;
-    if (actor.getRole()==Role.TEACHER) { assigned(actor,item.getStudentId()); return item; }
+    if (SupervisionScope.isSupervisor(actor)) { assigned(actor,item.getStudentId()); return item; }
     throw forbidden();
   }
   private Submission owned(User actor,long id) {
@@ -322,7 +328,7 @@ public class SubmissionService {
   }
   private User assigned(User teacher,long id) {
     User student=users.findById(id).orElseThrow(SubmissionService::forbidden);
-    if (student.getRole()!=Role.STUDENT || !teacher.getId().equals(student.getTeacherId())) throw forbidden();
+    if (!SupervisionScope.ownsStudent(teacher,student)) throw forbidden();
     return student;
   }
   private User actor(CurrentUser current) {
@@ -336,6 +342,7 @@ public class SubmissionService {
     return user;
   }
   private static void requireRole(User user,Role role) { if(user.getRole()!=role) throw forbidden(); }
+  private static void requireSupervisor(User user) { if(!SupervisionScope.isSupervisor(user)) throw forbidden(); }
   private static ApiException forbidden() { return new ApiException(HttpStatus.FORBIDDEN,"FORBIDDEN","无权访问该内容"); }
   private static ApiException bad(String code,String message) { return new ApiException(HttpStatus.BAD_REQUEST,code,message); }
   private static ApiException notFound() { return new ApiException(HttpStatus.NOT_FOUND,"SUBMISSION_NOT_FOUND","提交记录不存在"); }

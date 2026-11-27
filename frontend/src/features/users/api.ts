@@ -35,6 +35,8 @@ export const userApi = {
     api<Major[]>('/admin/majors?collegeCode=' + encodeURIComponent(collegeCode), { signal }),
   createMajor: (collegeCode: string, name: string) =>
     api<Major>('/admin/majors', { method: 'POST', json: { collegeCode, name } }),
+  renameMajor: (id: string, name: string) =>
+    api<Major>('/admin/majors/' + encodeURIComponent(id), { method: 'PATCH', json: { name } }),
   setMajorActive: (id: string, active: boolean) =>
     api<Major>('/admin/majors/' + encodeURIComponent(id) + '/active', {
       method: 'PATCH',

@@ -319,7 +319,7 @@ class AccountSecurityIntegrationTest {
     mvc.perform(get("/api/admin/users").session(session).param("role", "ADMIN"))
         .andExpect(status().isForbidden());
     mvc.perform(get("/api/admin/teachers").session(session).param("collegeCode", College.INFORMATION_ENGINEERING.name()))
-        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1));
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(2));
     mvc.perform(get("/api/admin/teachers").session(session).param("collegeCode", College.EDUCATION_ARTS.name()))
         .andExpect(status().isForbidden());
     mvc.perform(get("/api/admin/majors").session(session).param("collegeCode", College.EDUCATION_ARTS.name()))
@@ -623,6 +623,41 @@ class AccountSecurityIntegrationTest {
     mvc.perform(patch("/api/admin/users/" + student.getId()).session(admin).header(csrf.header(), csrf.token())
         .contentType("application/json").content("{\"name\":\"新名字\",\"role\":\"TEACHER\"}"))
         .andExpect(status().isBadRequest());
+  }
+
+  @Test void collegeAdminIsAssignableSupervisorAndAdminImportAcceptsTheSameAccount() throws Exception {
+    User adviser = users.save(new User("advisor_admin", passwords.encode("Password1"), Role.ADMIN, "院管导师", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    users.save(new User("advisor_teacher", passwords.encode("Password1"), Role.TEACHER, "教师导师", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    users.save(new User("advisor_other", passwords.encode("Password1"), Role.ADMIN, "跨院院管", null, null,
+        College.EDUCATION_ARTS.name(), false));
+    User inactive = users.save(new User("advisor_disabled", passwords.encode("Password1"), Role.ADMIN, "停用院管", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    inactive.setActive(false); users.saveAndFlush(inactive);
+    var session = login("admin", "AdminPassword1"); var csrf = csrf(session);
+    mvc.perform(get("/api/admin/teachers").session(session).param("collegeCode", College.INFORMATION_ENGINEERING.name())
+        .param("q", "advisor"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(2))
+        .andExpect(jsonPath("$.data.items[0].username").value("advisor_admin"))
+        .andExpect(jsonPath("$.data.items[1].username").value("advisor_teacher"));
+    mvc.perform(post("/api/admin/users").session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("username", "advised_student",
+            "name", "指导学生", "role", "STUDENT", "teacherId", adviser.getId().toString(), "grade", 2023,
+            "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.teacherId").value(adviser.getId().toString()));
+    var file = workbook(Role.STUDENT, new String[][] {{"imported_advised", "导入学生", "计算机", "advisor_admin"}});
+    mvc.perform(multipart("/api/admin/imports/execute").file(file).param("role", "STUDENT")
+        .param("collegeCode", College.INFORMATION_ENGINEERING.name()).session(session).header(csrf.header(), csrf.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.successCount").value(1));
+    assertEquals(adviser.getId(), users.findByUsername("imported_advised").orElseThrow().getTeacherId());
+    mvc.perform(patch("/api/admin/users/" + adviser.getId()).session(session).header(csrf.header(), csrf.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of("name", "院管导师",
+            "collegeCode", College.EDUCATION_ARTS.name()))))
+        .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("TEACHER_HAS_STUDENTS"));
+    mvc.perform(delete("/api/admin/users/" + adviser.getId()).session(session).header(csrf.header(), csrf.token()))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.outcome").value("DEACTIVATED"));
+    assertTrue(users.existsById(adviser.getId()));
   }
 
   private MockHttpSession login(String username, String password) throws Exception {

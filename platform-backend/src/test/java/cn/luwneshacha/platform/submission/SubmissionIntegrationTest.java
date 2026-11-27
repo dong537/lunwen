@@ -94,6 +94,32 @@ class SubmissionIntegrationTest {
     assertThrows(ApiException.class, () -> service.detail(actor(teacher), id));
   }
 
+  @Test void collegeAdministratorReadsOwnCollegePapersAndDownloadPlanRechecksCurrentOwnership() throws Exception {
+    User adviser = users.save(new User("college_adviser", "hash", Role.ADMIN, "院管导师", null, null,
+        College.INFORMATION_ENGINEERING.name(), false));
+    student.updateProfile("学生", "计算机", adviser.getId(), College.INFORMATION_ENGINEERING.name());
+    users.saveAndFlush(student);
+    long id = Long.parseLong(service.upload(actor(student), file("paper.docx", new byte[]{1})).id());
+    assertEquals(Long.toString(id), service.detail(actor(adviser), id).id());
+    assertEquals(1, service.students(actor(adviser), "", 1, 20).total());
+    assertEquals(1, service.studentSubmissions(actor(adviser), student.getId(), 1, 20).total());
+    var plan = service.prepareDownload(actor(adviser), id, "original");
+    try (var downloaded = service.openDownload(plan)) { assertEquals(1, downloaded.size()); }
+    assertNotNull(service.prepareDownloadUrl(actor(adviser), id, "original").url());
+    student.updateProfile("学生", "计算机", adviser.getId(), College.EDUCATION_ARTS.name());
+    users.saveAndFlush(student);
+    assertEquals(0, service.students(actor(adviser), "", 1, 20).total());
+    assertThrows(ApiException.class, () -> service.detail(actor(adviser), id));
+    assertThrows(ApiException.class, () -> service.student(actor(adviser), student.getId()));
+    assertThrows(ApiException.class, () -> service.openDownload(plan));
+    assertThrows(ApiException.class, () -> service.prepareDownloadUrl(actor(adviser), id, "original"));
+    student.updateProfile("学生", "计算机", teacher.getId(), College.INFORMATION_ENGINEERING.name());
+    users.saveAndFlush(student);
+    assertThrows(ApiException.class, () -> service.detail(actor(adviser), id));
+    assertThrows(ApiException.class, () -> service.openDownload(plan));
+    assertThrows(ApiException.class, () -> service.students(actor(admin), "", 1, 20));
+  }
+
   @Test void expiresOldAttemptAndFencesItsCompletion() {
     var submitted = service.upload(actor(student), file("a.docx", new byte[]{1}));
     Instant now = Instant.now();
@@ -586,7 +612,7 @@ class SubmissionIntegrationTest {
     assertEquals(ticket.url(),refreshed.url());
     var proxy=new SubmissionService(submissions,users,storage,transactions,presigner,
         new TransferProperties(TransferProperties.Mode.PROXY,600));
-    assertEquals("proxy",proxy.transferMode());
+    assertEquals("proxy",proxy.transferMode(actor(student)));
     var disabled=assertThrows(ApiException.class,()->proxy.createUpload(actor(student),"a.docx",4));
     assertEquals("DIRECT_TRANSFER_DISABLED",disabled.code());
   }
