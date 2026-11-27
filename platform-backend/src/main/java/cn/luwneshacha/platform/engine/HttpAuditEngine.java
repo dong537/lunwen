@@ -11,10 +11,19 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.Flow;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
 public class HttpAuditEngine implements AuditEngine {
+  private static final Logger log=LoggerFactory.getLogger(HttpAuditEngine.class);
+  private static final int ANNOTATION_DIAGNOSTIC_LIMIT=10;
+  private static final Set<String> ANNOTATION_FAILURE_REASONS=Set.of(
+      "SOURCE_HASH_MISMATCH","MISSING_SOURCE","PART_NOT_SUPPORTED","ANCHOR_NOT_PARAGRAPH",
+      "TABLE_HAS_NO_PARAGRAPH","EMPTY_ANCHOR","PARENT_COMMENT_NOT_FOUND","THREAD_WRITE_FAILED",
+      "WRITE_FAILED","PATH_OUT_OF_RANGE","PAGE_START_BOUNDARY_UNAVAILABLE",
+      "SOURCE_RANGE_OUT_OF_BOUNDS","PRECISE_RANGE_COMPLEX_RUN");
   private static final String SERVICE_ERROR="审核服务异常，请重新提交或联系管理员";
   private static final String RESOURCE_LIMIT="论文文件或解压后的内容超过审核服务处理上限，请联系管理员检查上传与处理限制";
   private final EngineProperties properties;
@@ -50,7 +59,7 @@ public class HttpAuditEngine implements AuditEngine {
         JsonNode items=annotation.path("items");
         if(!annotation.path("available").asBoolean()||!items.isArray()||items.isEmpty())
           throw new EngineFailure(false,"检测已完成，但无法生成完整批注文件，请重新提交或联系管理员");
-        for(JsonNode item:items) if(!"WRITTEN".equals(item.path("status").asText()))
+        if(logUnwrittenAnnotations(requestId,items))
           throw new EngineFailure(false,"部分格式问题无法写入 Word 批注，请重新提交或联系管理员");
         requireAllFailuresCovered(findings,items);
       }
@@ -83,6 +92,29 @@ public class HttpAuditEngine implements AuditEngine {
     } catch(EngineFailure error) { throw error; }
     catch(InterruptedException error) { Thread.currentThread().interrupt(); throw new EngineFailure(true,SERVICE_ERROR,error); }
     catch(IOException|RuntimeException error) { throw new EngineFailure(true,SERVICE_ERROR,error); }
+  }
+  private static boolean logUnwrittenAnnotations(String requestId,JsonNode items) {
+    int unwritten=0;
+    List<String> samples=new ArrayList<>();
+    for(JsonNode item:items) if(!"WRITTEN".equals(item.path("status").asText())) {
+      unwritten++;
+      if(samples.size()<ANNOTATION_DIAGNOSTIC_LIMIT) {
+        String ruleId=diagnosticToken(item.path("ruleId"));
+        if(!ruleId.matches("[A-Z][A-Z0-9-]{0,63}")) ruleId="UNKNOWN";
+        String status=diagnosticToken(item.path("status"));
+        if(!Set.of("UNSUPPORTED_ANCHOR","REJECTED").contains(status)) status="UNKNOWN";
+        String reason=diagnosticToken(item.path("reason"));
+        if(!ANNOTATION_FAILURE_REASONS.contains(reason)) reason="UNKNOWN";
+        samples.add("ruleId="+ruleId+" status="+status+" reason="+reason);
+      }
+    }
+    if(unwritten>0) log.warn("engine_annotation_incomplete requestId={} unwritten={} samples={} omitted={}",
+        requestId,unwritten,samples,unwritten-samples.size());
+    return unwritten>0;
+  }
+  private static String diagnosticToken(JsonNode value) {
+    // Reject rather than truncate: untrusted response fields may contain document text or signed URLs.
+    return value.isTextual()&&value.textValue().length()<=64?value.textValue():"UNKNOWN";
   }
   private <T> HttpResponse<T> send(HttpRequest request,HttpResponse.BodyHandler<T> handler,long deadline)
       throws IOException,InterruptedException {

@@ -29,6 +29,8 @@ import org.xml.sax.InputSource;
 import java.io.StringReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class CommentWriterTest {
   @TempDir Path tempDir;
@@ -1588,6 +1590,134 @@ class CommentWriterTest {
 
     assertEquals(AnnotationStatus.UNSUPPORTED_ANCHOR, report.items().get(0).status());
     assertEquals("EMPTY_ANCHOR", report.items().get(0).reason());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD-02-BLANK-FONT", "HEAD-02-BLANK-SIZE"})
+  void writesBlankLineTypographyAtItsOriginalEmptyRunInEitherWordNamespace(String ruleId) throws Exception {
+    for (String namespace : List.of("http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+        "http://purl.oclc.org/ooxml/wordprocessingml/main")) {
+      Path source = packageWithDocument("<w:document xmlns:w='" + namespace + "'><w:body>"
+          + "<w:p><w:r><w:t>篇首</w:t></w:r></w:p>"
+          + "<w:p><w:r><w:t>正文</w:t></w:r></w:p>"
+          + "<w:p><w:pPr><w:spacing w:line='360'/><w:rPr><w:sz w:val='24'/></w:rPr>"
+          + "</w:pPr><w:r><w:rPr><w:rFonts w:ascii='Arial' w:eastAsia='宋体'/>"
+          + "<w:sz w:val='24'/></w:rPr></w:r></w:p></w:body></w:document>");
+      Path target = tempDir.resolve("blank-typography.docx");
+      var originalSource = new SourceAddress("word/document.xml", List.of(0, 2, 1), 0, 0);
+      var finding = new CheckResult(ruleId, Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+          Judgement.FAIL, "expected", "actual", "FIRST_LEVEL_BLANK_LINE_MISMATCH", originalSource);
+
+      AnnotationReport report = new CommentWriter().writeCopy(source, target, List.of(finding));
+
+      assertTrue(report.outputWritten(), report.items().toString());
+      assertEquals(AnnotationStatus.WRITTEN, report.items().getFirst().status());
+      assertEquals(originalSource, report.items().getFirst().source());
+      assertEquals(new SourceAddress("word/document.xml", List.of(0, 2), 0, 0),
+          report.items().getFirst().anchorSource());
+      assertEquals("PLACED_AT_SOURCE_POINT", report.items().getFirst().reason());
+      try (ZipFile zip = new ZipFile(target.toFile())) {
+        var factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        var document = factory.newDocumentBuilder().parse(zip.getInputStream(zip.getEntry("word/document.xml")));
+        var paragraphs = document.getElementsByTagNameNS(namespace, "p");
+        assertEquals(3, paragraphs.getLength());
+        assertEquals("篇首", paragraphs.item(0).getTextContent());
+        assertEquals("正文", paragraphs.item(1).getTextContent());
+        assertEquals("", paragraphs.item(2).getTextContent());
+        var start = document.getElementsByTagNameNS(namespace, "commentRangeStart").item(0);
+        assertEquals(paragraphs.item(2), start.getParentNode());
+        assertEquals("commentRangeEnd", start.getNextSibling().getLocalName());
+        assertEquals(0, document.getElementsByTagNameNS(namespace, "highlight").getLength());
+        assertEquals(2, document.getElementsByTagNameNS(namespace, "sz").getLength());
+      }
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"BODY-FONT", "BODY-SIZE", "HEADING-FONT", "HEADING-SIZE"})
+  void stillRejectsUnrelatedTypographyAtAnEmptyParagraph(String ruleId) throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body><w:p/></w:body></w:document>");
+    var finding = new CheckResult(ruleId, Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+        Judgement.FAIL, "expected", "actual", "MISMATCH",
+        new SourceAddress("word/document.xml", List.of(0, 0), 0, 0));
+
+    var report = new CommentWriter().writeCopy(source, tempDir.resolve("unrelated-empty.docx"), List.of(finding));
+
+    assertFalse(report.outputWritten());
+    assertEquals(AnnotationStatus.UNSUPPORTED_ANCHOR, report.items().getFirst().status());
+    assertEquals("EMPTY_ANCHOR", report.items().getFirst().reason());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD-02-BLANK-FONT", "HEAD-02-BLANK-SIZE"})
+  void rejectsBlankLineTypographyOutsideItsOriginalVisibleRunSpan(String ruleId) throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body><w:p>"
+        + "<w:r><w:t xml:space='preserve'> </w:t></w:r><w:r/>"
+        + "<w:r><w:t xml:space='preserve'> </w:t></w:r>"
+        + "<w:del><w:r><w:delText xml:space='preserve'> </w:delText></w:r></w:del>"
+        + "</w:p></w:body></w:document>");
+    for (SourceAddress address : List.of(
+        new SourceAddress("word/document.xml", List.of(0, 0, 1), 1, 2),
+        new SourceAddress("word/document.xml", List.of(0, 0, 1), 0, 0),
+        new SourceAddress("word/document.xml", List.of(0, 0, 2), 0, 1),
+        new SourceAddress("word/document.xml", List.of(0, 0, 2), 0, 2),
+        new SourceAddress("word/document.xml", List.of(0, 0, 2, 0), 1, 2),
+        new SourceAddress("word/document.xml", List.of(0, 0, 3, 0), 2, 2))) {
+      var finding = new CheckResult(ruleId, Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+          Judgement.FAIL, "expected", "actual", "MISMATCH", address);
+
+      var report = new CommentWriter().writeCopy(source, tempDir.resolve("invalid-blank-run-span.docx"), List.of(finding));
+
+      assertFalse(report.outputWritten(), address + " " + report.items());
+      assertEquals(AnnotationStatus.UNSUPPORTED_ANCHOR, report.items().getFirst().status());
+      assertEquals("SOURCE_RANGE_OUT_OF_BOUNDS", report.items().getFirst().reason());
+      assertEquals(address, report.items().getFirst().source());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD-02-BLANK-FONT", "HEAD-02-BLANK-SIZE"})
+  void acceptsBlankLineTypographyWithinItsOriginalAbsoluteRunSpan(String ruleId) throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body><w:p>"
+        + "<w:r><w:t xml:space='preserve'> </w:t></w:r><w:r/>"
+        + "<w:r><w:t xml:space='preserve'> </w:t></w:r></w:p></w:body></w:document>");
+    for (SourceAddress address : List.of(
+        new SourceAddress("word/document.xml", List.of(0, 0), 0, 2),
+        new SourceAddress("word/document.xml", List.of(0, 0, 0), 0, 1),
+        new SourceAddress("word/document.xml", List.of(0, 0, 1), 1, 1),
+        new SourceAddress("word/document.xml", List.of(0, 0, 2), 1, 2),
+        new SourceAddress("word/document.xml", List.of(0, 0, 2), 2, 2))) {
+      var finding = new CheckResult(ruleId, Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+          Judgement.FAIL, "expected", "actual", "MISMATCH", address);
+
+      var report = new CommentWriter().writeCopy(source, tempDir.resolve("valid-blank-run-span.docx"), List.of(finding));
+
+      assertTrue(report.outputWritten(), address + " " + report.items());
+      assertEquals(AnnotationStatus.WRITTEN, report.items().getFirst().status());
+      assertEquals(address, report.items().getFirst().source());
+      assertEquals(new SourceAddress("word/document.xml", List.of(0, 0), 0, 0),
+          report.items().getFirst().anchorSource());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"HEAD-02-BLANK-FONT", "HEAD-02-BLANK-SIZE"})
+  void stillRejectsBlankLineTypographyWithAnInvalidSource(String ruleId) throws Exception {
+    Path source = packageWithDocument("<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body><w:p/></w:body></w:document>");
+    for (SourceAddress address : List.of(
+        new SourceAddress("word/document.xml", List.of(0, 9), 0, 0),
+        new SourceAddress("word/document.xml", List.of(0, 0), 2, 2),
+        new SourceAddress("word/document.xml", List.of(0, 0), 0, 2))) {
+      var finding = new CheckResult(ruleId, Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
+          Judgement.FAIL, "expected", "actual", "MISMATCH", address);
+
+      var report = new CommentWriter().writeCopy(source, tempDir.resolve("invalid-empty.docx"), List.of(finding));
+
+      assertFalse(report.outputWritten(), report.items().toString());
+      assertEquals(AnnotationStatus.UNSUPPORTED_ANCHOR, report.items().getFirst().status());
+      assertEquals(address, report.items().getFirst().source());
+    }
   }
 
   @Test

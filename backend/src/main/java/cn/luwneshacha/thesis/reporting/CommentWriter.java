@@ -147,6 +147,8 @@ public final class CommentWriter {
             }
           }
           if (supportsEmptyPoint(result) && isBlankParagraph(anchor)) {
+            if (isBlankLineTypography(result))
+              validateBlankLineTypographySource(anchor, sourceElement, result.source());
             var placement = pageStarts.resolve(partName, anchor, result.contextSource());
             pointPlacements.put(result, placement);
             anchor = placement.paragraph();
@@ -352,7 +354,29 @@ public final class CommentWriter {
 
   private static boolean supportsEmptyPoint(CheckResult result) {
     return result.ruleId().startsWith("HEADER-") || "PAGE-04".equals(result.ruleId())
-        || result.ruleId().endsWith("-BLANK");
+        || result.ruleId().endsWith("-BLANK") || isBlankLineTypography(result);
+  }
+
+  private static boolean isBlankLineTypography(CheckResult result) {
+    return "HEAD-02-BLANK-FONT".equals(result.ruleId())
+        || "HEAD-02-BLANK-SIZE".equals(result.ruleId());
+  }
+
+  private static void validateBlankLineTypographySource(Element paragraph, Element sourceElement,
+      SourceAddress source) throws AnchorException {
+    int offset = 0;
+    for (Element run : visibleRuns(paragraph)) {
+      int end = offset + visibleRunText(run).length();
+      if (run == sourceElement && isWordNamespace(run.getNamespaceURI())) {
+        // Run sources use paragraph-absolute offsets, including preceding whitespace runs.
+        if (source.start() < offset || source.end() > end)
+          throw new AnchorException("SOURCE_RANGE_OUT_OF_BOUNDS");
+        return;
+      }
+      offset = end;
+    }
+    if (sourceElement != paragraph || source.end() > offset)
+      throw new AnchorException("SOURCE_RANGE_OUT_OF_BOUNDS");
   }
 
   private static Element resolve(Document document, SourceAddress address) throws AnchorException {

@@ -1,6 +1,10 @@
 package cn.luwneshacha.platform.engine;
 
 import static org.junit.jupiter.api.Assertions.*;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.*;
 import java.io.*;
@@ -9,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Duration;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.*;
 import org.junit.jupiter.api.*;
@@ -16,20 +21,29 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 
 class HttpAuditEngineTest {
   @TempDir Path directory;
   HttpServer server;
   ExecutorService executor;
   final AtomicReference<String> requestBody=new AtomicReference<>();
+  final AtomicInteger artifactDownloads=new AtomicInteger();
+  final ListAppender<ILoggingEvent> engineLogs=new ListAppender<>();
   final String finding="{\"ruleId\":\"F1\",\"judgement\":\"FAIL\",\"source\":{\"partName\":\"word/document.xml\",\"elementPath\":\"/p[1]\"},\"expected\":\"a\",\"actual\":\"b\",\"reasonCode\":\"wrong\"}";
   final String annotation="{\"ruleId\":\"F1\",\"status\":\"WRITTEN\",\"source\":{\"partName\":\"word/document.xml\",\"elementPath\":\"/p[1]\"}}";
   @BeforeEach void start() throws IOException {
+    engineLogs.start();
+    ((Logger)LoggerFactory.getLogger(HttpAuditEngine.class)).addAppender(engineLogs);
     server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
     executor=Executors.newVirtualThreadPerTaskExecutor(); server.setExecutor(executor); server.start();
     respond("/api/inspections/abc/report",200,docx("<w:p><w:r><w:t>检查报告</w:t></w:r></w:p>",false));
   }
-  @AfterEach void stop() { server.stop(0); executor.shutdownNow(); }
+  @AfterEach void stop() {
+    ((Logger)LoggerFactory.getLogger(HttpAuditEngine.class)).detachAppender(engineLogs);
+    engineLogs.stop();
+    server.stop(0); executor.shutdownNow();
+  }
   HttpAuditEngine engine(Duration timeout) { return new HttpAuditEngine(new EngineProperties(URI.create("http://127.0.0.1:"+server.getAddress().getPort()),timeout),new ObjectMapper()); }
   Path original() throws IOException { Path path=directory.resolve("original.docx"); Files.write(path,docx()); return path; }
   byte[] docx() throws IOException {
@@ -60,6 +74,7 @@ class HttpAuditEngineTest {
     server.createContext(path,exchange->{
       byte[] body=exchange.getRequestBody().readAllBytes();
       if(exchange.getRequestMethod().equals("POST")) requestBody.set(new String(body,StandardCharsets.UTF_8));
+      else artifactDownloads.incrementAndGet();
       exchange.sendResponseHeaders(status,content.length);
       try(var output=exchange.getResponseBody()){output.write(content);}
     });
@@ -164,6 +179,7 @@ class HttpAuditEngineTest {
     respond("/api/inspections/abc/annotated",200,marked);
     var result=engine(Duration.ofSeconds(5)).inspect(original(),directory);
     assertEquals(1,result.problemCount()); assertArrayEquals(marked,Files.readAllBytes(result.marked()));
+    assertTrue(engineLogs.list.isEmpty(),"完整批注不应触发失败诊断");
   }
   @Test void zeroFailuresCopiesOriginalAndSendsMultipartAnnotationFlag() throws Exception {
     respond("/api/inspections",200,reportResponse("{\"available\":true,\"downloadPath\":\"/api/inspections/abc/report\"}").getBytes());
@@ -171,6 +187,89 @@ class HttpAuditEngineTest {
     assertEquals(0,result.problemCount()); assertArrayEquals(Files.readAllBytes(original),Files.readAllBytes(result.marked()));
     assertTrue(requestBody.get().contains("name=\"annotate\"\r\n\r\ntrue"));
     assertTrue(requestBody.get().contains("name=\"file\"; filename=\"thesis.docx\""));
+    assertTrue(engineLogs.list.isEmpty(),"零问题审核不应触发失败诊断");
+  }
+  @Test void logsUnwrittenRulesAndStableReasonsBeforeRejectingArtifacts() throws Exception {
+    var json=new ObjectMapper();
+    var response=json.readTree(report(finding,annotation,"/api/inspections/abc/annotated"));
+    var items=(com.fasterxml.jackson.databind.node.ArrayNode)response.path("annotation").path("items");
+    items.addObject().put("ruleId","HEAD-02-BLANK-FONT").put("status","UNSUPPORTED_ANCHOR").put("reason","EMPTY_ANCHOR");
+    items.addObject().put("ruleId","HEAD-02-BLANK-SIZE").put("status","REJECTED").put("reason","WRITE_FAILED");
+    respond("/api/inspections",200,json.writeValueAsBytes(response));
+    respond("/api/inspections/abc/annotated",200,markedDocx());
+    var failure=assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory));
+    assertIncompleteAnnotationFailure(failure);
+    assertEquals(1,engineLogs.list.size(),"丢失批注证据时必须记录一次有界诊断");
+    assertEquals(Level.WARN,engineLogs.list.getFirst().getLevel());
+    String message=engineLogs.list.getFirst().getFormattedMessage();
+    assertTrue(message.contains("requestId=abc unwritten=2"),message);
+    assertTrue(message.contains("ruleId=HEAD-02-BLANK-FONT status=UNSUPPORTED_ANCHOR reason=EMPTY_ANCHOR"),message);
+    assertTrue(message.contains("ruleId=HEAD-02-BLANK-SIZE status=REJECTED reason=WRITE_FAILED"),message);
+    assertFalse(message.contains("ruleId=F1"),"成功写入项不是失败诊断样本");
+    assertNull(engineLogs.list.getFirst().getThrowableProxy());
+  }
+  @Test void unwrittenDiagnosticsRejectUntrustedAndOversizedFields() throws Exception {
+    var json=new ObjectMapper();
+    String privateText="private-paper-text.docx https://cos.example/paper?secret=private-key";
+    for(String raw:java.util.List.of(json.writeValueAsString("REJECTED\r\nFORGED "+privateText),
+        json.writeValueAsString("A".repeat(50000)),json.writeValueAsString("论文秘密"),
+        json.writeValueAsString("PRIVATE_DOCUMENT_CONTENT"),"123","null","[\"REJECTED\"]","{}")) {
+      var response=json.readTree(report(finding,"","/api/inspections/abc/annotated"));
+      var item=((com.fasterxml.jackson.databind.node.ArrayNode)response.path("annotation").path("items")).addObject();
+      var unsafe=json.readTree(raw);
+      item.set("ruleId",unsafe);item.set("status",unsafe);item.set("reason",unsafe);
+      item.put("source",privateText).put("expected",privateText).put("actual",privateText).put("filename",privateText);
+      respond("/api/inspections",200,json.writeValueAsBytes(response));
+      assertIncompleteAnnotationFailure(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)));
+      assertEquals(1,engineLogs.list.size());
+      String message=engineLogs.list.getFirst().getFormattedMessage();
+      assertTrue(message.contains("status=UNKNOWN reason=UNKNOWN"),message);
+      assertFalse(message.contains(privateText));
+      assertFalse(message.contains("PRIVATE_DOCUMENT_CONTENT"));
+      assertFalse(message.contains("FORGED"));
+      assertFalse(message.contains("论文秘密"));
+      assertFalse(message.contains("\r")||message.contains("\n"));
+      assertTrue(message.length()<300,message);
+      server.removeContext("/api/inspections");engineLogs.list.clear();
+    }
+  }
+  @Test void unwrittenDiagnosticSamplesAreBoundedWhileCountingEveryFailure() throws Exception {
+    var json=new ObjectMapper();
+    var response=json.readTree(report(finding,annotation,"/api/inspections/abc/annotated"));
+    var items=(com.fasterxml.jackson.databind.node.ArrayNode)response.path("annotation").path("items");
+    for(int i=0;i<25;i++) items.addObject().put("ruleId","RULE-"+i).put("status","UNSUPPORTED_ANCHOR").put("reason","EMPTY_ANCHOR");
+    respond("/api/inspections",200,json.writeValueAsBytes(response));
+    assertIncompleteAnnotationFailure(assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory)));
+    assertEquals(1,engineLogs.list.size());
+    String message=engineLogs.list.getFirst().getFormattedMessage();
+    assertTrue(message.contains("unwritten=25")&&message.contains("omitted=15"),message);
+    assertEquals(10,message.split("ruleId=",-1).length-1,message);
+    assertTrue(message.contains("ruleId=RULE-9 "),message);
+    assertFalse(message.contains("ruleId=RULE-10 "),message);
+    assertTrue(message.length()<2000,message);
+  }
+  @Test void invalidRequestIdsCannotReachDiagnosticLogs() throws Exception {
+    var json=new ObjectMapper();
+    for(String raw:java.util.List.of(json.writeValueAsString("abc\r\nFORGED"),
+        json.writeValueAsString("a".repeat(129)),"123","null","{}")) {
+      var response=(com.fasterxml.jackson.databind.node.ObjectNode)json.readTree(report(finding,annotation.replace("WRITTEN","REJECTED"),"/api/inspections/abc/annotated"));
+      response.set("requestId",json.readTree(raw));
+      respond("/api/inspections",200,json.writeValueAsBytes(response));
+      var failure=assertThrows(EngineFailure.class,()->engine(Duration.ofSeconds(5)).inspect(original(),directory));
+      assertTrue(failure.retryable());
+      assertEquals("审核服务异常，请重新提交或联系管理员",failure.getMessage());
+      assertTrue(engineLogs.list.isEmpty());
+      assertEquals(0,artifactDownloads.get());
+      server.removeContext("/api/inspections");
+    }
+  }
+  void assertIncompleteAnnotationFailure(EngineFailure failure) {
+    assertFalse(failure.retryable());
+    assertEquals("部分格式问题无法写入 Word 批注，请重新提交或联系管理员",failure.getMessage());
+    assertNull(failure.getCause());
+    assertEquals(0,artifactDownloads.get(),"批注不完整时不得请求任何产物");
+    assertFalse(Files.exists(directory.resolve("marked.docx")));
+    assertFalse(Files.exists(directory.resolve("report.docx")));
   }
   @Test void rejectsUnwrittenAnnotation() throws Exception {
     respond("/api/inspections",200,report(finding,annotation.replace("WRITTEN","UNSUPPORTED"),"/api/inspections/abc/annotated").getBytes());
