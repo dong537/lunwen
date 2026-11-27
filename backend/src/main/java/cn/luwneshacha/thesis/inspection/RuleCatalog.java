@@ -36,7 +36,7 @@ public final class RuleCatalog {
       specs("页面与页码", "页面和分节", "四边页边距、正文页码、分节和章节分页", "sectPr、页脚 PAGE 域和分节证据", true,
           "实际显示的页码连续性、首页/奇偶页设置及链接到前一节后的最终显示不能仅由静态 XML 证明",
           "页码批注只能锚定到可定位的正文段落，无法对空页脚或复杂页脚对象写入范围批注"),
-      specs("页眉", "摘要至附录页眉（封面豁免）", "页眉文字、黑体、五号和居中格式，并按分节继承关系检查封面以外各节及启用的首页、偶数页变体",
+      specs("页眉", "封面及摘要至附录页眉", "封面禁止显示页眉；摘要至附录检查页眉文字、黑体、五号和居中，并按分节继承关系检查启用的首页、偶数页变体",
           "headerReference、header*.xml、段落样式和运行属性", true,
           "页眉最终显示位置和 Word/WPS 字体替换不能仅由静态 XML 证明",
           ""),
@@ -116,7 +116,7 @@ public final class RuleCatalog {
       case "HEAD-02-BLANK-FONT", "HEAD-02-BLANK-SIZE" ->
           List.of("HeadingDocumentRuleModule");
       case "PAGE-01", "PAGE-03", "PAGE-04", "PAGE-05" -> List.of("SectionLayoutRuleChecker");
-      case "HEADER-01-SCOPE", "HEADER-01-MISSING", "HEADER-01-TEXT", "HEADER-01-FONT",
+      case "HEADER-01-SCOPE", "HEADER-01-COVER", "HEADER-01-MISSING", "HEADER-01-TEXT", "HEADER-01-FONT",
           "HEADER-01-SIZE", "HEADER-01-ALIGNMENT" -> List.of("HeaderRuleModule");
       case "FIG-01", "FIG-02", "FIG-03", "FIG-05" -> List.of("ImageRuleChecker");
       case "CAPTION-FONT", "CAPTION-SIZE" -> List.of("ImageRuleChecker", "TableRuleModule");
@@ -171,7 +171,7 @@ public final class RuleCatalog {
       case "正文格式" -> List.of("BODY-FONT", "BODY-SIZE", "BODY-INDENT", "BODY-LINE", "BODY-SCOPE");
       case "必需章节" -> List.of("SECTION-REQUIRED");
       case "页面与页码" -> List.of("PAGE-01", "PAGE-03", "PAGE-04", "PAGE-05");
-      case "页眉" -> List.of("HEADER-01-SCOPE", "HEADER-01-MISSING", "HEADER-01-TEXT", "HEADER-01-FONT", "HEADER-01-SIZE", "HEADER-01-ALIGNMENT");
+      case "页眉" -> List.of("HEADER-01-SCOPE", "HEADER-01-COVER", "HEADER-01-MISSING", "HEADER-01-TEXT", "HEADER-01-FONT", "HEADER-01-SIZE", "HEADER-01-ALIGNMENT");
       case "插图" -> List.of("FIG-01", "FIG-02", "FIG-03", "FIG-05");
       case "图表题" -> List.of("CAPTION-FONT", "CAPTION-SIZE");
       case "表格" -> List.of("TAB-01", "TAB-02", "TAB-03", "TAB-04", "TAB-05", "TAB-06", "TAB-07", "TAB-08", "TAB-09");

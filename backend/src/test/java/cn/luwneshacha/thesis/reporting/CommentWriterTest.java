@@ -797,7 +797,8 @@ class CommentWriterTest {
       assertTrue(document.contains("commentRangeStart"));
       assertTrue(document.indexOf("w:pPr") < document.indexOf("commentRangeStart"));
       assertTrue(document.contains("commentReference"));
-      assertTrue(comments.contains("当前分节页边距为 2.50119 cm（XML：1418 twips）"));
+      assertTrue(comments.contains("当前分节页边距为 2.50119 厘米"));
+      assertFalse(comments.contains("twips"));
       assertTrue(zip.getEntry("word/_rels/document.xml.rels") != null);
       assertTrue(comments.matches("(?s).*w14:paraId=\"[A-F0-9]{8}\".*"), comments);
       assertTrue(commentsExtended.contains("w15:commentEx"), commentsExtended);

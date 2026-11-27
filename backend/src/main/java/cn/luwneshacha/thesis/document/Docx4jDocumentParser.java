@@ -563,7 +563,7 @@ public final class Docx4jDocumentParser {
         var paragraphs = root.getElementsByTagNameNS(XmlPartSupport.W, "p");
         if (paragraphs.getLength() == 0) {
           result.add(new HeaderModel(new SourceAddress(part.name(), List.of(0), 0, 0), "", null,
-              List.of(), sectionIndexesByType));
+              List.of(), sectionIndexesByType, new HeaderContentAnalyzer(stylesRoot).analyze(root)));
           continue;
         }
         var allText = new StringBuilder();
@@ -601,7 +601,7 @@ public final class Docx4jDocumentParser {
         }
         String text = allText.toString();
         result.add(new HeaderModel(new SourceAddress(part.name(), List.of(0), 0, text.length()),
-            text, centered, formatting, sectionIndexesByType));
+            text, centered, formatting, sectionIndexesByType, new HeaderContentAnalyzer(stylesRoot).analyze(root)));
       } catch (Exception error) {
         throw new IllegalArgumentException("unable to parse header part " + part.name(), error);
       }
@@ -1487,7 +1487,8 @@ public final class Docx4jDocumentParser {
         automaticNumberingActive, firstLineEvidenceInvalid, hangingEvidenceInvalid, leftEvidenceInvalid,
         beforeSpacingTwips, afterSpacingTwips, paragraphStyleId(xmlParagraph), lineSpacing.invalid(),
         isInsideTextBox(xmlParagraph), paragraphStyleName(stylesRoot, xmlParagraph),
-        blankParagraphMarkFormat, structurallyBlankParagraph);
+        blankParagraphMarkFormat, structurallyBlankParagraph,
+        ParagraphPageBoundaryEvidence.parse(xmlParagraph, stylesRoot));
   }
 
   /** A paragraph mark controls a truly empty line, but is never a visible text run. */

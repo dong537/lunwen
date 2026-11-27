@@ -38,6 +38,30 @@ final class PageStartAnchorResolver {
     if (!current.isEmpty() || sections.isEmpty()) sections.add(new Section(null, List.copyOf(current)));
   }
 
+  /** Section numbering uses active boundaries, never historical sectPrChange descendants. */
+  int sectionNumber(String sourcePart, Element source) {
+    if (!"word/document.xml".equals(sourcePart)) return 0;
+    Element paragraph = source;
+    while (paragraph != null && !"p".equals(paragraph.getLocalName()))
+      paragraph = paragraph.getParentNode() instanceof Element parent ? parent : null;
+    for (int i = 0; i < sections.size(); i++) {
+      Section section = sections.get(i);
+      if (section.properties() == source || paragraph != null && section.paragraphs().contains(paragraph)) return i + 1;
+    }
+    return 0;
+  }
+
+  /** The parser anchors terminal body/sectPr evidence at the section's last paragraph. */
+  boolean isTerminalSectionAnchor(Element source) {
+    for (Section section : sections) {
+      Element properties = section.properties();
+      if (properties != null && properties.getParentNode() instanceof Element parent
+          && "body".equals(parent.getLocalName()) && !section.paragraphs().isEmpty()
+          && section.paragraphs().getLast() == source) return true;
+    }
+    return false;
+  }
+
   Placement resolve(String sourcePart, Element originalParagraph, SourceAddress contextSource) {
     if (!"word/document.xml".equals(sourcePart)) {
       Placement header = resolveStory(sourcePart, contextSource);

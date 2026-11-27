@@ -193,6 +193,29 @@ final class CoverHeaderScope {
     return firstRequiredSource;
   }
 
+  SourceAddress firstCoverSource() { return firstCoverSource; }
+
+  /** Do not select FIRST after an evidenced or unresolved page boundary before cover text. */
+  boolean coverFirstPageVariantUncertain(int sectionIndex) {
+    if (sectionIndex != 0) return true;
+    int lastCoverParagraph = -1;
+    for (int i = 0; i < document.paragraphs().size(); i++) {
+      ParagraphModel paragraph = document.paragraphs().get(i);
+      if (firstRequiredSource != null && !before(paragraph.source(), firstRequiredSource)) continue;
+      if (!compact(DocumentRegionClassifier.paragraphText(paragraph)).isEmpty()
+          || paragraph.source().elementPath().equals(firstCoverSource.elementPath())) lastCoverParagraph = i;
+    }
+    for (int i = 0; i <= lastCoverParagraph; i++) {
+      ParagraphModel paragraph = document.paragraphs().get(i);
+      if (!paragraph.source().partName().equals(firstCoverSource.partName())) continue;
+      var evidence = paragraph.pageBoundaryEvidence();
+      if (evidence == null) return true;
+      var boundary = i == lastCoverParagraph ? evidence.beforeLastVisibleContent() : evidence.anywhereInParagraph();
+      if (boundary != cn.luwneshacha.thesis.document.ParagraphPageBoundaryEvidence.Boundary.ABSENT) return true;
+    }
+    return lastCoverParagraph < 0;
+  }
+
   boolean sectionIsCoverOnly(int sectionIndex) {
     if (!recognized) return false;
     if (firstRequiredSource == null) return true;

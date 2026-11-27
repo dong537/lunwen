@@ -30,12 +30,12 @@ class RuleExecutionEvidenceTest {
 
     var evidence = RuleExecutionEvidence.from(registered);
     assertEquals(2, evidence.schemaVersion());
-    assertEquals(139, evidence.catalogRuleIds().size());
+    assertEquals(140, evidence.catalogRuleIds().size());
     assertEquals(evidence.catalogRuleIds(), evidence.evaluatedRuleIds());
     assertEquals(64, evidence.catalogSha256().length());
-    assertEquals("dc9effdf24676d305db150e5375a84f681e4597fa5fc73f28f77ccb7d270fa37",
+    assertEquals("82c3e83def51c8761e496ad190b7660786d649e9424910ba5b34b6ec08d14f0a",
         evidence.catalogSha256());
-    assertEquals("05119a8147376d77fe437805bee71d3ef84d2b4b31ee3e68b754e0a98fefeba8",
+    assertEquals("f4a724a7eb4757d7f65caf4eb3f968543245c739231d99cb6e6bdcece62d8ffe",
         evidence.ownerPairsSha256());
     assertEquals(registered, evidence.completedModuleIds());
   }

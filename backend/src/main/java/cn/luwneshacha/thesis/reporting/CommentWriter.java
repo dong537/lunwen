@@ -2,6 +2,7 @@ package cn.luwneshacha.thesis.reporting;
 
 import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.rules.CheckResult;
+import cn.luwneshacha.thesis.rules.Judgement;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -107,6 +108,7 @@ public final class CommentWriter {
       Map<String, Element> initialAnchors = new LinkedHashMap<>();
       Map<String, String> initialAnchorErrors = new LinkedHashMap<>();
       Map<CheckResult, Element> sourceElements = new LinkedHashMap<>();
+      Map<CheckResult, String> originalLocations = new LinkedHashMap<>();
       Map<CheckResult, PageStartAnchorResolver.Placement> pointPlacements = new LinkedHashMap<>();
       Map<Element, Integer> anchorIds = new IdentityHashMap<>();
       int nextAnchorId = 0;
@@ -131,8 +133,10 @@ public final class CommentWriter {
         String key;
         try {
           Element sourceElement = resolve(partDocument, result.source());
+          originalLocations.put(result, originalLocation(result, sourceElement, documents, pageStarts));
           boolean sectionMargin = "PAGE-01".equals(result.ruleId())
-              && "word/document.xml".equals(partName) && isSectionPropertiesSource(sourceElement);
+              && "word/document.xml".equals(partName) && (isSectionPropertiesSource(sourceElement)
+                  || pageStarts.isTerminalSectionAnchor(sourceElement));
           Element anchor = resolveAnchor(partDocument, result.source(), sectionMargin);
           if (sectionMargin && isBlankParagraph(anchor)) {
             // Prefer text within the same section, as before. Only a truly textless
@@ -261,7 +265,8 @@ public final class CommentWriter {
           else addRange(paragraph, nextId, preciseRange);
           // 一个段落只插入一个批注；颜色取该段落最先发现的错误类型，批注正文会列出其余问题。
           String paraId = nextParaId(usedParaIds);
-          commentsRoot.appendChild(comment(comments, nextId, paraId, group, paragraph, pointPlacements));
+          commentsRoot.appendChild(comment(comments, nextId, paraId, group, paragraph, pointPlacements,
+              originalLocations));
           appendCommentExtended(commentsExtended, paraId);
           appendCommentId(commentsIds, paraId, nextDurableId(paraId, nextId, usedDurableIds));
           ensurePerson(people, COMMENT_AUTHOR);
@@ -1190,11 +1195,84 @@ public final class CommentWriter {
   }
 
   private static Element comment(Document comments, int id, String paraId, List<CheckResult> results,
-      Element anchorParagraph, Map<CheckResult, PageStartAnchorResolver.Placement> placements) {
-    String text = results.stream().map(result -> placementNote(result, placements.get(result))
-            + suggestion(result, anchorParagraph)).distinct()
+      Element anchorParagraph, Map<CheckResult, PageStartAnchorResolver.Placement> placements,
+      Map<CheckResult, String> originalLocations) {
+    String text = results.stream().map(result -> {
+      String location = placements.containsKey(result) || isBlankLineTypography(result)
+          ? originalLocations.getOrDefault(result, "") : "";
+      if (isBlankLineTypography(result)) {
+        String property = result.ruleId().endsWith("-FONT") ? "中文字体" : "字号";
+        if (result.judgement() == Judgement.REVIEW || result.actual() == null)
+          return location + "未能读取该空行的" + property + "，请在 Word 中确认并设为"
+              + result.expected() + "。";
+        String actual = result.actual().replaceFirst("^中文=", "");
+        return location + "当前" + property + "为" + actual + "，应为" + result.expected() + "。"
+            + "请选中上述空行后修改" + property + "。";
+      }
+      return location + suggestion(result, anchorParagraph);
+    }).distinct()
         .collect(java.util.stream.Collectors.joining("\n"));
+    String notes = results.stream().map(result -> placementNote(result, placements.get(result)))
+        .filter(note -> !note.isEmpty()).distinct().collect(java.util.stream.Collectors.joining("\n"));
+    if (!notes.isEmpty()) text += "\n" + notes;
     return commentWithText(comments, id, paraId, COMMENT_AUTHOR, text);
+  }
+
+  private static String originalLocation(CheckResult result, Element source,
+      Map<String, Document> documents, PageStartAnchorResolver pageStarts) {
+    String title = "";
+    if (result.contextSource() != null) {
+      Document contextDocument = documents.get(result.contextSource().partName());
+      if (contextDocument != null) {
+        try {
+          Element context = resolve(contextDocument, result.contextSource());
+          if ("p".equals(context.getLocalName())) title = visibleParagraphText(context).strip();
+        } catch (AnchorException ignored) {
+          // Missing context must not change the original finding or its safe anchor.
+        }
+      }
+    }
+    Element paragraph = source;
+    while (paragraph != null && !"p".equals(paragraph.getLocalName()))
+      paragraph = paragraph.getParentNode() instanceof Element parent ? parent : null;
+    String position = "";
+    if (paragraph != null) {
+      var paragraphs = paragraph.getOwnerDocument().getElementsByTagNameNS(paragraph.getNamespaceURI(), "p");
+      for (int i = 0; i < paragraphs.getLength(); i++)
+        if (paragraphs.item(i) == paragraph) {
+          String part = result.source().partName();
+          String story = part.startsWith("word/header") ? "页眉内"
+              : part.startsWith("word/footer") ? "页脚内"
+              : part.equals("word/footnotes.xml") ? "脚注内"
+              : part.equals("word/endnotes.xml") ? "尾注内" : "文档";
+          position = "（" + story + "第" + (i + 1) + "段）";
+          break;
+        }
+    }
+    if (isBlankLineTypography(result)) {
+      String heading = title.isEmpty() ? "标题" : "“" + title.replaceAll("[\r\n]+", " ") + "”标题";
+      return "原位置：" + heading + "后的空行" + position + "。";
+    }
+    if ("PAGE-01".equals(result.ruleId()) || "PAGE-04".equals(result.ruleId())) {
+      int section = pageStarts.sectionNumber(result.source().partName(), source);
+      if (section > 0) return "原位置：文档第" + section + "节的"
+          + ("PAGE-01".equals(result.ruleId()) ? "页边距" : "页码设置") + "。";
+    }
+    String object = switch (result.ruleId()) {
+      case "ZH-02-BLANK" -> "中文摘要标题与正文之间的空行";
+      case "EN-01-BLANK" -> "英文摘要标题与正文之间的空行";
+      case "ZH-04-BLANK" -> "中文摘要正文与关键词之间的空行";
+      case "EN-03-BLANK" -> "英文摘要正文与关键词之间的空行";
+      case "TOC-01-BLANK" -> "目录标题后的空行";
+      case "REF-01-BLANK" -> "参考文献标题后的空行";
+      case "END-01-BLANK" -> "致谢标题后的空行";
+      case "APP-02-BLANK" -> "附录标题后的空行";
+      case "HEAD-02-BLANK" -> "章标题后的空行";
+      case "PAGE-01" -> "页边距";
+      default -> result.ruleId().startsWith("HEADER-") ? "页眉"
+          : result.ruleId().startsWith("PAGE-") ? "页码设置" : "空行";
+    };
+    return "原位置：" + (title.isEmpty() ? "" : "“" + title + "”所在部分的") + object + position + "。";
   }
 
   private static String placementNote(CheckResult result, PageStartAnchorResolver.Placement placement) {
@@ -1215,8 +1293,8 @@ public final class CommentWriter {
           : "此批注对应本节的页眉问题。";
     }
     return "PLACED_AT_PAGE_START".equals(placement.reason())
-        ? "问题原位置没有可圈定的文字，批注放在本页页首。"
-        : "本批注对应此处的空白位置；未改变原有文字或分页。";
+        ? "批注显示在本页页首，所指的是上述原位置的问题，不是该位置的标题或正文。"
+        : "批注标在上述原位置的空白处；未改变原有文字或分页。";
   }
 
   private static Element commentWithText(Document comments, int id, String paraId, String author, String text) {
@@ -1499,7 +1577,7 @@ public final class CommentWriter {
         default -> "正文到附录的页码请使用阿拉伯数字。";
       };
       case "PAGE-03" -> "请在本章标题段落设置“段前分页”，让章节从新页开始。";
-      case "HEADER-01-MISSING", "HEADER-01-TEXT", "HEADER-01-SCOPE" ->
+      case "HEADER-01-MISSING", "HEADER-01-TEXT", "HEADER-01-SCOPE", "HEADER-01-COVER" ->
           cn.luwneshacha.thesis.report.RuleDescriptions.suggestion(result);
       case "HEADER-01-FONT" -> "将页眉字体统一改为黑体。";
       case "HEADER-01-SIZE" -> "将页眉字号统一改为五号。";
@@ -1714,22 +1792,36 @@ public final class CommentWriter {
 
   private static String marginComment(CheckResult result) {
     if ("MARGIN_GUTTER_MISMATCH".equals(result.reasonCode()))
-      return "当前分节设置了 " + result.actual() + " twips 装订线；将装订线设为 0，四边边距保持 2.6 cm。";
+      return "当前分节设置了装订线"
+          + (centimeters(result.actual()) == null ? "" : "（" + centimeters(result.actual()) + " 厘米）")
+          + "；请将装订线设为 0，四边边距保持 2.6 厘米。";
     if ("MARGIN_GUTTER_UNKNOWN".equals(result.reasonCode()))
       return "未能确认当前分节的装订线设置；将页面装订线设为 0 后重新检查。";
-    if ("MARGIN_MISMATCH".equals(result.reasonCode()) && result.actual() != null) {
-      try {
-        String centimeters = new java.math.BigDecimal(result.actual())
-            .multiply(new java.math.BigDecimal("2.54"))
-            .divide(new java.math.BigDecimal("1440"), 5, java.math.RoundingMode.HALF_UP)
-            .stripTrailingZeros().toPlainString();
-        return "当前分节页边距为 " + centimeters + " cm（XML：" + result.actual()
-            + " twips），请将该分节四边调整为 2.6 cm。";
-      } catch (NumberFormatException ignored) {
-        // Fall through to the generic message when XML value is unavailable.
+    String side = "页边距";
+    for (String name : List.of("上", "下", "左", "右")) {
+      if (result.expected() != null && result.expected().startsWith(name + "边")) {
+        side = name + "边距";
+        break;
       }
     }
-    return "当前分节页边距不符合要求，请将该分节四边调整为 2.6 cm。";
+    if ("MARGIN_UNKNOWN".equals(result.reasonCode()))
+      return "未能读取本节" + side + "，请在 Word 中确认并设置为 2.6 厘米。";
+    if ("MARGIN_INVALID".equals(result.reasonCode()))
+      return "本节" + side + "的页面设置无效，请在 Word 中重新设置为 2.6 厘米。";
+    String actual = centimeters(result.actual());
+    return "当前分节" + side + (actual == null ? "不符合要求" : "为 " + actual + " 厘米")
+        + "，请将本节" + side + "调整为 2.6 厘米。";
+  }
+
+  private static String centimeters(String twips) {
+    if (twips == null) return null;
+    try {
+      return new java.math.BigDecimal(twips).multiply(new java.math.BigDecimal("2.54"))
+          .divide(new java.math.BigDecimal("1440"), 5, java.math.RoundingMode.HALF_UP)
+          .stripTrailingZeros().toPlainString();
+    } catch (NumberFormatException ignored) {
+      return null; // The finding may carry an unknown or invalid value instead of a number.
+    }
   }
 
   private static String headingSizeSuggestion(CheckResult result) {

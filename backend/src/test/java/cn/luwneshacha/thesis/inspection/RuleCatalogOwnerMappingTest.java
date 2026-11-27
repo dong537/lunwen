@@ -28,7 +28,7 @@ class RuleCatalogOwnerMappingTest {
       assertEquals(expected, RuleCatalog.ownerModuleIds(entry.ruleId()), entry.ruleId());
       ownerPairCount += expected.size();
     }
-    assertEquals(146, ownerPairCount);
+    assertEquals(147, ownerPairCount);
   }
 
   @Test

@@ -9,7 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Checks effective headers outside the recognized cover content. */
+/** Forbids cover headers and checks required effective headers after the cover. */
 final class HeaderRuleModule implements RuleModule {
   private static final String EXPECTED_TEXT = "山东石油化工学院本科毕业设计（论文）";
   private static final String EXPECTED_FONT = "黑体";
@@ -49,6 +49,8 @@ final class HeaderRuleModule implements RuleModule {
         continue;
       }
       checks.scope.checked();
+      if (coverScope.firstPageIsCover(sectionIndex))
+        checkCoverHeader(findings, checks, document, coverScope, sectionIndex, section);
       if (coverScope.sectionIsCoverOnly(sectionIndex)) continue;
       SourceAddress contextSource = sectionContext(document, coverScope, sectionIndex);
       List<HeaderModel.Type> requiredTypes = new ArrayList<>();
@@ -74,9 +76,36 @@ final class HeaderRuleModule implements RuleModule {
     return new Evaluation(findings, checks.runs());
   }
 
+  private void checkCoverHeader(List<CheckResult> findings, HeaderChecks checks, ParsedDocument document,
+      CoverHeaderScope coverScope, int sectionIndex, SectionModel section) {
+    var types = new ArrayList<HeaderModel.Type>();
+    if (section.firstPageHeaderEnabled()) types.add(HeaderModel.Type.FIRST);
+    if (!section.firstPageHeaderEnabled() || coverScope.coverFirstPageVariantUncertain(sectionIndex)) {
+      types.add(HeaderModel.Type.DEFAULT);
+      if (section.evenPageHeaderEnabled()) types.add(HeaderModel.Type.EVEN);
+    }
+    List<HeaderModel.DisplayContent> content = types.stream().map(type -> document.headers().stream()
+        .filter(header -> header.applicableSectionIndexesByType().getOrDefault(type, List.of()).contains(sectionIndex))
+        .findFirst().map(HeaderModel::displayContent).orElse(HeaderModel.DisplayContent.EMPTY)).toList();
+    boolean empty = content.stream().allMatch(value -> value == HeaderModel.DisplayContent.EMPTY);
+    boolean present = content.stream().allMatch(value -> value == HeaderModel.DisplayContent.PRESENT);
+    // A cover found after another section has no proven physical first-page variant.
+    if (empty) checks.cover.checked();
+    else if (present && sectionIndex == 0) {
+      checks.cover.checked();
+      findings.add(result("HEADER-01-COVER", "封面不显示页眉", "封面适用的页眉含有文字",
+          "COVER_HEADER_FORBIDDEN", Judgement.FAIL, coverScope.firstCoverSource(), coverScope.firstCoverSource()));
+    } else {
+      checks.cover.unknown();
+      findings.add(result("HEADER-01-COVER", "封面不显示页眉", "无法确认封面最终显示的页眉内容",
+          "COVER_HEADER_UNCONFIRMED", Judgement.REVIEW, coverScope.firstCoverSource(), coverScope.firstCoverSource()));
+    }
+  }
+
   /** Records the exact candidates traversed above; a partial section mapping cannot certify later rules. */
   private static final class HeaderChecks {
     private final RunCounter scope = new RunCounter();
+    private final RunCounter cover = new RunCounter();
     private final RunCounter missing = new RunCounter();
     private final RunCounter text = new RunCounter();
     private final RunCounter alignment = new RunCounter();
@@ -103,6 +132,7 @@ final class HeaderRuleModule implements RuleModule {
     private List<RuleRun> runs() {
       var runs = new ArrayList<RuleRun>();
       scope.addRun(runs, "HEADER-01-SCOPE");
+      cover.addRun(runs, "HEADER-01-COVER");
       if (scope.unknownCount > 0) return List.copyOf(runs);
       missing.addRun(runs, "HEADER-01-MISSING");
       text.addRun(runs, "HEADER-01-TEXT");

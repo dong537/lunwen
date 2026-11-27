@@ -32,6 +32,7 @@ final class HeadingDocumentRuleModule implements RuleModule {
     boolean chapterNeedsBlankLine = false;
     int chapterBlankLineCount = 0;
     boolean firstLevelTitleNeedsBlankTypography = false;
+    SourceAddress blankLineHeadingSource = null;
     boolean inToc = false;
 
     for (int index = 0; index < document.paragraphs().size(); index++) {
@@ -47,7 +48,7 @@ final class HeadingDocumentRuleModule implements RuleModule {
       if (insideTable) firstLevelTitleNeedsBlankTypography = false;
       if (firstLevelTitleNeedsBlankTypography && !insideTable) {
         if (visualBlank) checkBlankLineTypography(findings, evidence, paragraph,
-            paragraph.runs().isEmpty() ? List.of() : paragraph.runs());
+            paragraph.runs().isEmpty() ? List.of() : paragraph.runs(), blankLineHeadingSource);
         else firstLevelTitleNeedsBlankTypography = false;
       }
       if (!insideTable
@@ -82,11 +83,12 @@ final class HeadingDocumentRuleModule implements RuleModule {
           || (namedSectionTitle && List.of("摘要", "目录", "参考文献", "致谢", "附录")
               .contains(compactTitleText(text))))) {
         firstLevelTitleNeedsBlankTypography = true;
+        blankLineHeadingSource = paragraph.source();
         if (ManualLineBreakSupport.blankLinesAfter(paragraph) > 0) {
           List<RunModel> breakRuns = paragraph.runs().stream()
               .filter(run -> run.text().indexOf('\n') >= 0 || run.text().indexOf('\r') >= 0)
               .toList();
-          checkBlankLineTypography(findings, evidence, paragraph, breakRuns);
+          checkBlankLineTypography(findings, evidence, paragraph, breakRuns, blankLineHeadingSource);
         }
       }
       if (visualBlank) continue;
@@ -314,33 +316,33 @@ final class HeadingDocumentRuleModule implements RuleModule {
   }
 
   private void checkBlankLineTypography(List<CheckResult> findings, Evidence evidence,
-      ParagraphModel paragraph, List<RunModel> blankRuns) {
+      ParagraphModel paragraph, List<RunModel> blankRuns, SourceAddress headingSource) {
     List<RunModel> formatting = blankRuns.isEmpty() && paragraph.blankParagraphMarkFormat() != null
         ? List.of(paragraph.blankParagraphMarkFormat()) : blankRuns;
     if (formatting.isEmpty()) {
       add(findings, evidence, result("HEAD-02-BLANK-FONT", "黑体", "无法读取空行字体",
-          "FIRST_LEVEL_BLANK_LINE_FONT_UNKNOWN", Judgement.REVIEW, paragraph.source()));
+          "FIRST_LEVEL_BLANK_LINE_FONT_UNKNOWN", Judgement.REVIEW, paragraph.source(), headingSource));
       add(findings, evidence, result("HEAD-02-BLANK-SIZE", "三号（16 磅）", "无法读取空行字号",
-          "FIRST_LEVEL_BLANK_LINE_SIZE_UNKNOWN", Judgement.REVIEW, paragraph.source()));
+          "FIRST_LEVEL_BLANK_LINE_SIZE_UNKNOWN", Judgement.REVIEW, paragraph.source(), headingSource));
       return;
     }
     for (RunModel format : formatting) {
-      String fonts = "中文=" + format.eastAsiaFont();
       boolean fontKnown = format.eastAsiaFont() != null;
+      String fonts = fontKnown ? "中文=" + format.eastAsiaFont() : "无法读取空行字体";
       boolean fontMatches = fontKnown
           && ParagraphFormatChecker.matchesChineseFont("黑体", format.eastAsiaFont());
       add(findings, evidence, result("HEAD-02-BLANK-FONT", "黑体", fonts,
           fontKnown ? fontMatches ? "" : "FIRST_LEVEL_BLANK_LINE_FONT_MISMATCH"
               : "FIRST_LEVEL_BLANK_LINE_FONT_UNKNOWN",
           fontKnown ? fontMatches ? Judgement.PASS : Judgement.FAIL : Judgement.REVIEW,
-          format.source()));
+          format.source(), headingSource));
       Integer size = format.fontSizeHalfPoints();
       add(findings, evidence, result("HEAD-02-BLANK-SIZE", "三号（16 磅）",
           size == null ? "无法读取空行字号" : (size / 2.0) + " 磅",
           size == null ? "FIRST_LEVEL_BLANK_LINE_SIZE_UNKNOWN"
               : size == 32 ? "" : "FIRST_LEVEL_BLANK_LINE_SIZE_MISMATCH",
           size == null ? Judgement.REVIEW : size == 32 ? Judgement.PASS : Judgement.FAIL,
-          format.source()));
+          format.source(), headingSource));
     }
   }
 
@@ -355,7 +357,12 @@ final class HeadingDocumentRuleModule implements RuleModule {
 
   private static CheckResult result(String ruleId, String expected, String actual, String reason,
       Judgement judgement, SourceAddress source) {
+    return result(ruleId, expected, actual, reason, judgement, source, null);
+  }
+
+  private static CheckResult result(String ruleId, String expected, String actual, String reason,
+      Judgement judgement, SourceAddress source, SourceAddress contextSource) {
     return new CheckResult(ruleId, Applicability.APPLICABLE, ExecutionStatus.EXECUTED,
-        judgement, expected, actual, reason, source);
+        judgement, expected, actual, reason, source, contextSource);
   }
 }

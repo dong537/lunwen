@@ -114,9 +114,10 @@ class RuleCatalogTest {
 
     assertTrue(header.annotationSupported());
     assertTrue(header.annotationLimitation().isBlank());
-    assertTrue(header.scope().contains("封面豁免"));
+    assertTrue(header.scope().contains("封面"));
     assertTrue(header.scope().contains("摘要至附录"));
-    assertTrue(header.description().contains("封面以外各节"));
+    assertTrue(header.description().contains("封面禁止显示页眉"));
+    assertEquals("页眉", RuleCatalog.find("HEADER-01-COVER").module());
   }
 
   @Test

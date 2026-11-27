@@ -254,14 +254,14 @@ class RuleDescriptionsTest {
   }
 
   @Test
-  void headerAdviceExemptsCoverAndCoversAbstractThroughAppendix() {
+  void headerAdviceForbidsCoverAndCoversAbstractThroughAppendix() {
     String missing = RuleDescriptions.suggestion(result("HEADER-01-MISSING", "HEADER_MISSING"));
     String scopeUnknown = RuleDescriptions.suggestion(result("HEADER-01-SCOPE", "HEADER_SCOPE_UNKNOWN"));
 
-    assertTrue(missing.contains("封面不要求页眉"));
+    assertTrue(missing.contains("封面禁止显示页眉"));
     assertTrue(missing.contains("摘要至附录"));
     assertTrue(missing.contains("附录"));
-    assertTrue(scopeUnknown.contains("封面不要求页眉"));
+    assertTrue(scopeUnknown.contains("封面禁止显示页眉"));
     assertTrue(scopeUnknown.contains("摘要至附录"));
     assertTrue(scopeUnknown.contains("附录"));
     assertFalse(scopeUnknown.contains("正文首章"));

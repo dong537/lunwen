@@ -1,5 +1,6 @@
 package cn.luwneshacha.thesis.document;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 import java.util.Map;
 
@@ -9,7 +10,8 @@ public record HeaderModel(
     String text,
     Boolean centered,
     List<RunFormatting> runFormatting,
-    Map<Type, List<Integer>> applicableSectionIndexesByType) {
+    Map<Type, List<Integer>> applicableSectionIndexesByType,
+    @JsonIgnore DisplayContent displayContent) {
   public HeaderModel {
     if (source == null) throw new IllegalArgumentException("header source is required");
     if (text == null) throw new IllegalArgumentException("header text is required");
@@ -17,6 +19,13 @@ public record HeaderModel(
     var copiedSectionsByType = new java.util.EnumMap<Type, List<Integer>>(Type.class);
     applicableSectionIndexesByType.forEach((type, indexes) -> copiedSectionsByType.put(type, List.copyOf(indexes)));
     applicableSectionIndexesByType = Map.copyOf(copiedSectionsByType);
+    if (displayContent == null) throw new IllegalArgumentException("header display evidence is required");
+  }
+
+  public HeaderModel(SourceAddress source, String text, Boolean centered, List<RunFormatting> runFormatting,
+      Map<Type, List<Integer>> applicableSectionIndexesByType) {
+    this(source, text, centered, runFormatting, applicableSectionIndexesByType,
+        text != null && !text.isBlank() ? DisplayContent.PRESENT : DisplayContent.UNKNOWN);
   }
 
   public HeaderModel(SourceAddress source, String text, Boolean centered, List<RunFormatting> runFormatting,
@@ -28,6 +37,8 @@ public record HeaderModel(
   public List<Integer> applicableSectionIndexes() {
     return applicableSectionIndexesByType.values().stream().flatMap(List::stream).distinct().sorted().toList();
   }
+
+  public enum DisplayContent { PRESENT, EMPTY, UNKNOWN }
 
   public enum Type {
     DEFAULT("default"),

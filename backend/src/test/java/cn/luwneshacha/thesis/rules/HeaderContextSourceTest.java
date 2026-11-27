@@ -99,7 +99,9 @@ class HeaderContextSourceTest {
     }
     var document = new ParsedDocument("sha", paragraphs, sections, List.of(), List.of(), List.of(),
         List.of(), images, List.of(), List.of(), List.of(header));
-    return new HeaderRuleModule().check(document, RuleSet.schoolV1());
+    var results = new HeaderRuleModule().check(document, RuleSet.schoolV1());
+    // This suite checks the later header's context; cover display has its own independent rule.
+    return results.stream().filter(result -> !result.ruleId().equals("HEADER-01-COVER")).toList();
   }
 
   private HeaderModel header(Map<HeaderModel.Type, List<Integer>> sections) {

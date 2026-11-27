@@ -15,6 +15,7 @@ public final class RuleDescriptions {
       case "PAGE-03" -> "章节分页";
       case "HEADER-01-MISSING", "HEADER-01-TEXT" -> "页眉文字";
       case "HEADER-01-SCOPE" -> "页眉检查范围";
+      case "HEADER-01-COVER" -> "封面不设页眉";
       case "HEADER-01-FONT" -> "页眉字体";
       case "HEADER-01-SIZE" -> "页眉字号";
       case "HEADER-01-ALIGNMENT" -> "页眉对齐";
@@ -239,6 +240,8 @@ public final class RuleDescriptions {
       case "PAGE_NUMBER_IN_FRONT_MATTER" -> "封面、摘要和目录部分出现了页码";
       case "PAGE_NUMBER_MISSING_IN_MAIN_BODY" -> "正文或附录有分节没有页码域";
       case "HEADER_MISSING" -> "摘要至附录有分节没有可用的页眉";
+      case "COVER_HEADER_FORBIDDEN" -> "封面显示了页眉";
+      case "COVER_HEADER_UNCONFIRMED" -> "无法确认封面实际显示的页眉内容";
       case "HEADER_TEXT_MISMATCH" -> "页眉文字不是学校规定的完整名称";
       case "HEADER_FONT_UNKNOWN" -> "页眉没有明确的字体属性，无法确认是否为黑体";
       case "HEADER_FONT_MISMATCH" -> "页眉字体不是黑体";
@@ -401,8 +404,11 @@ public final class RuleDescriptions {
         case "PAGE_NUMBER_SIZE_MISMATCH" -> "将页码字号改为五号。";
         default -> "将页码设置为页脚居中、Times New Roman 五号。";
       };
-      case "HEADER-01-MISSING", "HEADER-01-TEXT" -> "封面不要求页眉；摘要至附录各分节的页眉统一写成“山东石油化工学院本科毕业设计（论文）”。";
-      case "HEADER-01-SCOPE" -> "封面不要求页眉；修复文档分节结构后重新检测，以确认摘要至附录各节的页眉设置。";
+      case "HEADER-01-MISSING", "HEADER-01-TEXT" -> "封面禁止显示页眉；摘要至附录各分节的页眉统一写成“山东石油化工学院本科毕业设计（论文）”。";
+      case "HEADER-01-COVER" -> "COVER_HEADER_FORBIDDEN".equals(result.reasonCode())
+          ? "封面不能有页眉。请开启封面所在节的“首页不同”，删除封面首页的页眉，保留摘要及后续页面的学校页眉；如封面已单独分节，请先在后一节的页眉中取消“链接到前一节”，再删除封面页眉。"
+          : "封面不能有页眉。当前无法确定封面是否显示了页眉，请查看封面实际页面；如有页眉，请仅删除封面页眉，保留摘要及后续页面的学校页眉。";
+      case "HEADER-01-SCOPE" -> "封面禁止显示页眉；修复文档分节结构后重新检测，以确认摘要至附录各节的页眉设置。";
       case "HEADER-01-FONT" -> "将页眉字体统一改为黑体。";
       case "HEADER-01-SIZE" -> "将页眉字号统一改为五号。";
       case "HEADER-01-ALIGNMENT" -> "将页眉段落设为居中。";
@@ -738,7 +744,7 @@ public final class RuleDescriptions {
       case "TABLE_UNIT_DIMENSION_UNKNOWN" -> "将表头改为明确的量名称，并标注对应单位，例如“长度/mm”或“温度/℃”。";
       case "TABLE_CONTINUATION_PAGE_POSITION_UNKNOWN" -> "请在 Word 的页面视图中确认续表编号行是否位于该页正文第一行；只有确认不在首行时再调整。";
       case "TABLE_CONTINUATION_NOT_FIRST_BODY_LINE" -> "将“续表”及表号移到该页正文第一行，置于续表表头之前。";
-      case "FIRST_LEVEL_BLANK_LINE_FONT_UNKNOWN" -> "在 Word 中确认一级标题下空行的中文字体为黑体、字母数字为 Times New Roman。";
+      case "FIRST_LEVEL_BLANK_LINE_FONT_UNKNOWN" -> "在 Word 中确认一级标题下空行的中文字体为黑体。";
       case "FIRST_LEVEL_BLANK_LINE_SIZE_UNKNOWN" -> "在 Word 中确认一级标题下空行的字号为三号（16 磅）。";
       case "KEYWORD_ALIGNMENT_UNKNOWN" -> "将关键词段落显式设置为两端对齐。";
       case "ENGLISH_KEYWORD_WRAP_ALIGNMENT_UNKNOWN" -> "请在 Word 中确认英文关键词换行位置；将新行对齐到第一个关键词的首字母。";

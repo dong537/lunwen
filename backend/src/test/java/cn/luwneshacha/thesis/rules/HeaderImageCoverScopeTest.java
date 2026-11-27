@@ -143,7 +143,8 @@ class HeaderImageCoverScopeTest {
     SourceAddress source = new SourceAddress("word/header-" + name + ".xml", List.of(0), 0, text.length());
     return new HeaderModel(source, text, true,
         List.of(new HeaderModel.RunFormatting("黑体", "黑体", 21, source)),
-        Map.of(HeaderModel.Type.DEFAULT, sections));
+        Map.of(HeaderModel.Type.DEFAULT, sections),
+        text.isBlank() ? HeaderModel.DisplayContent.EMPTY : HeaderModel.DisplayContent.PRESENT);
   }
 
   private SectionModel section(int index, boolean terminal) {

@@ -109,7 +109,7 @@ class HeaderRuleModuleTest {
   }
 
   @Test
-  void ignoresHeaderUsedOnlyByRecognizedCoverSection() {
+  void rejectsVisibleHeaderUsedOnlyByRecognizedCoverSection() {
     SectionModel cover = section(1, false, false, false);
     SectionModel body = section(3, true, false, false);
     HeaderModel coverHeader = header("word/header-cover.xml", "学校名称错误", true,
@@ -121,7 +121,10 @@ class HeaderRuleModuleTest {
         List.of(cover, body), "本科生毕业设计（论文）", "2026年6月", "第一章 绪论", "正文"),
         RuleSet.schoolV1());
 
-    assertTrue(result.isEmpty(), result.toString());
+    assertEquals(1, result.size(), result.toString());
+    assertEquals("HEADER-01-COVER", result.getFirst().ruleId());
+    assertEquals("COVER_HEADER_FORBIDDEN", result.getFirst().reasonCode());
+    assertEquals(Judgement.FAIL, result.getFirst().judgement());
   }
 
   @Test
@@ -243,7 +246,9 @@ class HeaderRuleModuleTest {
         List.of(cover, body), "本科生毕业设计（论文）", "2026年6月", "第一章 绪论", "正文"),
         RuleSet.schoolV1());
 
-    assertTrue(result.isEmpty(), result.toString());
+    assertEquals(1, result.size(), result.toString());
+    assertEquals("COVER_HEADER_UNCONFIRMED", result.getFirst().reasonCode(),
+        "Legacy hand-built paragraphs carry no audited first-page evidence");
   }
 
   @Test
@@ -301,7 +306,8 @@ class HeaderRuleModuleTest {
         List.of(section(3, true, true, false)),
         "本科生毕业设计（论文）", "2026年6月", "ABSTRACT", "Abstract text"), RuleSet.schoolV1());
 
-    assertTrue(result.isEmpty(), result.toString());
+    assertEquals(1, result.size(), result.toString());
+    assertEquals("COVER_HEADER_UNCONFIRMED", result.getFirst().reasonCode());
   }
 
   @Test
@@ -312,8 +318,11 @@ class HeaderRuleModuleTest {
         List.of(section(3, true, true, true)),
         "本科生毕业设计（论文）", "2026年6月", "摘    要", "摘要正文"), RuleSet.schoolV1());
 
-    assertEquals(1, result.size());
-    assertTrue(result.get(0).actual().contains("even"), result.toString());
+    assertEquals(2, result.size(), result.toString());
+    assertTrue(result.stream().anyMatch(item -> item.reasonCode().equals("HEADER_MISSING")
+        && item.actual().contains("even")), result.toString());
+    assertTrue(result.stream().anyMatch(item -> item.reasonCode().equals("COVER_HEADER_UNCONFIRMED")),
+        result.toString());
   }
 
   @Test
@@ -324,9 +333,10 @@ class HeaderRuleModuleTest {
         List.of(section(1, false, false, false), section(3, true, false, false)),
         "本科生毕业设计（论文）", "2026年6月", "摘    要", "摘要正文"), RuleSet.schoolV1());
 
-    assertEquals(1, result.size());
-    assertEquals("HEADER_TEXT_MISMATCH", result.get(0).reasonCode());
-    assertEquals(inheritedHeader.source(), result.get(0).source());
+    assertEquals(2, result.size());
+    assertEquals("COVER_HEADER_FORBIDDEN", result.get(0).reasonCode());
+    assertEquals("HEADER_TEXT_MISMATCH", result.get(1).reasonCode());
+    assertEquals(inheritedHeader.source(), result.get(1).source());
   }
 
   @Test

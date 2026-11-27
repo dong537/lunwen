@@ -1,11 +1,15 @@
 package cn.luwneshacha.thesis.reporting;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import cn.luwneshacha.thesis.document.Docx4jDocumentParser;
 import cn.luwneshacha.thesis.document.DocxReader;
 import cn.luwneshacha.thesis.rules.CheckResult;
+import cn.luwneshacha.thesis.rules.Applicability;
+import cn.luwneshacha.thesis.rules.ExecutionStatus;
+import cn.luwneshacha.thesis.document.SourceAddress;
 import cn.luwneshacha.thesis.rules.Judgement;
 import cn.luwneshacha.thesis.rules.RuleEngine;
 import cn.luwneshacha.thesis.rules.RuleSet;
@@ -28,6 +32,48 @@ class HeadingBlankTypographyAnnotationTest {
   private static final String W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
   private static final Set<String> RULE_IDS = Set.of("HEAD-02-BLANK-FONT", "HEAD-02-BLANK-SIZE");
   @TempDir Path temp;
+
+  @ParameterizedTest
+  @ValueSource(strings = {"摘    要", "目    录", "参考文献", "致    谢", "附    录", "第二章  系统设计"})
+  void namesOriginalHeadingAndActualBlankFormatEvenWhenCommentMovesToPageStart(String title)
+      throws Exception {
+    Path source = fixture("paragraphMark", title);
+    var raw = new DocxReader().read(source);
+    var findings = blankTypographyFindings(source);
+    assertEquals(2, findings.size(), findings.toString());
+    Path output = temp.resolve("context-annotated.docx");
+    assertWritten(new CommentWriter().writeCopy(source, output, raw.sourceSha256(), findings));
+
+    String text = read(output, "word/comments.xml").getDocumentElement().getTextContent();
+    assertTrue(text.contains("“" + title + "”标题后的空行"), text);
+    assertTrue(text.contains("当前中文字体为宋体"), text);
+    assertTrue(text.contains("当前字号为12.0 磅"), text);
+    assertTrue(text.contains("黑体"), text);
+    assertTrue(text.contains("三号（16 磅）"), text);
+    assertTrue(text.contains("批注显示在本页页首"), text);
+    assertTrue(text.contains("不是该位置的标题或正文"), text);
+    assertFalse(text.contains("问题原位置没有可圈定的文字"), text);
+    assertTrue(bodyWithoutCommentAnchors(source).isEqualNode(bodyWithoutCommentAnchors(output)));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"FONT", "SIZE"})
+  void unknownBlankFormatDoesNotClaimAKnownMismatch(String property) throws Exception {
+    Path source = fixture("paragraphMark", "摘    要");
+    var result = new CheckResult("HEAD-02-BLANK-" + property, Applicability.APPLICABLE,
+        ExecutionStatus.EXECUTED, Judgement.REVIEW, property.equals("FONT") ? "黑体" : "三号（16 磅）",
+        property.equals("FONT") ? "中文=null" : "无法读取空行字号",
+        "FIRST_LEVEL_BLANK_LINE_" + property + "_UNKNOWN",
+        new SourceAddress("word/document.xml", List.of(0, 1), 0, 0),
+        new SourceAddress("word/document.xml", List.of(0, 0), 0, 4));
+    Path target = temp.resolve("unknown.docx");
+    assertTrue(new CommentWriter().writeCopy(source, target, List.of(result)).outputWritten());
+    String text = read(target, "word/comments.xml").getDocumentElement().getTextContent();
+    assertTrue(text.contains("未能读取"), text);
+    assertTrue(text.contains("请在 Word 中确认"), text);
+    assertFalse(text.contains("null"), text);
+    assertFalse(text.contains("当前中文字体为"), text);
+  }
 
   @ParameterizedTest
   @ValueSource(strings = {"paragraphMark", "emptyRun", "whitespaceRun"})
@@ -76,6 +122,10 @@ class HeadingBlankTypographyAnnotationTest {
   }
 
   private Path fixture(String formatSource) throws Exception {
+    return fixture(formatSource, "第一章  绪论");
+  }
+
+  private Path fixture(String formatSource, String title) throws Exception {
     String runProperties = "<w:rPr><w:rFonts w:ascii='Arial' w:eastAsia='宋体'/>"
         + "<w:sz w:val='24'/></w:rPr>";
     String blank = switch (formatSource) {
@@ -88,7 +138,7 @@ class HeadingBlankTypographyAnnotationTest {
     pkg.getMainDocumentPart().setContents((Document) XmlUtils.unmarshalString(
         "<w:document xmlns:w='" + W + "'><w:body>"
             + "<w:p><w:pPr><w:pageBreakBefore/><w:keepNext/></w:pPr>"
-            + "<w:r><w:t>第一章  绪论</w:t></w:r></w:p>" + blank
+            + "<w:r><w:t>" + title + "</w:t></w:r></w:p>" + blank
             + "<w:p><w:pPr><w:spacing w:line='360'/><w:ind w:firstLine='480'/></w:pPr>"
             + "<w:r><w:t>正文内容</w:t></w:r></w:p><w:sectPr>"
             + "<w:pgSz w:w='11906' w:h='16838'/><w:pgMar w:top='1440' w:bottom='1440'/>"

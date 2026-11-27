@@ -88,7 +88,7 @@ class HeaderMetadataCoverScopeTest {
   }
 
   @Test
-  void stillChecksAbstractWhenRecognizedCoverHasNoHeader() {
+  void stillChecksAbstractWhenRecognizedCoverHasAForbiddenHeader() {
     var document = document(List.of(section(7, false), section(9, true)), List.of(header(0)),
         "毕业生本科设计（论文）", "题    目：传统文化融入幼儿园区域活动现状与策略研究",
         "学生姓名：徐冰", "学    号：2105101126", "院    系：教育与现代媒体学院教育系",
@@ -96,9 +96,10 @@ class HeaderMetadataCoverScopeTest {
 
     var result = new HeaderRuleModule().check(document, RuleSet.schoolV1());
 
-    assertEquals(1, result.size());
-    assertEquals("HEADER_MISSING", result.getFirst().reasonCode());
-    assertEquals(source(9), result.getFirst().source());
+    assertEquals(2, result.size());
+    assertEquals("COVER_HEADER_FORBIDDEN", result.getFirst().reasonCode());
+    assertEquals("HEADER_MISSING", result.get(1).reasonCode());
+    assertEquals(source(9), result.get(1).source());
   }
 
   @Test

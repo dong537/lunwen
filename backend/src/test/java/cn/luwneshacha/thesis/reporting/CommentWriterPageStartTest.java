@@ -36,6 +36,7 @@ class CommentWriterPageStartTest {
     assertEquals(0, document.getElementsByTagNameNS(W, "highlight").getLength());
     assertEquals(0, read(output, "word/header1.xml").getElementsByTagNameNS(W, "commentRangeStart").getLength());
     assertTrue(read(output, "word/comments.xml").getDocumentElement().getTextContent().contains("页眉内容为空"));
+    assertTrue(read(output, "word/comments.xml").getDocumentElement().getTextContent().contains("页眉内第1段"));
     assertPreserved(input, output);
   }
 
@@ -49,6 +50,8 @@ class CommentWriterPageStartTest {
 
     assertWritten(result);
     assertEquals("摘    要", anchorParagraph(read(output, "word/document.xml")).getTextContent());
+    assertTrue(read(output, "word/comments.xml").getDocumentElement().getTextContent()
+        .contains("中文摘要标题与正文之间的空行"));
     assertPreserved(input, output);
   }
 
@@ -62,6 +65,57 @@ class CommentWriterPageStartTest {
     assertWritten(result);
     assertEquals("", anchorParagraph(read(output, "word/document.xml")).getTextContent());
     assertPreserved(input, output);
+  }
+
+  @Test
+  void sameValuedMarginsStillNameEveryAffectedSideOfTheEmptySection() throws Exception {
+    Path input = create("<w:p><w:pPr><w:sectPr/></w:pPr><w:r><w:t>前节</w:t></w:r></w:p>"
+        + "<w:p/><w:sectPr><w:pgMar w:top='1440' w:left='1440'/></w:sectPr>");
+    var source = new SourceAddress("word/document.xml", List.of(0, 2), 0, 0);
+    var results = List.of(
+        new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED, Judgement.FAIL,
+            "上边 1474 twips", "1440", "MARGIN_MISMATCH", source),
+        new CheckResult("PAGE-01", Applicability.APPLICABLE, ExecutionStatus.EXECUTED, Judgement.FAIL,
+            "左边 1474 twips", "1440", "MARGIN_MISMATCH", source));
+    Path output = directory.resolve("margins.docx");
+    var report = new CommentWriter().writeCopy(input, output, results);
+    assertEquals(2, report.items().stream().filter(item -> item.status() == AnnotationStatus.WRITTEN).count());
+    String text = read(output, "word/comments.xml").getDocumentElement().getTextContent();
+    assertTrue(text.contains("文档第2节"), text);
+    assertTrue(text.contains("上边距"), text);
+    assertTrue(text.contains("左边距"), text);
+    assertFalse(text.contains("twips"), text);
+    assertFalse(text.contains("XML"), text);
+    assertPreserved(input, output);
+  }
+
+  @Test
+  void parsedTerminalEmptySectionKeepsItsMarginCommentAndEffectiveSectionNumber() throws Exception {
+    var pkg = org.docx4j.openpackaging.packages.WordprocessingMLPackage.createPackage();
+    pkg.getMainDocumentPart().setContents((org.docx4j.wml.Document) org.docx4j.XmlUtils.unmarshalString(
+        "<w:document xmlns:w='" + W + "'><w:body>"
+            + "<w:p><w:pPr><w:sectPr><w:pgMar w:top='1474' w:bottom='1474' w:left='1474' w:right='1474'/>"
+            + "<w:sectPrChange w:id='1'><w:sectPr/></w:sectPrChange></w:sectPr></w:pPr>"
+            + "<w:r><w:t>第一章  绪论</w:t></w:r></w:p><w:p/>"
+            + "<w:sectPr><w:pgMar w:top='1440' w:bottom='1440' w:left='1440' w:right='1440'/>"
+            + "</w:sectPr></w:body></w:document>"));
+    Path input = directory.resolve("real-terminal.docx");
+    pkg.save(input.toFile());
+    var raw = new cn.luwneshacha.thesis.document.DocxReader().read(input);
+    var parsed = new cn.luwneshacha.thesis.document.Docx4jDocumentParser().parse(raw);
+    var findings = new RuleEngine().check(parsed, RuleSet.schoolV1()).stream()
+        .filter(result -> result.ruleId().equals("PAGE-01") && result.judgement() == Judgement.FAIL).toList();
+    assertEquals(4, findings.size(), findings.toString());
+    Path output = directory.resolve("real-terminal-marked.docx");
+    var report = new CommentWriter().writeCopy(input, output, raw.sourceSha256(), findings);
+    assertTrue(report.outputWritten(), report.toString());
+    assertTrue(report.items().stream().allMatch(item -> item.status() == AnnotationStatus.WRITTEN), report.toString());
+    String text = read(output, "word/comments.xml").getDocumentElement().getTextContent();
+    assertTrue(text.contains("文档第2节的页边距"), text);
+    assertFalse(text.contains("页码设置"), text);
+    assertFalse(text.contains("文档第3节"), text);
+    assertEquals("", anchorParagraph(read(output, "word/document.xml")).getTextContent());
+    assertEquals(raw.sourceSha256(), new cn.luwneshacha.thesis.document.DocxReader().read(input).sourceSha256());
   }
 
   @Test

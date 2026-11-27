@@ -71,7 +71,7 @@ public final class RuleSummaryDescriptions {
       case "HEAD-02-SPACING" -> "二级标题序号后空 1 个普通半角空格";
       case "HEAD-03-SPACING" -> "三级标题序号后空 1 个普通半角空格";
       case "HEAD-02-BLANK" -> "章标题与本章内容之间空一行";
-      case "HEAD-02-BLANK-FONT" -> "一级标题下的空行中文采用黑体，字母数字采用 Times New Roman";
+      case "HEAD-02-BLANK-FONT" -> "一级标题下的空行中文采用黑体";
       case "HEAD-02-BLANK-SIZE" -> "一级标题下的空行采用三号字";
       case "HEAD-03-INDENT" -> "三级标题首行缩进 2 字符";
       case "HEAD-05-MARKER" -> "三级以下标题采用（1）、（2）等编号形式";
@@ -93,6 +93,7 @@ public final class RuleSummaryDescriptions {
       case "PAGE-04" -> "正文至附录使用连续阿拉伯数字页码，封面、摘要和目录不编页码";
       case "PAGE-05" -> "页码在页脚居中，采用五号 Times New Roman";
       case "HEADER-01-SCOPE" -> "摘要至附录各页检查页眉，封面不设页眉";
+      case "HEADER-01-COVER" -> "封面不显示页眉";
       case "HEADER-01-MISSING" -> "摘要至附录各页设置学校规定页眉";
       case "HEADER-01-TEXT" -> "页眉内容为“山东石油化工学院本科毕业设计（论文）”";
       case "HEADER-01-FONT" -> "页眉采用黑体";
