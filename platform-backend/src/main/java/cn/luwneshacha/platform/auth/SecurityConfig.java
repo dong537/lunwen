@@ -34,7 +34,7 @@ public class SecurityConfig {
             .accessDeniedHandler((request, response, error) -> responses.write(response, 403, "FORBIDDEN", "没有权限执行此操作，或操作凭证已过期")))
         .authorizeHttpRequests(auth -> auth
             .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-            .requestMatchers(HttpMethod.GET, "/api/auth/csrf", "/api/health").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/auth/csrf", "/api/auth/colleges", "/api/health").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
             .requestMatchers("/api/auth/**").authenticated()
             .requestMatchers("/api/admin/**").hasRole("ADMIN")

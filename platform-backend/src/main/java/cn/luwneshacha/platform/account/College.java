@@ -6,9 +6,16 @@ import org.springframework.http.HttpStatus;
 import cn.luwneshacha.platform.common.ApiException;
 
 public enum College {
+  PETROLEUM_ENGINEERING("石油工程学院"),
+  EARTH_SCIENCES_ENGINEERING("地球科学与工程学院"),
+  CHEMICAL_ENGINEERING("化学工程学院"),
+  SMART_MANUFACTURING_CONTROL("智能制造与控制工程学院"),
+  ENERGY_ELECTRICAL_ENGINEERING("能源与电气工程学院"),
   INFORMATION_ENGINEERING("信息科学与工程学院"),
-  EDUCATION_ARTS("教育与艺术学院"),
-  ECONOMICS_MANAGEMENT("经济管理学院");
+  ECONOMICS_MANAGEMENT("经济管理学院"),
+  LITERATURE("文学院"),
+  BIOMEDICINE_NURSING("生物医药与护理学院"),
+  EDUCATION_ARTS("教育与艺术学院");
 
   public static final String SCHOOL_NAME = "山东石油化工学院";
   private final String displayName;

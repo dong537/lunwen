@@ -89,6 +89,48 @@ class AccountSecurityIntegrationTest {
         College.INFORMATION_ENGINEERING.name(), true));
   }
 
+  @Test void loginRequiresMatchingPersistedCollegeWithoutCreatingRejectedSession() throws Exception {
+    var token = csrf(null);
+    for (var selection : new String[]{"", College.EDUCATION_ARTS.name()}) {
+      mvc.perform(post("/api/auth/login").session(token.session()).header(token.header(), token.token())
+          .contentType("application/json").content(json.writeValueAsBytes(Map.of(
+              "username", student.getUsername(), "password", "123456", "collegeCode", selection))))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code")
+              .value(selection.isEmpty() ? "COLLEGE_REQUIRED" : "LOGIN_COLLEGE_MISMATCH"));
+      mvc.perform(get("/api/auth/me").session(token.session())).andExpect(status().isUnauthorized());
+    }
+    mvc.perform(post("/api/auth/login").session(token.session()).header(token.header(), token.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of(
+            "username", student.getUsername(), "password", "123456", "collegeCode", College.INFORMATION_ENGINEERING.name()))))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.data.role").value("STUDENT"))
+        .andExpect(jsonPath("$.data.collegeCode").value(College.INFORMATION_ENGINEERING.name()));
+    assertEquals(College.INFORMATION_ENGINEERING.name(), users.findById(student.getId()).orElseThrow().getCollegeCode());
+  }
+
+  @Test void rejectedCollegeSelectionCannotReplaceAnExistingSchoolAdminSession() throws Exception {
+    var admin = login("admin", "AdminPassword1");
+    var token = csrf(admin);
+    mvc.perform(post("/api/auth/login").session(admin).header(token.header(), token.token())
+        .contentType("application/json").content(json.writeValueAsBytes(Map.of(
+            "username", student.getUsername(), "password", "123456", "collegeCode", College.EDUCATION_ARTS.name()))))
+        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("LOGIN_COLLEGE_MISMATCH"));
+    mvc.perform(get("/api/auth/me").session(admin)).andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.username").value("admin"))
+        .andExpect(jsonPath("$.data.role").value("ADMIN")).andExpect(jsonPath("$.data.collegeCode").isEmpty());
+  }
+
+  @Test void databaseAcceptsEveryPublishedCollegeForAccountsAndMajorCatalog() {
+    String hash = passwords.encode("CatalogPassword42");
+    int sequence = 0;
+    for (var college : College.values()) {
+      var account = users.saveAndFlush(new User("catalog_" + sequence++, hash, Role.TEACHER, "目录验收教师",
+          null, null, college.name(), false));
+      var major = majors.saveAndFlush(new MajorCatalog(college.name(), "目录验收专业"));
+      assertEquals(college.name(), users.findById(account.getId()).orElseThrow().getCollegeCode());
+      assertEquals(college.name(), majors.findById(major.getId()).orElseThrow().getCollegeCode());
+    }
+  }
+
   @Test void importPreviewDoesNotWriteAndExecutionImportsOnlyValidNewAccounts() throws Exception {
     var teacher = users.save(new User("teacher01", passwords.encode("123456"), Role.TEACHER, "指导老师", null, null, College.INFORMATION_ENGINEERING.name(), true));
     var file = workbook(Role.STUDENT, new String[][] {{"new001", "新学生", "计算机", "teacher01"},
@@ -336,7 +378,7 @@ class AccountSecurityIntegrationTest {
   @Test void schoolAdminMaintainsCollegeAdministratorsAndMajorsWithoutErasingLegacyMajor() throws Exception {
     var session = login("admin", "AdminPassword1"); var csrf = csrf(session);
     mvc.perform(get("/api/admin/catalog").session(session)).andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.colleges.length()").value(3));
+        .andExpect(jsonPath("$.data.colleges.length()").value(College.values().length));
     mvc.perform(post("/api/admin/users").session(session).header(csrf.header(), csrf.token())
         .contentType("application/json").content(json.writeValueAsBytes(Map.of("username", "arts_admin",
             "name", "艺术学院管理员", "role", "ADMIN", "collegeCode", College.EDUCATION_ARTS.name()))))
@@ -662,9 +704,13 @@ class AccountSecurityIntegrationTest {
 
   private MockHttpSession login(String username, String password) throws Exception {
     var csrf = csrf(null);
+    var credentials = new java.util.LinkedHashMap<String, Object>();
+    credentials.put("username", username);
+    credentials.put("password", password);
+    users.findByUsername(username).map(User::getCollegeCode).ifPresent(code -> credentials.put("collegeCode", code));
     return (MockHttpSession) mvc.perform(post("/api/auth/login").session(csrf.session())
         .header(csrf.header(), csrf.token()).contentType("application/json")
-        .content(json.writeValueAsBytes(Map.of("username", username, "password", password))))
+        .content(json.writeValueAsBytes(credentials)))
         .andExpect(status().isOk()).andReturn().getRequest().getSession(false);
   }
   private Csrf csrf(MockHttpSession session) throws Exception {

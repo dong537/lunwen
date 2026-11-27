@@ -24,7 +24,7 @@ class PasswordHasherTest {
   }
 
   @Test void credentialDtosDoNotExposeSecretsToDiagnosticLogging() {
-    assertFalse(new AuthController.Login("private-user", "private-password").toString().contains("private"));
+    assertFalse(new AuthController.Login("private-user", "private-password", null).toString().contains("private"));
     assertFalse(new AuthController.ChangePassword("old-secret", "new-secret", "new-secret").toString().contains("secret"));
     assertFalse(new AuthController.CsrfView("private-token", "X-CSRF-TOKEN").toString().contains("private-token"));
   }

@@ -3,7 +3,7 @@
 ## 1. Scope / Trigger
 
 - 修改账号列表、创建、编辑、启停、删除、Excel 导入、导师候选或专业目录时适用。毕业生按导师名单管理，不引入班级；学生年级为可筛选的显式四位年份，不从学号推断。
-- 学校固定“山东石油化工学院”；三个学院由后端 College 枚举与 Flyway 检查约束限定：INFORMATION_ENGINEERING、EDUCATION_ARTS、ECONOMICS_MANAGEMENT。
+- 学校固定“山东石油化工学院”；学院由后端College枚举和用户/专业目录两处Flyway检查约束共同限定，V7在原有三院基础上扩展到10个学院。公开登录目录和校管目录复用同一来源，院管目录仍仅本院。已有EDUCATION_ARTS归属按用户确认保留，不因新增文学院改名或迁移。
 - sys_user.college_code 是归属权威字段。旧值 null 表示待归属，不根据专业、导师或前端选项推断；ADMIN 且学院为空是校级管理员，非空是学院管理员。
 
 ## 2. Signatures

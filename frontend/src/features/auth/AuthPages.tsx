@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
 import {
   Alert,
+  App as AntdApp,
   Avatar,
   Button,
   Card,
@@ -11,6 +12,7 @@ import {
   Input,
   message,
   Modal,
+  Select,
   Space,
   Tag,
   Typography,
@@ -20,21 +22,28 @@ import { api } from '../../shared/api/http'
 import type { User } from '../../shared/api/contracts'
 import { ApiAlert, CenterSpin, PageHeader, useDocumentTitle } from '../../shared/ui'
 import { homeFor, roleNames, useSession } from './session'
+import { authApi } from './api'
 
 export function LoginPage() {
   const { user, loading, error, refresh, setUser } = useSession()
+  const { message } = AntdApp.useApp()
   useDocumentTitle('登录')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [collegeCode, setCollegeCode] = useState<string>()
+  const colleges = useQuery({
+    queryKey: ['login-colleges'],
+    queryFn: ({ signal }) => authApi.colleges(signal),
+    enabled: !loading && !user,
+    retry: false,
+  })
+  const collegesAvailable = !colleges.isPending && !colleges.isError && !!colleges.data?.length
   const login = useMutation({
     mutationFn: () =>
-      api<User>('/auth/login', { method: 'POST', json: { username: username.trim(), password } }),
-    onSuccess: (next) => {
-      void setUser(next)
+      authApi.login({ username: username.trim(), password, collegeCode: collegeCode ?? null }),
+    onSuccess: async (next) => {
+      await setUser(next)
       void message.success(`登录成功，欢迎回来，${next.name}`)
-    },
-    onError: (error) => {
-      void message.error(error instanceof Error ? error.message : '登录失败，请重试')
     },
   })
   if (loading) return <CenterSpin />
@@ -68,33 +77,89 @@ export function LoginPage() {
         <div className="login-form">
           <Typography.Title level={5}>登录账号</Typography.Title>
           <ApiAlert error={error} retry={refresh} />
-          <Form layout="vertical" onFinish={() => login.mutate()}>
+          <Form
+            layout="vertical"
+            onFinish={() => {
+              if (collegesAvailable && !login.isPending && username.trim() && password)
+                login.mutate()
+            }}
+          >
+            <Form.Item
+              label="学院"
+              htmlFor="login-college"
+              extra={<span id="login-college-help">校级管理员及未分配学院的账号可不选。</span>}
+            >
+              <Select
+                id="login-college"
+                aria-describedby="login-college-help"
+                allowClear={{ label: '清空学院' }}
+                virtual={false}
+                value={collegeCode}
+                onChange={(value) => {
+                  setCollegeCode(value)
+                  login.reset()
+                }}
+                options={colleges.data?.map((college) => ({
+                  value: college.code,
+                  label: college.name,
+                }))}
+                placeholder="请选择学院"
+                loading={colleges.isFetching}
+                disabled={!collegesAvailable || login.isPending}
+                style={{ width: '100%' }}
+              />
+              {colleges.isPending && <span role="status">正在加载学院…</span>}
+              <ApiAlert error={colleges.error} retry={() => void colleges.refetch()} />
+              {colleges.isSuccess && !colleges.data.length && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  title="暂无可用学院，请重试或联系管理员。"
+                  action={
+                    <Button size="small" onClick={() => void colleges.refetch()}>
+                      重试
+                    </Button>
+                  }
+                />
+              )}
+            </Form.Item>
             <Form.Item label="账号" htmlFor="login-username">
               <Input
                 id="login-username"
                 value={username}
-                onChange={(event) => setUsername(event.target.value)}
+                onChange={(event) => {
+                  setUsername(event.target.value)
+                  login.reset()
+                }}
                 autoComplete="username"
                 maxLength={32}
                 autoFocus
+                disabled={login.isPending}
               />
             </Form.Item>
             <Form.Item label="密码" htmlFor="login-password">
               <Input.Password
                 id="login-password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value)
+                  login.reset()
+                }}
                 autoComplete="current-password"
                 maxLength={256}
+                disabled={login.isPending}
               />
             </Form.Item>
+            <ApiAlert error={login.error} />
             <Form.Item>
               <Button
                 type="primary"
                 htmlType="submit"
+                aria-label="登录"
+                aria-busy={login.isPending}
                 block
                 loading={login.isPending}
-                disabled={!username.trim() || !password}
+                disabled={!username.trim() || !password || !collegesAvailable}
               >
                 登录
               </Button>

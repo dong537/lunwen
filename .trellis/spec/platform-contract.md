@@ -17,7 +17,8 @@
 所有JSON请求响应camelCase，POST/PATCH携带GET /api/auth/csrf返回的headerName与token，credentials include。
 
 - GET /api/auth/csrf → {token,headerName}
-- POST /api/auth/login {username,password} → UserView
+- GET /api/auth/colleges → [{code,name}]，匿名只读，来自College枚举
+- POST /api/auth/login {username,password,collegeCode:string|null} → UserView；凭据通过后、建立会话前核对当前账号学院。有学院必须匹配，校级或历史未分配学院账号留空；详见[登录学院选择契约](backend/login-college-contract.md)
 - POST /api/auth/logout → null
 - GET /api/auth/me → UserView
 - POST /api/auth/password {oldPassword,newPassword,confirmPassword} → UserView

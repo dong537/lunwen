@@ -1,5 +1,6 @@
 package cn.luwneshacha.platform.auth;
 
+import cn.luwneshacha.platform.account.College;
 import cn.luwneshacha.platform.account.UserService;
 import cn.luwneshacha.platform.account.UserView;
 import cn.luwneshacha.platform.common.ApiResponse;
@@ -8,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -32,11 +34,16 @@ public class AuthController {
   @GetMapping("/csrf") public ApiResponse<CsrfView> csrf(CsrfToken token) {
     return ApiResponse.ok(new CsrfView(token.getToken(), token.getHeaderName()));
   }
+  @GetMapping("/colleges") public ApiResponse<List<College.CollegeOption>> colleges() {
+    return ApiResponse.ok(College.options());
+  }
   @PostMapping("/login") public ApiResponse<UserView> login(@Valid @RequestBody Login input,
       HttpServletRequest request, HttpServletResponse response) {
     var authentication = manager.authenticate(UsernamePasswordAuthenticationToken.unauthenticated(input.username(), input.password()));
+    var user = users.current(((CurrentUser) authentication.getPrincipal()).id());
+    auth.validateCollegeSelection(user.collegeCode(), input.collegeCode());
     establish(authentication, request, response);
-    return ApiResponse.ok(users.current(((CurrentUser) authentication.getPrincipal()).id()));
+    return ApiResponse.ok(user);
   }
   @GetMapping("/me") public ApiResponse<UserView> me(@AuthenticationPrincipal CurrentUser user) {
     return ApiResponse.ok(users.current(user.id()));
@@ -66,7 +73,8 @@ public class AuthController {
     @Override public String toString() { return "CsrfView[token=[REDACTED], headerName=" + headerName + "]"; }
   }
   public record Login(@NotNull(message = "请填写账号") @Size(max = 32, message = "账号或密码错误") String username,
-      @NotNull(message = "请填写密码") @Size(max = 256, message = "账号或密码错误") String password) {
+      @NotNull(message = "请填写密码") @Size(max = 256, message = "账号或密码错误") String password,
+      @Size(max = 32, message = "学院选项无效") String collegeCode) {
     @Override public String toString() { return "Login[credentials=[REDACTED]]"; }
   }
   public record ChangePassword(@NotNull(message = "请填写旧密码") @Size(max = 256, message = "旧密码不正确") String oldPassword,

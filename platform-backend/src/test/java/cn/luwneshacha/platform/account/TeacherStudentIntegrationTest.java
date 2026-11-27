@@ -302,8 +302,12 @@ class TeacherStudentIntegrationTest {
     var session = (MockHttpSession) csrfResult.getRequest().getSession();
     var data = json.readTree(csrfResult.getResponse().getContentAsByteArray()).path("data");
     String header = data.path("headerName").asText(), token = data.path("token").asText();
+    var credentials = new java.util.LinkedHashMap<String, Object>();
+    credentials.put("username", username);
+    credentials.put("password", "Password1");
+    users.findByUsername(username).map(User::getCollegeCode).ifPresent(code -> credentials.put("collegeCode", code));
     var result = mvc.perform(post("/api/auth/login").session(session).header(header, token).contentType("application/json")
-        .content(json.writeValueAsBytes(Map.of("username", username, "password", "Password1"))))
+        .content(json.writeValueAsBytes(credentials)))
         .andExpect(status().isOk()).andReturn();
     session = (MockHttpSession) result.getRequest().getSession();
     data = json.readTree(mvc.perform(get("/api/auth/csrf").session(session)).andReturn().getResponse().getContentAsByteArray()).path("data");

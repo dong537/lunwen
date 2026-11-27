@@ -1,6 +1,7 @@
 package cn.luwneshacha.platform.auth;
 
 import cn.luwneshacha.platform.account.User;
+import cn.luwneshacha.platform.account.College;
 import cn.luwneshacha.platform.account.UserRepository;
 import cn.luwneshacha.platform.common.ApiException;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,15 @@ public class AuthService {
     if (user == null || !matches) throw credentialsError();
     if (!user.isActive()) throw new ApiException(HttpStatus.UNAUTHORIZED, "ACCOUNT_DISABLED", "账号已被禁用，请联系管理员");
     return user;
+  }
+  public void validateCollegeSelection(String accountCollegeCode, String selectedCollegeCode) {
+    String selected = selectedCollegeCode == null || selectedCollegeCode.isBlank()
+        ? null : College.fromCode(selectedCollegeCode).name();
+    if (accountCollegeCode != null && selected == null)
+      throw new ApiException(HttpStatus.BAD_REQUEST, "COLLEGE_REQUIRED", "请选择账号所属学院");
+    if (!java.util.Objects.equals(accountCollegeCode, selected))
+      throw new ApiException(HttpStatus.BAD_REQUEST, "LOGIN_COLLEGE_MISMATCH",
+          "学院选择与账号不匹配，请核对；校级或未分配学院账号请留空。");
   }
   @Transactional
   public User changePassword(long id, String oldPassword, String newPassword, String confirmPassword) {

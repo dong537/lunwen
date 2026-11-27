@@ -408,10 +408,14 @@ class TeacherStatisticsIntegrationTest {
     var csrf = mvc.perform(get("/api/auth/csrf")).andExpect(status().isOk()).andReturn();
     var data = json.readTree(csrf.getResponse().getContentAsByteArray()).path("data");
     var session = (MockHttpSession) csrf.getRequest().getSession(false);
+    var credentials = new java.util.LinkedHashMap<String, Object>();
+    credentials.put("username", username);
+    credentials.put("password", "TestPassword1");
+    users.findByUsername(username).map(User::getCollegeCode).ifPresent(code -> credentials.put("collegeCode", code));
     var result = mvc.perform(post("/api/auth/login").session(session)
         .header(data.path("headerName").asText(), data.path("token").asText())
-        .contentType("application/json").content(json.writeValueAsBytes(Map.of("username", username,
-            "password", "TestPassword1")))).andExpect(status().isOk()).andReturn();
+        .contentType("application/json").content(json.writeValueAsBytes(credentials)))
+        .andExpect(status().isOk()).andReturn();
     return (MockHttpSession) result.getRequest().getSession(false);
   }
 }

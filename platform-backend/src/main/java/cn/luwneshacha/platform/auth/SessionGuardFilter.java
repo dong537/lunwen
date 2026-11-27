@@ -21,6 +21,7 @@ final class SessionGuardFilter extends OncePerRequestFilter {
       FilterChain chain) throws ServletException, IOException {
     var authentication = SecurityContextHolder.getContext().getAuthentication();
     String path = request.getServletPath().isEmpty() ? request.getRequestURI() : request.getServletPath();
+    boolean publicCollegeDirectory = request.getMethod().equals("GET") && path.equals("/api/auth/colleges");
     if (authentication != null && authentication.getPrincipal() instanceof CurrentUser principal) {
       User user = users.findById(principal.id()).orElse(null);
       boolean disabled = user != null && !user.isActive();
@@ -30,14 +31,15 @@ final class SessionGuardFilter extends OncePerRequestFilter {
         SecurityContextHolder.clearContext();
         var session = request.getSession(false);
         if (session != null) session.invalidate();
-        if (!path.equals("/api/auth/login") && !path.equals("/api/auth/csrf")) {
+        if (!path.equals("/api/auth/login") && !path.equals("/api/auth/csrf") && !publicCollegeDirectory) {
           responses.write(response, 401, disabled ? "ACCOUNT_DISABLED" : "SESSION_EXPIRED",
               disabled ? "账号已被禁用，请联系管理员" : "登录已失效，请重新登录");
           return;
         }
       } else {
         SecurityContextHolder.getContext().setAuthentication(SessionAuthentication.forUser(user));
-        if (user.isMustChangePassword() && !PASSWORD_ROUTES.contains(path) && !path.equals("/api/auth/login")) {
+        if (user.isMustChangePassword() && !PASSWORD_ROUTES.contains(path) && !path.equals("/api/auth/login")
+            && !publicCollegeDirectory) {
           responses.write(response, 403, "PASSWORD_CHANGE_REQUIRED", "请先修改初始密码");
           return;
         }
