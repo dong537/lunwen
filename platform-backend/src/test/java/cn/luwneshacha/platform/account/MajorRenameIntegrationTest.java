@@ -93,9 +93,10 @@ class MajorRenameIntegrationTest {
     User otherMajor = profile("othermajor", Role.TEACHER, COLLEGE, "原专业扩展", true);
     User otherTeacher = profile("otherteacher", Role.TEACHER, College.EDUCATION_ARTS.name(), "原专业", true);
     User unassigned = profile("unassigned", Role.STUDENT, null, "原专业", true);
-    User administratorWithHistoricalMajor = profile("historicaladmin", Role.ADMIN, COLLEGE, "原专业", true);
+    // Administrators cannot have a major and must remain untouched by directory renames.
+    User otherAdministrator = profile("otheradmin", Role.ADMIN, COLLEGE, null, true);
     List<User> included = List.of(student, teacher, inactiveStudent, inactiveTeacher);
-    List<User> excluded = List.of(other, historical, otherMajor, otherTeacher, unassigned, administratorWithHistoricalMajor);
+    List<User> excluded = List.of(other, historical, otherMajor, otherTeacher, unassigned, otherAdministrator);
     database.update("update sys_user set updated_at='2020-01-01T00:00:00Z'");
     var snapshots = users.findAll().stream().collect(java.util.stream.Collectors.toMap(User::getId, user -> user));
     service.setActive(CurrentUser.from(school), original.getId(), false);

@@ -193,7 +193,7 @@ class AccountSecurityIntegrationTest {
   @Test void importRejectsAllDuplicateRowsAndRechecksTeacherOnExecution() throws Exception {
     var teacher = users.save(new User("teacher01", passwords.encode("123456"), Role.TEACHER, "教师", null, null, College.INFORMATION_ENGINEERING.name(), false));
     var file = workbook(Role.STUDENT, new String[][] {{"dup001", "甲", "", ""}, {"dup001", "乙", "", ""},
-        {"new002", "丙", "", "teacher01"}});
+        {"new002", "丙", "计算机", "teacher01"}});
     var admin = login("admin", "AdminPassword1");
     var csrf = csrf(admin);
     mvc.perform(multipart("/api/admin/imports/preview").file(file).param("role", "STUDENT")
