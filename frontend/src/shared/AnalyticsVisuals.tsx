@@ -1,3 +1,4 @@
+import { Fragment, type ReactNode } from 'react'
 import { Empty, Typography, theme } from 'antd'
 
 export interface DailyPoint {
@@ -107,16 +108,121 @@ export function DailyTrend({ points, label }: { points: DailyPoint[]; label: str
   )
 }
 
-export function RankedBars({
+export function RankedBars<T extends { key: string; label: string; value: number }>({
   items,
   emptyText,
+  valueTitle = '数量',
+  extraColumn,
 }: {
-  items: { key: string; label: string; value: number }[]
+  items: T[]
   emptyText: string
+  valueTitle?: string
+  extraColumn?: { title: string; render: (item: T) => ReactNode }
 }) {
   const { token } = theme.useToken()
   if (items.length === 0) return <Empty description={emptyText} />
   const maximum = Math.max(1, ...items.map((item) => item.value))
+  const bar = (value: number) => (
+    <div
+      aria-hidden="true"
+      style={{
+        height: 9,
+        marginTop: 4,
+        borderRadius: 5,
+        background: token.colorFillQuaternary,
+      }}
+    >
+      <div
+        style={{
+          height: '100%',
+          width: (value / maximum) * 100 + '%',
+          borderRadius: 5,
+          background: token.colorPrimary,
+        }}
+      />
+    </div>
+  )
+  if (extraColumn) {
+    return (
+      <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+        <table
+          aria-label={valueTitle + '与' + extraColumn.title}
+          style={{ width: '100%', borderCollapse: 'collapse' }}
+        >
+          <thead>
+            <tr style={{ color: token.colorTextSecondary }}>
+              <th scope="col" style={{ textAlign: 'left', paddingBottom: 8, fontWeight: 500 }}>
+                项目
+              </th>
+              <th
+                scope="col"
+                style={{
+                  textAlign: 'right',
+                  whiteSpace: 'nowrap',
+                  paddingLeft: 16,
+                  paddingBottom: 8,
+                  fontWeight: 500,
+                }}
+              >
+                {valueTitle}
+              </th>
+              <th
+                scope="col"
+                style={{
+                  textAlign: 'right',
+                  whiteSpace: 'nowrap',
+                  paddingLeft: 16,
+                  paddingBottom: 8,
+                  fontWeight: 500,
+                }}
+              >
+                {extraColumn.title}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <Fragment key={item.key}>
+                <tr>
+                  <th
+                    scope="row"
+                    style={{ textAlign: 'left', overflowWrap: 'anywhere', fontWeight: 400 }}
+                  >
+                    {item.label}
+                  </th>
+                  <td
+                    style={{
+                      textAlign: 'right',
+                      paddingLeft: 16,
+                      whiteSpace: 'nowrap',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {item.value}
+                  </td>
+                  <td
+                    style={{
+                      textAlign: 'right',
+                      paddingLeft: 16,
+                      whiteSpace: 'nowrap',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {extraColumn.render(item)}
+                  </td>
+                </tr>
+                <tr aria-hidden="true">
+                  <td colSpan={3} style={{ paddingBottom: 12 }}>
+                    {bar(item.value)}
+                  </td>
+                </tr>
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       {items.map((item) => (
@@ -134,23 +240,7 @@ export function RankedBars({
               {item.value}
             </Typography.Text>
           </div>
-          <div
-            style={{
-              height: 9,
-              marginTop: 4,
-              borderRadius: 5,
-              background: token.colorFillQuaternary,
-            }}
-          >
-            <div
-              style={{
-                height: '100%',
-                width: (item.value / maximum) * 100 + '%',
-                borderRadius: 5,
-                background: token.colorPrimary,
-              }}
-            />
-          </div>
+          {bar(item.value)}
         </div>
       ))}
     </div>

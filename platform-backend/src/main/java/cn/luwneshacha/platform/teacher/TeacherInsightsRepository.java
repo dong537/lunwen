@@ -34,7 +34,8 @@ public interface TeacherInsightsRepository extends Repository<Submission, Long> 
       @Param("year") Integer year, @Param("unset") boolean unset, @Param("since") Instant since);
 
   @Query("""
-      select issue.ruleId, min(issue.description), sum(issue.issueCount)
+      select issue.ruleId, min(issue.description), sum(issue.issueCount),
+          count(distinct s.studentId)
       from SubmissionRuleIssue issue, Submission s, User u
       where issue.submissionId=s.id
           and s.ruleIndexStatus=cn.luwneshacha.platform.submission.RuleIndexStatus.READY

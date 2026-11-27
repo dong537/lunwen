@@ -13,7 +13,7 @@
 | GET /api/admin/catalog | {schoolName,colleges:[{code,name}]}；校管返回三院，院管仅本院 |
 | GET /api/admin/majors?collegeCode= | [{id:string,collegeCode,name,active}]，包含停用项 |
 | POST /api/admin/majors | {collegeCode,name} → 201 MajorView |
-| PATCH /api/admin/majors/{id} | {name} → MajorView；仅修改专业目录名称，不改既有账号资料 |
+| PATCH /api/admin/majors/{id} | {name} → MajorView；同步更新本院使用旧名称的师生账号专业 |
 | PATCH /api/admin/majors/{id}/active | {active:boolean} → MajorView |
 | GET /api/admin/users | role 必传；q="",active?,collegeCode?,grade?,page=1,size=20 → PageResponse<UserView>；学生 grade=UNSET 可筛旧空值 |
 | GET /api/admin/teachers | collegeCode 必传，q="",page=1,size=20 → PageResponse<UserView>，不截断第101名之后的候选 |
@@ -36,7 +36,9 @@
 - 新账号必须有合法学院；校管创建的ADMIN只能是学院管理员。院管创建师生可继承自身学院，不能指定其他学院。
 - username为3–32位字母、数字、下划线；姓名非空且最多64字符；专业可空且最多64字符；teacherId可空，提供时为正整数字符串。学生须填写 2000–2100 的年级（旧账号可为 null）且可有导师；教师可有专业但无导师/年级；管理员无专业/导师/年级。
 - 专业名trim、非空、最多64字符；同院同名包含停用项，不因停用释放名称。新建或更改师生专业须在本院启用目录中。未改动的历史专业可保留；从已有非空学院转院必须重新校验。旧账号从未知学院补录时不猜测或抹去历史专业。
-- 专业改名只接受name，保留id、学院、启停状态；与启停共用专业行悲观锁，防止并发整行更新相互覆盖。账号专业当前为文本字段，目录改名不更新已有师生的major及updatedAt；前端编辑弹窗必须说明这项影响。成功后刷新majors和teacher-majors查询。
+- 专业改名只接受name，保留id、学院、启停状态；与启停共用专业行悲观锁，防止并发整行更新相互覆盖。账号专业为文本字段，改名同事务内以单条JPQL同步本院、旧名称精确匹配、STUDENT/TEACHER账号的major及updatedAt（含停用账号），其他字段/学院/专业/管理员不变；同名无操作，失败全部回滚。批量更新后清理持久化上下文，不能逐账号载入保存而覆盖并发资料。
+- 专业赋值与改名协调由MajorAssignmentLock负责：PostgreSQL事务级固定advisory键MAJORSNC；create/createStudent/update在任何用户行锁前获取共享模式，rename在操作者行锁前获取独占模式。仅该适配器用固定参数原生SQL，业务数据仍JPA；事务结束释放，无session锁或REQUIRES_NEW。不得将协调锁放在validateActive中形成反向等待，或仅依赖bulk update而放任并发写入旧名。数据库锁等待/故障沿用真实错误，不伪造成功。
+- 前端专业修改弹窗明确同学院既有师生资料同步；成功刷新majors、teacher-majors、users、teacher-options、students、student和teacher-insights查询，失败保留输入和旧资料。
 - 管理员学生Excel导入在预检及执行时均要求专业、指导教师工号必填；空单元格和全空白（含全角及不换行空格）视为缺失。两项同时缺失时合并提示，failedCount仍按失败行计数；该校验在数据库已有账号跳过之前执行。不扩大到教师账号导入、手动账号表单或当前导师自导名单。
 - 学生导师须是同院、启用的教师或学院管理员（ADMIN且collegeCode非空），校级管理员不能担任导师。`/api/admin/teachers` 的导师候选包含这两类账号；账号管理的 `role=TEACHER` 分类仍仅列教师，不改变账号角色。创建、编辑及Excel导入共用导师校验，创建或更新学生时锁导师行。
 - 学院管理员“我的学生”资格只用于本人指导且同院的学生；管理全院账号不等于可读取全院论文。名单、学生详情、历史、论文详情及下载（含异步打开流前的重新核验）均按数据库当前角色、学院和teacherId授权。校级管理员没有这项能力，教师统计仍仅限教师角色。
@@ -76,7 +78,7 @@
 - SubmissionIntegrationTest：真实PostgreSQL行锁下，代理上传和直传在并发学生停用提交前等待，提交后返回拒绝且无论文记录/存储对象；校验期间学生被删除也不能创建记录。
 - TeacherStudentIntegrationTest、TeacherStatisticsIntegrationTest：学院继承、专业目录、名单只归属于当前教师及统计口径；ReportAvailabilityMigrationTest：V1→latest保留旧账号和提交，学院保持null。
 - AdminScopeTest：校级与学院级作用域。执行Maven compile/testCompile与全量测试；数据库环境不可用时明确区分已通过单测和未执行的PostgreSQL断言，不以H2或mock冒充。
-- MajorRenameHttpTest：真实MVC/安全/服务边界验证请求、权限、重复名、输入错误及状态保留；MajorRenameIntegrationTest：真实PostgreSQL验证持久化、失败回滚、账号资料不变及改名/启停双方向并发。
+- MajorRenameHttpTest：真实MVC/安全/服务边界验证请求、权限、重复名、输入错误及状态保留；专业同步服务/真实PostgreSQL用例验证本院师生同步、他院及无关字段不变、失败回滚、并发创建/编辑与改名的双向顺序以及启停/改密不丢失更新。隔离仓储的服务测试不能替代真实数据库锁验证。
 - AdminStudentImportRequiredFieldsTest：真实Excel读取与导入服务验证预检/执行的单项或双项缺失、多种空白、混合有效行、失败行计数、已有账号先验及教师导入/本人名单不回归。
 
 ## 7. Wrong vs Correct

@@ -37,8 +37,9 @@ class MajorRenameHttpTest {
   @TestConfiguration(proxyBeanMethods = false)
   static class Services {
     @Bean AdminScope scope(UserRepository users) { return new AdminScope(users); }
-    @Bean MajorService majors(MajorCatalogRepository majors, UserRepository users, AdminScope scope) {
-      return new MajorService(majors, users, scope);
+    @Bean MajorService majors(MajorCatalogRepository majors, UserRepository users, AdminScope scope,
+        MajorAssignmentLock assignments) {
+      return new MajorService(majors, users, scope, assignments);
     }
   }
   @Autowired MockMvc mvc;
@@ -46,6 +47,7 @@ class MajorRenameHttpTest {
   @MockitoBean UserRepository users;
   @MockitoBean MajorCatalogRepository majors;
   @MockitoBean AuthService auth;
+  @MockitoBean MajorAssignmentLock assignments;
   private final Map<Long, User> accounts = new HashMap<>();
   private final Map<Long, MajorCatalog> catalog = new HashMap<>();
   private User school, administrator;

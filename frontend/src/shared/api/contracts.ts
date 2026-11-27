@@ -99,7 +99,7 @@ export interface TeacherStatistics {
 export type StatisticsRange = '30' | '90' | '365' | 'ALL'
 export interface TeacherInsights {
   coverage: { eligibleReviews: number; indexedReviews: number }
-  topRules: { ruleId: string; description: string; count: number }[]
+  topRules: { ruleId: string; description: string; count: number; affectedStudents: number }[]
   problemDistribution: { label: string; students: number }[]
   dailySubmissions: { date: string; count: number }[]
   heatmap: {

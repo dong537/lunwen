@@ -27,10 +27,12 @@ public class UserService {
   private final AdminScope scope;
   private final MajorService majors;
   private final SubmissionRepository submissions;
+  private final MajorAssignmentLock assignments;
   public UserService(UserRepository users, PasswordHasher passwords, Validator validator, AdminScope scope,
-      MajorService majors, SubmissionRepository submissions) {
+      MajorService majors, SubmissionRepository submissions, MajorAssignmentLock assignments) {
     this.users = users; this.passwords = passwords; this.validator = validator;
     this.scope = scope; this.majors = majors; this.submissions = submissions;
+    this.assignments = assignments;
   }
   @Transactional(readOnly = true)
   public UserView current(long id) { return view(required(id)); }
@@ -57,6 +59,7 @@ public class UserService {
 
   @Transactional
   public UserView create(CurrentUser current, @Valid CreateUser request) {
+    assignments.shared();
     User actor = scope.actorForWrite(current);
     if (request.role() == Role.ADMIN) scope.school(actor);
     String college = scope.college(actor, request.collegeCode(), true);
@@ -76,6 +79,7 @@ public class UserService {
 
   @Transactional
   public UserView createStudent(CurrentUser current, CreateStudent request) {
+    assignments.shared();
     User teacher = requireTeacher(current, true);
     validate(request);
     return createAccount(studentRequest(teacher, request), teacherCollege(teacher));
@@ -116,6 +120,7 @@ public class UserService {
 
   @Transactional
   public UserView update(CurrentUser current, long id, UpdateUser request) {
+    assignments.shared();
     validate(request);
     User actor = scope.actorForWrite(current);
     User user = managed(actor, id);

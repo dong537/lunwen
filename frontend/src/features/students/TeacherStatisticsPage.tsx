@@ -249,16 +249,18 @@ export function TeacherStatisticsPage() {
           <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
             <Col xs={24} lg={12}>
               <Card title="高频格式问题 TOP10" style={{ height: '100%' }}>
-                <Typography.Paragraph type="secondary">
-                  规则明细覆盖 {insight.coverage.indexedReviews} /{' '}
-                  {insight.coverage.eligibleReviews} 份最近成功审核
-                </Typography.Paragraph>
                 <RankedBars
                   items={insight.topRules.map((rule) => ({
                     key: rule.ruleId,
                     label: rule.description,
                     value: rule.count,
+                    affectedStudents: rule.affectedStudents,
                   }))}
+                  valueTitle="问题数"
+                  extraColumn={{
+                    title: '触达人数',
+                    render: (rule) => rule.affectedStudents + '人',
+                  }}
                   emptyText="所选范围内没有已索引的规则问题"
                 />
               </Card>
@@ -277,10 +279,6 @@ export function TeacherStatisticsPage() {
             </Col>
             <Col xs={24} lg={12}>
               <Card title="学生与规则问题热力图" style={{ height: '100%' }}>
-                <Typography.Paragraph type="secondary">
-                  规则明细覆盖 {insight.coverage.indexedReviews} /{' '}
-                  {insight.coverage.eligibleReviews} 份最近成功审核
-                </Typography.Paragraph>
                 <IssueHeatmap rules={insight.heatmap.rules} students={insight.heatmap.students} />
               </Card>
             </Col>

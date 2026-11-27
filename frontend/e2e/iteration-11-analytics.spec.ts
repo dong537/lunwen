@@ -123,6 +123,7 @@ test('管理员概览展示真实聚合，账号可筛未填写年级', async ({
 })
 
 test('教师统计筛选、规则覆盖和导出使用同一条件', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
   const errors: string[] = []
   const insightRequests: string[] = []
   const exportRequests: string[] = []
@@ -176,7 +177,9 @@ test('教师统计筛选、规则覆盖和导出使用同一条件', async ({ pa
       insightRequests.push(url.search)
       data = {
         coverage: { eligibleReviews: 2, indexedReviews: 1 },
-        topRules: [{ ruleId: 'BODY-INDENT', description: '正文首行缩进', count: 4 }],
+        topRules: [
+          { ruleId: 'BODY-INDENT', description: '正文首行缩进', count: 4, affectedStudents: 1 },
+        ],
         problemDistribution: [
           { label: '0 个', students: 1 },
           { label: '1–5 个', students: 1 },
@@ -228,8 +231,14 @@ test('教师统计筛选、规则覆盖和导出使用同一条件', async ({ pa
   await page.goto('/teacher/statistics')
   await expect(page.getByRole('heading', { name: '指导统计' })).toBeVisible()
   await expect(page.getByText('规则明细已覆盖 1 / 2 份最近成功审核')).toBeVisible()
-  await expect(page.getByText('规则明细覆盖 1 / 2 份最近成功审核')).toHaveCount(2)
+  await expect(page.getByText('规则明细覆盖 1 / 2 份最近成功审核')).toHaveCount(0)
   await expect(page.getByText('高频格式问题 TOP10', { exact: true })).toBeVisible()
+  const ranking = page.getByRole('table', { name: '问题数与触达人数', exact: true })
+  await expect(ranking.getByRole('columnheader', { name: '问题数', exact: true })).toBeVisible()
+  await expect(ranking.getByRole('columnheader', { name: '触达人数', exact: true })).toBeVisible()
+  const rankedRule = ranking.getByRole('row').filter({ hasText: '正文首行缩进' })
+  await expect(rankedRule.getByRole('cell', { name: '4', exact: true })).toBeVisible()
+  await expect(rankedRule.getByRole('cell', { name: '1人', exact: true })).toBeVisible()
   await expect(page.getByRole('columnheader', { name: '正文首行缩进' })).toBeVisible()
   await expect(page.getByRole('row', { name: /23000001/ })).toBeVisible()
   await page.screenshot({
@@ -257,6 +266,16 @@ test('教师统计筛选、规则覆盖和导出使用同一条件', async ({ pa
   expect(exportRequests[0]).toContain('range=90')
   await page.screenshot({
     path: testInfo.outputPath('teacher-statistics-filtered.png'),
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 375, height: 812 })
+  await expect(rankedRule.getByRole('cell', { name: '1人', exact: true })).toBeVisible()
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBeLessThanOrEqual(375)
+  await ranking.scrollIntoViewIfNeeded()
+  await page.screenshot({
+    path: testInfo.outputPath('teacher-statistics-reach-375.png'),
     fullPage: true,
   })
   expect(errors).toEqual([])
@@ -329,7 +348,7 @@ test('教师统计空态在 375px 可阅读且没有整页横向溢出', async (
   await expect(page.getByText('所选范围内没有成功审核')).toBeVisible()
   await expect(page.getByText('所选范围内没有提交记录')).toBeVisible()
   await expect(page.getByText('所选范围内暂无可展示的规则明细')).toBeVisible()
-  await expect(page.getByText('规则明细覆盖 0 / 0 份最近成功审核')).toHaveCount(2)
+  await expect(page.getByText('规则明细覆盖 0 / 0 份最近成功审核')).toHaveCount(0)
   await expect(page.getByText('所选范围内没有学生记录。')).toBeVisible()
   await expect(page.getByText('—', { exact: true })).toBeVisible()
   await page.screenshot({
@@ -339,6 +358,95 @@ test('教师统计空态在 375px 可阅读且没有整页横向溢出', async (
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   )
+  expect(errors).toEqual([])
+})
+
+test('触达人数直接取完整榜单数据，长问题名和大数值在桌面手机均可阅读', async ({
+  page,
+}, testInfo) => {
+  const errors: string[] = []
+  const description = '正文首行缩进应为2字符；包含较长内容时仍需保持每一段的缩进格式一致'
+  page.on('pageerror', (error) => errors.push(error.message))
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text())
+  })
+  await page.route('**/api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (!path.startsWith('/api/')) {
+      await route.continue()
+      return
+    }
+    let data: unknown
+    if (path === '/api/auth/me')
+      data = { ...admin, id: '10', role: 'TEACHER', collegeCode: 'INFORMATION_ENGINEERING' }
+    else if (path === '/api/teacher/statistics')
+      data = {
+        totalStudents: 12,
+        activeStudents: 12,
+        submittedStudents: 12,
+        notSubmittedStudents: 0,
+        studentsWithSuccessfulReview: 12,
+        successfulSubmissions: 12,
+        pendingSubmissions: 0,
+        processingSubmissions: 0,
+        failedSubmissions: 0,
+        latestSuccessfulProblemCount: 12345,
+      }
+    else if (path === '/api/teacher/statistics/insights')
+      data = {
+        coverage: { eligibleReviews: 12, indexedReviews: 12 },
+        topRules: [{ ruleId: 'BODY-INDENT', description, count: 12345, affectedStudents: 12 }],
+        problemDistribution: [{ label: '100 个以上', students: 12 }],
+        dailySubmissions: [{ date: '2026-11-27', count: 12 }],
+        heatmap: {
+          rules: [{ ruleId: 'BODY-INDENT', description }],
+          students: Array.from({ length: 10 }, (_, index) => ({
+            studentId: String(index + 20),
+            name: '学生' + (index + 1),
+            counts: { 'BODY-INDENT': 900 },
+          })),
+        },
+        students: {
+          items: Array.from({ length: 10 }, (_, index) => ({
+            id: String(index + 20),
+            username: '230000' + String(index + 1).padStart(2, '0'),
+            name: '学生' + (index + 1),
+            grade: 2023,
+            major: '计算机科学与技术',
+            lastSubmittedAt: '2026-11-27T01:00:00Z',
+            latestProblemCount: 900,
+            latestReviewStatus: 'SUCCESS',
+          })),
+          total: 12,
+          page: 1,
+          size: 10,
+        },
+      }
+    else throw new Error('Unexpected statistics fixture request: ' + path)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(envelope(data)),
+    })
+  })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/teacher/statistics')
+  const ranking = page.getByRole('table', { name: '问题数与触达人数', exact: true })
+  const card = page.locator('.ant-card').filter({ has: ranking })
+  await expect(ranking.getByRole('cell', { name: '12345', exact: true })).toBeVisible()
+  await expect(ranking.getByRole('cell', { name: '12人', exact: true })).toBeVisible()
+  await expect(ranking.getByRole('rowheader', { name: description, exact: true })).toBeVisible()
+  await expect(page.getByText(/^规则明细(?:已)?覆盖/)).toHaveCount(0)
+  for (const width of [1440, 375]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(width)
+    await card.screenshot({
+      path: testInfo.outputPath('reach-ranking-' + width + '.png'),
+      animations: 'disabled',
+    })
+  }
   expect(errors).toEqual([])
 })
 

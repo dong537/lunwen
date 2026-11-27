@@ -48,7 +48,7 @@ public class TeacherInsightsService {
 
   public record Coverage(long eligibleReviews, long indexedReviews) {}
   public record RuleLabel(String ruleId, String description) {}
-  public record RuleCount(String ruleId, String description, long count) {}
+  public record RuleCount(String ruleId, String description, long count, long affectedStudents) {}
   public record ProblemBucket(String label, long students) {}
   public record DailyCount(String date, long count) {}
   public record HeatmapStudent(String studentId, String name, Map<String,Integer> counts) {}
@@ -171,7 +171,7 @@ public class TeacherInsightsService {
   }
 
   private static List<RuleCount> rankRules(List<Object[]> rows) {
-    return rows.stream().map(row->new RuleCount((String)row[0],(String)row[1],number(row[2]))).toList();
+    return rows.stream().map(row->new RuleCount((String)row[0],(String)row[1],number(row[2]),number(row[3]))).toList();
   }
 
   private static List<ProblemBucket> distribution(Object[] summary) {

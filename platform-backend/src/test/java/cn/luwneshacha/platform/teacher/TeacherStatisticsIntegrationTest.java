@@ -21,6 +21,8 @@ import java.util.Map;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -152,6 +154,8 @@ class TeacherStatisticsIntegrationTest {
     assertEquals(1, data.path("coverage").path("indexedReviews").asInt());
     assertEquals("BODY-LINE", data.path("topRules").get(0).path("ruleId").asText());
     assertEquals(2, data.path("topRules").get(0).path("count").asInt());
+    assertTrue(data.path("topRules").get(0).path("affectedStudents").isIntegralNumber());
+    assertEquals(1, data.path("topRules").get(0).path("affectedStudents").asInt());
     assertEquals(1, data.path("problemDistribution").get(1).path("students").asInt());
     assertEquals(1, data.path("students").path("total").asInt());
     assertEquals("FAILED", data.path("students").path("items").get(0).path("latestReviewStatus").asText());
@@ -224,6 +228,9 @@ class TeacherStatisticsIntegrationTest {
     assertEquals(2, data.path("coverage").path("indexedReviews").asInt());
     assertEquals("BODY-LINE", data.path("topRules").get(0).path("ruleId").asText());
     assertEquals(5, data.path("topRules").get(0).path("count").asInt());
+    assertRuleReach(data, "BODY-LINE", 5, 2);
+    assertRuleReach(data, "REF-ORDER", 4, 1);
+    assertRuleReach(data, "FIG-CAPTION", 1, 1);
     assertEquals(1, data.path("problemDistribution").get(1).path("students").asInt());
     assertEquals(1, data.path("problemDistribution").get(2).path("students").asInt());
     assertEquals(second.getId().toString(), data.path("heatmap").path("students").get(0)
@@ -232,6 +239,57 @@ class TeacherStatisticsIntegrationTest {
         .path("counts").path("BODY-LINE").asInt());
     assertEquals(4, data.path("heatmap").path("students").get(0)
         .path("counts").path("REF-ORDER").asInt());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"PENDING", "UNAVAILABLE", "READY"})
+  void newestUnindexedOrZeroSuccessDoesNotReviveOlderIndexedRuleReach(String latestIndexStatus) throws Exception {
+    var known = account("reachknown", Role.STUDENT, teacher.getId(), true);
+    var replaced = account("reachreplaced", Role.STUDENT, teacher.getId(), true);
+    jdbc.update("update sys_user set grade=2023 where id in (?,?)", known.getId(), replaced.getId());
+    Instant now = Instant.now();
+    long knownSuccess = submission(known, "SUCCESS", 3, now.minusSeconds(3600));
+    index(knownSuccess, "BODY-LINE", "正文行距应为1.5倍", 3);
+    submission(known, "FAILED", 0, now);
+    long previous = submission(replaced, "SUCCESS", 77, now.minusSeconds(7200));
+    index(previous, "BODY-LINE", "正文行距应为1.5倍", 77);
+    // The larger id wins for identical timestamps. READY + zero problems has no issue rows.
+    long newest = submission(replaced, "SUCCESS", latestIndexStatus.equals("READY") ? 0 : 5,
+        now.minusSeconds(7200));
+    jdbc.update("update submission set rule_index_status=? where id=?", latestIndexStatus, newest);
+
+    JsonNode data = insights(login("teacher"), "2023", "30");
+    assertEquals(1, data.path("topRules").size());
+    assertRuleReach(data, "BODY-LINE", 3, 1);
+    assertEquals(2, data.path("coverage").path("eligibleReviews").asLong());
+    assertEquals(latestIndexStatus.equals("READY") ? 2 : 1,
+        data.path("coverage").path("indexedReviews").asLong());
+  }
+
+  @Test void reachCountsHonorCurrentTeacherGradeAndDateFiltersAcrossTheWholeRoster() throws Exception {
+    var recent = account("reachrecent", Role.STUDENT, teacher.getId(), true);
+    var older = account("reacholder", Role.STUDENT, teacher.getId(), true);
+    var anotherGrade = account("reachgrade2024", Role.STUDENT, teacher.getId(), true);
+    var unset = account("reachunset", Role.STUDENT, teacher.getId(), true);
+    var foreign = account("reachforeign", Role.STUDENT, otherTeacher.getId(), true);
+    jdbc.update("update sys_user set grade=2023 where id in (?,?,?)", recent.getId(), older.getId(), foreign.getId());
+    jdbc.update("update sys_user set grade=2024 where id=?", anotherGrade.getId());
+    Instant now = Instant.now();
+    index(submission(recent, "SUCCESS", 4, now), "BODY-LINE", "正文行距应为1.5倍", 4);
+    index(submission(older, "SUCCESS", 50, now.minusSeconds(45 * 86400)), "BODY-LINE", "正文行距应为1.5倍", 50);
+    index(submission(anotherGrade, "SUCCESS", 11, now), "BODY-LINE", "正文行距应为1.5倍", 11);
+    index(submission(unset, "SUCCESS", 13, now), "BODY-LINE", "正文行距应为1.5倍", 13);
+    index(submission(foreign, "SUCCESS", 100, now), "BODY-LINE", "正文行距应为1.5倍", 100);
+
+    var session = login("teacher");
+    assertRuleReach(insights(session, "2023", "30"), "BODY-LINE", 4, 1);
+    assertRuleReach(insights(session, "2023", "90"), "BODY-LINE", 54, 2);
+    assertRuleReach(insights(session, null, "30"), "BODY-LINE", 28, 3);
+    assertRuleReach(insights(session, "UNSET", "30"), "BODY-LINE", 13, 1);
+    JsonNode anotherPage = json.readTree(mvc.perform(get("/api/teacher/statistics/insights")
+        .param("grade", "2023").param("range", "30").param("page", "2").param("size", "1").session(session))
+        .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()).path("data");
+    assertRuleReach(anotherPage, "BODY-LINE", 4, 1);
   }
 
   @Test void currentTeacherReassignmentChangesStatisticsImmediately() throws Exception {
@@ -300,6 +358,25 @@ class TeacherStatisticsIntegrationTest {
   private JsonNode statistics(MockHttpSession session) throws Exception {
     var response = mvc.perform(get("/api/teacher/statistics").session(session)).andExpect(status().isOk()).andReturn();
     return json.readTree(response.getResponse().getContentAsByteArray()).path("data");
+  }
+
+  private JsonNode insights(MockHttpSession session, String grade, String range) throws Exception {
+    var request = get("/api/teacher/statistics/insights").param("range", range).session(session);
+    if (grade != null) request.param("grade", grade);
+    return json.readTree(mvc.perform(request).andExpect(status().isOk())
+        .andReturn().getResponse().getContentAsByteArray()).path("data");
+  }
+
+  private static void assertRuleReach(JsonNode data, String ruleId, long count, long affectedStudents) {
+    for (JsonNode rule : data.path("topRules")) {
+      if (!ruleId.equals(rule.path("ruleId").asText())) continue;
+      assertTrue(rule.path("count").isIntegralNumber(), rule.toString());
+      assertTrue(rule.path("affectedStudents").isIntegralNumber(), rule.toString());
+      assertEquals(count, rule.path("count").asLong());
+      assertEquals(affectedStudents, rule.path("affectedStudents").asLong());
+      return;
+    }
+    fail("Expected ranked rule " + ruleId + " in " + data.path("topRules"));
   }
 
   private static void assertStatistics(JsonNode value, long total, long active, long submitted, long notSubmitted,

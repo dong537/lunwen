@@ -37,7 +37,7 @@ class CollegeAdminStudentServiceTest {
     });
     when(passwords.encode(anyString())).thenReturn("hash");
     service = new UserService(users, passwords, Validation.buildDefaultValidatorFactory().getValidator(),
-        new AdminScope(users), majors, submissions);
+        new AdminScope(users), majors, submissions, mock(MajorAssignmentLock.class));
   }
 
   @Test void collegeAdminCreatesOwnStudentAndSchoolAdminCanAssignTheSameAccount() {
@@ -91,7 +91,7 @@ class CollegeAdminStudentServiceTest {
 
   @Test void collegeAdminCanLoadOwnActiveMajorsButSchoolAdminCannot() {
     var repository = mock(MajorCatalogRepository.class);
-    var catalog = new MajorService(repository, users, new AdminScope(users));
+    var catalog = new MajorService(repository, users, new AdminScope(users), mock(MajorAssignmentLock.class));
     when(repository.findByCollegeCodeAndActiveTrueOrderByNameAsc(COLLEGE)).thenReturn(List.of());
     assertEquals(List.of(), catalog.teacherMajors(actor(college)));
     assertThrows(ApiException.class, () -> catalog.teacherMajors(actor(school)));

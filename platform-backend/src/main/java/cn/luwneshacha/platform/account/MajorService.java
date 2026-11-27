@@ -5,6 +5,7 @@ import cn.luwneshacha.platform.common.ApiException;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -16,8 +17,9 @@ public class MajorService {
   private final MajorCatalogRepository majors;
   private final UserRepository users;
   private final AdminScope scope;
-  public MajorService(MajorCatalogRepository majors, UserRepository users, AdminScope scope) {
-    this.majors = majors; this.users = users; this.scope = scope;
+  private final MajorAssignmentLock assignments;
+  public MajorService(MajorCatalogRepository majors, UserRepository users, AdminScope scope, MajorAssignmentLock assignments) {
+    this.majors = majors; this.users = users; this.scope = scope; this.assignments = assignments;
   }
   @Transactional(readOnly = true)
   public Catalog catalog(CurrentUser current) {
@@ -50,6 +52,7 @@ public class MajorService {
   }
   @Transactional
   public MajorView rename(CurrentUser current, long id, RenameMajor request) {
+    assignments.exclusive();
     User actor = scope.actorForWrite(current);
     MajorCatalog major = requiredForWrite(id);
     scope.college(actor, major.getCollegeCode(), true);
@@ -57,9 +60,13 @@ public class MajorService {
     validateName(name);
     if (major.getName().equals(name)) return MajorView.from(major);
     if (majors.findByCollegeCodeAndName(major.getCollegeCode(), name).isPresent()) throw duplicate();
+    String previousName = major.getName();
     major.rename(name);
-    try { return MajorView.from(majors.saveAndFlush(major)); }
+    MajorView result;
+    try { result = MajorView.from(majors.saveAndFlush(major)); }
     catch (DataIntegrityViolationException e) { throw duplicate(); }
+    users.renameAssignedMajor(major.getCollegeCode(), previousName, name, Instant.now());
+    return result;
   }
   @Transactional
   public MajorView setActive(CurrentUser current, long id, boolean active) {

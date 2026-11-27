@@ -173,8 +173,17 @@ export function MajorsPage() {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null)
-            void client.invalidateQueries({ queryKey: ['majors'] })
-            void client.invalidateQueries({ queryKey: ['teacher-majors'] })
+            for (const key of [
+              'majors',
+              'teacher-majors',
+              'users',
+              'teacher-options',
+              'students',
+              'student',
+              'teacher-insights',
+            ]) {
+              void client.invalidateQueries({ queryKey: [key] })
+            }
           }}
         />
       )}
@@ -216,7 +225,7 @@ function MajorEditDialog({
       destroyOnHidden
     >
       <Typography.Paragraph type="secondary">
-        修改后，已有账号中的专业名称保持不变。
+        修改后，同学院中使用原专业名称的学生和教师资料会同步更新。
       </Typography.Paragraph>
       <Form
         form={form}

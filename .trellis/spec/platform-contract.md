@@ -31,7 +31,7 @@
 - GET /api/admin/catalog → {schoolName,colleges:[{code,name}]}
 - GET /api/admin/majors?collegeCode= → [{id,collegeCode,name,active}]
 - POST /api/admin/majors {collegeCode,name} → Major；PATCH /api/admin/majors/{id}/active {active} → Major
-- PATCH /api/admin/majors/{id} {name} → Major；同院重名含停用项，保留学院/ID/启停状态。仅更新目录名称，已有账号的专业文本保持不变；改名和启停共用专业行锁。
+- PATCH /api/admin/majors/{id} {name} → Major；同院重名含停用项，保留学院/ID/启停状态。同事务同步更新同院使用旧专业名称的STUDENT/TEACHER账号（含停用）的专业及updatedAt；其他字段及学院不变，失败全部回滚。改名和专业启停共用专业行锁，账号正式专业赋值与改名另用事务级协调锁防止并发写回旧名，详见学院账号契约。
 - GET /api/admin/dashboard → {activeStudents,activeTeachers,totalSubmissions,dailySubmissions:[{date,count}],statusDistribution:[{status,count}],studentsByCollege:[{collegeCode,collegeName,count}]}；日期按 Asia/Shanghai，学院范围由服务端限定
 - GET /api/admin/imports/template?role=STUDENT|TEACHER → xlsx下载
 - POST /api/admin/imports/preview multipart(file,role,collegeCode?) → ImportResult
@@ -51,6 +51,7 @@
 - GET /api/teacher/students/imports/template → xlsx下载；POST /api/teacher/students/imports/preview|execute multipart(file) → ImportResult
 - GET /api/teacher/statistics?grade= → 教师名单与提交的十项实时汇总，详见教师名单接口契约
 - GET /api/teacher/statistics/insights?grade=&range=30|90|365|ALL&page=1&size=20 → 真实规则榜单、问题分布、每日提交、热力图、分页学生明细与规则索引覆盖率
+- 洞察topRules包含{ruleId,description,count,affectedStudents}；count是问题次数，affectedStudents是同规则涉及的去重学生人数，按本人名单及相同年级/日期、最新SUCCESS/READY索引口径从数据库聚合。常规榜单与热力图不重复显示覆盖文案，索引不完整的页面级警告保留。
 - GET /api/teacher/statistics/export?grade=&range=30|90|365|ALL → 同过滤口径的 XLSX 学生明细
 - GET /api/teacher/students/{id} → UserView
 - GET /api/teacher/students/{id}/submissions?page=1&size=20 → PageResponse<SubmissionView>

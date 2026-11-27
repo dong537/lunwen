@@ -30,6 +30,7 @@
 - 统计 `data` 直接含十项：`totalStudents, activeStudents, submittedStudents, notSubmittedStudents, studentsWithSuccessfulReview, successfulSubmissions, pendingSubmissions, processingSubmissions, failedSubmissions, latestSuccessfulProblemCount`。
 - 名下学生总数包含停用账号；submitted 是至少一条持久提交的去重学生数，notSubmitted 为差额；四状态是提交记录数。最近成功问题和取每个学生按 `createdAt DESC, id DESC` 排序的最新 SUCCESS 之和。无成功结果为 `null`，真实零问题为 `0`；较新的失败不覆盖之前的成功。
 - 洞察接口按当前教师指导名单、显式年级（年份或 UNSET）与范围 30/90/365 天或 ALL 查询。规则榜单、问题数分布和热力图只取范围内每名学生最新 SUCCESS；每日趋势取范围内全部提交。导出与页面筛选一致，学生没有成功审核时问题数单元格留空。
+- 洞察topRules元素为{ruleId,description,count,affectedStudents}；count为该规则正数问题记录的总次数，affectedStudents为同一查询范围内出现该规则问题的去重学生人数。沿用最新SUCCESS及READY索引条件，零计数、旧成功、其他导师和未索引记录不计入触达；排序仍按count降序、ruleId升序，最多10项，不受学生明细分页或热力图截断影响。
 - 审核成功事务保存 FAIL 规则的 ruleId、中文说明与计数；零问题也标记已索引。历史报告由有界任务从 COS 报告补录，统计接口只读 PostgreSQL，返回 eligibleReviews/indexedReviews 覆盖数。临时 COS 故障退避重试，只有确认报告永久缺失或无效才标记不可补录；未知规则明细不能当作 0，覆盖缺口始终可见。
 - 学生列表和 `UserView` 包含 grade（旧学生可为 null）；统计只通过当前教师 ID 过滤数据库。规则明细在审核成功时从引擎结果持久化，历史结果后台有界补录，不在统计请求中逐份读 COS。
 
@@ -61,6 +62,7 @@
 - 并发测试：两个教师同时导入同一学号时仅创建一个账号，归属保持由成功创建者确定。
 - 撤权测试：教师在多行执行途中失效时停止后续行，之前提交行保留。
 - 统计测试：不同教师隔离、停用学生、提交状态记录口径、同一时间按 ID 决胜、最近失败不覆盖、无成功为 null、成功零问题为 0。
+- 触达人数测试：同一学生同一规则多次问题计1人，不同学生计不同人数；人数与问题次数分离，年级/日期/权限/最新成功/索引筛选保持一致，零计数不算触达。数据库聚合必须由真实PostgreSQL断言验证，隔离repository的服务测试仅证明DTO映射。
 - 按平台 CI 执行 `mvn -B -f platform-backend/pom.xml verify`。
 
 ### 7. Wrong vs Correct

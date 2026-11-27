@@ -18,6 +18,7 @@ const admin: User = {
 
 async function installMajorFixture(page: Page, scoped = false, rejectFirst = false) {
   const patches: unknown[] = []
+  const requests: string[] = []
   const requestedColleges: (string | null)[] = []
   const unexpected: string[] = []
   const runtimeErrors: string[] = []
@@ -36,6 +37,7 @@ async function installMajorFixture(page: Page, scoped = false, rejectFirst = fal
       await route.continue()
       return
     }
+    requests.push(path + url.search)
     let data: unknown
     if (path === '/api/auth/me')
       data = scoped
@@ -54,6 +56,57 @@ async function installMajorFixture(page: Page, scoped = false, rejectFirst = fal
     else if (path === '/api/admin/majors' && request.method() === 'GET') {
       requestedColleges.push(url.searchParams.get('collegeCode'))
       data = [major]
+    } else if (path === '/api/teacher/majors') data = [major]
+    else if (path === '/api/admin/users' || path === '/api/admin/teachers') {
+      const teacher = path.endsWith('/teachers') || url.searchParams.get('role') === 'TEACHER'
+      const profile = {
+        ...admin,
+        id: teacher ? '11' : '20',
+        username: teacher ? 'teacher01' : '23000001',
+        name: teacher ? '教师甲' : '学生甲',
+        role: teacher ? 'TEACHER' : 'STUDENT',
+        major: major.name,
+        grade: teacher ? null : 2023,
+        collegeCode: major.collegeCode,
+        collegeName: '教育与艺术学院',
+        teacherId: teacher ? null : admin.id,
+        teacherName: teacher ? null : admin.name,
+      }
+      data = { items: [profile], total: 1, page: 1, size: 10 }
+    } else if (path === '/api/teacher/students') {
+      data = {
+        items: [
+          {
+            id: '20',
+            username: '23000001',
+            name: '学生甲',
+            major: major.name,
+            grade: 2023,
+            submissionCount: 0,
+            lastSubmittedAt: null,
+            latestProblemCount: null,
+          },
+        ],
+        total: 1,
+        page: 1,
+        size: 10,
+      }
+    } else if (path === '/api/teacher/students/20') {
+      data = {
+        ...admin,
+        id: '20',
+        username: '23000001',
+        name: '学生甲',
+        role: 'STUDENT',
+        major: major.name,
+        grade: 2023,
+        collegeCode: major.collegeCode,
+        collegeName: '教育与艺术学院',
+        teacherId: admin.id,
+        teacherName: admin.name,
+      }
+    } else if (path === '/api/teacher/students/20/submissions') {
+      data = { items: [], total: 0, page: 1, size: 10 }
     } else if (path === '/api/admin/majors/301' && request.method() === 'PATCH') {
       patches.push(request.postDataJSON())
       if (rejectFirst && patches.length === 1) {
@@ -89,7 +142,7 @@ async function installMajorFixture(page: Page, scoped = false, rejectFirst = fal
       body: JSON.stringify({ data, error: null, requestId: 'major-edit-fixture' }),
     })
   })
-  return { patches, requestedColleges, unexpected, runtimeErrors, major }
+  return { patches, requests, requestedColleges, unexpected, runtimeErrors, major }
 }
 
 async function openEdit(page: Page, scoped = false) {
@@ -107,7 +160,9 @@ async function openEdit(page: Page, scoped = false) {
   await edit.click()
   const dialog = page.getByRole('dialog', { name: '修改专业名称', exact: true })
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByText('修改后，已有账号中的专业名称保持不变。')).toBeVisible()
+  await expect(
+    dialog.getByText('修改后，同学院中使用原专业名称的学生和教师资料会同步更新。'),
+  ).toBeVisible()
   await expect(dialog.getByLabel('专业名称', { exact: true })).toHaveValue('学前教育')
   return dialog
 }
@@ -198,6 +253,89 @@ test('学院管理员修改失败保留名称和错误，可重试且学院始�
   await expect(page.getByLabel('专业所属学院')).toBeDisabled()
   expect(fixture.patches).toEqual([{ name: '学前教育学' }, { name: '学前教育学' }])
   expect(fixture.requestedColleges.every((code) => code === 'EDUCATION_ARTS')).toBe(true)
+  expect(fixture.unexpected).toEqual([])
+  expect(fixture.runtimeErrors).toEqual([])
+})
+
+test('专业同步改名成功后，已有师生账号与指导名单缓存重新请求最新资料', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-27T08:00:00Z'))
+  const fixture = await installMajorFixture(page, true)
+  fixture.major.active = true
+  await page.goto('/admin/users')
+  await expect(page.getByRole('row', { name: /23000001/ })).toContainText('学前教育')
+  await page.getByRole('tab', { name: '教师', exact: true }).click()
+  await expect(page.getByRole('row', { name: /teacher01/ })).toContainText('学前教育')
+  await page.getByRole('tab', { name: '学生', exact: true }).click()
+  await page.getByRole('button', { name: /新建学生/ }).click()
+  await expect
+    .poll(() => fixture.requests.filter((path) => path.startsWith('/api/admin/teachers?')).length)
+    .toBeGreaterThan(0)
+  await page
+    .getByRole('dialog', { name: '新建学生账号' })
+    .getByRole('button', { name: '取消', exact: true })
+    .click()
+
+  await page.getByRole('menuitem', { name: /我的学生$/ }).click()
+  await expect(page.getByRole('row', { name: /23000001/ })).toContainText('学前教育')
+  await page.getByRole('button', { name: /新增学生$/ }).click()
+  await expect
+    .poll(() => fixture.requests.filter((path) => path === '/api/teacher/majors').length)
+    .toBeGreaterThan(0)
+  await page
+    .getByRole('dialog', { name: '新增指导学生' })
+    .getByRole('button', { name: '取消', exact: true })
+    .click()
+  await page
+    .getByRole('row', { name: /23000001/ })
+    .getByRole('link', { name: '查看' })
+    .click()
+  await expect(
+    page.getByText('学号 23000001 · 学前教育 · 指导教师：校级管理员', { exact: true }),
+  ).toBeVisible()
+
+  await page.getByRole('menuitem', { name: /专业目录$/ }).click()
+  await page.getByRole('button', { name: '修改学前教育', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '修改专业名称' })
+  await dialog.getByLabel('专业名称', { exact: true }).fill('学前教育学')
+  await dialog.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('row', { name: /学前教育学/ })).toBeVisible()
+
+  await page.getByRole('menuitem', { name: /我的学生$/ }).click()
+  await expect(page.getByRole('row', { name: /23000001/ })).toContainText('学前教育学')
+  await page.getByRole('button', { name: /新增学生$/ }).click()
+  await expect
+    .poll(() => fixture.requests.filter((path) => path === '/api/teacher/majors').length)
+    .toBeGreaterThanOrEqual(2)
+  await page
+    .getByRole('dialog', { name: '新增指导学生' })
+    .getByRole('button', { name: '取消', exact: true })
+    .click()
+  await page
+    .getByRole('row', { name: /23000001/ })
+    .getByRole('link', { name: '查看' })
+    .click()
+  await expect(
+    page.getByText('学号 23000001 · 学前教育学 · 指导教师：校级管理员', { exact: true }),
+  ).toBeVisible()
+  expect(
+    fixture.requests.filter((path) => path === '/api/teacher/students/20').length,
+  ).toBeGreaterThanOrEqual(2)
+
+  await page.getByRole('menuitem', { name: /账号管理$/ }).click()
+  await expect(page.getByRole('row', { name: /23000001/ })).toContainText('学前教育学')
+  await page.getByRole('tab', { name: '教师', exact: true }).click()
+  await expect(page.getByRole('row', { name: /teacher01/ })).toContainText('学前教育学')
+  await page.getByRole('tab', { name: '学生', exact: true }).click()
+  await page.getByRole('button', { name: /新建学生/ }).click()
+  await expect
+    .poll(() => fixture.requests.filter((path) => path.startsWith('/api/admin/teachers?')).length)
+    .toBeGreaterThanOrEqual(2)
+  await page
+    .getByRole('dialog', { name: '新建学生账号' })
+    .getByRole('button', { name: '取消', exact: true })
+    .click()
+  expect(fixture.patches).toEqual([{ name: '学前教育学' }])
   expect(fixture.unexpected).toEqual([])
   expect(fixture.runtimeErrors).toEqual([])
 })
