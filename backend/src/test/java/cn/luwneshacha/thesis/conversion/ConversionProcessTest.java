@@ -1,6 +1,7 @@
 package cn.luwneshacha.thesis.conversion;
 
 import static org.junit.jupiter.api.Assertions.*;
+import java.io.IOException;
 import java.nio.file.*;
 import java.time.Duration;
 import java.util.List;
@@ -274,11 +275,57 @@ class ConversionProcessTest {
     }
   }
 
-  private static boolean isRunningLinuxProcess(long pid) throws Exception {
+  @Test
+  void exitedProcessIsStoppedWhenItsStatDisappearsDuringRead() throws Exception {
+    Process child = new ProcessBuilder(command("signal-success")).start();
+    try {
+      assertTrue(child.waitFor(5, java.util.concurrent.TimeUnit.SECONDS));
+      assertFalse(isRunningLinuxProcess(child.pid(), path -> {
+        throw new IOException("No such process");
+      }));
+    } finally {
+      if (child.isAlive()) child.destroyForcibly();
+    }
+  }
+
+  @Test
+  void liveProcessDoesNotHideStatReadErrors() {
+    for (IOException failure : List.of(
+        new AccessDeniedException("stat"), new IOException("unrelated read failure"))) {
+      IOException actual = assertThrows(IOException.class, () ->
+          isRunningLinuxProcess(ProcessHandle.current().pid(), path -> { throw failure; }));
+      assertSame(failure, actual);
+    }
+  }
+
+  @Test
+  void runningAndZombieProcessStatesStayDistinct() throws Exception {
+    long pid = ProcessHandle.current().pid();
+    for (String state : List.of("R", "S")) {
+      assertTrue(isRunningLinuxProcess(pid, path -> pid + " (converter child) " + state + " 1 2"));
+    }
+    assertFalse(isRunningLinuxProcess(pid, path -> pid + " (converter child) Z 1 2"));
+  }
+
+  private static boolean isRunningLinuxProcess(long pid) throws IOException {
+    return isRunningLinuxProcess(pid, Files::readString);
+  }
+
+  private static boolean isRunningLinuxProcess(long pid, ProcessStatReader reader) throws IOException {
     Path stat = Path.of("/proc", Long.toString(pid), "stat");
-    if (!Files.isRegularFile(stat)) return false;
-    String value = Files.readString(stat);
-    return value.charAt(value.lastIndexOf(')') + 2) != 'Z';
+    try {
+      String value = reader.read(stat);
+      return value.charAt(value.lastIndexOf(')') + 2) != 'Z';
+    } catch (IOException failure) {
+      // A killed process can disappear after /proc/<pid>/stat is opened but before read completes.
+      if (ProcessHandle.of(pid).filter(ProcessHandle::isAlive).isEmpty()) return false;
+      throw failure;
+    }
+  }
+
+  @FunctionalInterface
+  private interface ProcessStatReader {
+    String read(Path path) throws IOException;
   }
 
   private List<String> command(String mode) {
