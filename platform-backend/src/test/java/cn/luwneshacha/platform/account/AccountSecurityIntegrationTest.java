@@ -25,7 +25,9 @@ import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -50,8 +52,10 @@ class AccountSecurityIntegrationTest {
     properties.add("spring.datasource.password", DATABASE::getPassword);
   }
   @SpringBootConfiguration @EnableAutoConfiguration
-  @ComponentScan({"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.auth",
-      "cn.luwneshacha.platform.common", "cn.luwneshacha.platform.importing"})
+  @ComponentScan(basePackages = {"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.auth",
+      "cn.luwneshacha.platform.common", "cn.luwneshacha.platform.importing"},
+      excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION,
+          classes = {SpringBootConfiguration.class, TestConfiguration.class}))
   @EntityScan({"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.submission"})
   @EnableJpaRepositories({"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.submission"})
   static class TestApplication {

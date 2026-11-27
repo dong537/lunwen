@@ -25,6 +25,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -53,7 +54,8 @@ class MajorRenameIntegrationTest {
   }
   @SpringBootConfiguration @EnableAutoConfiguration
   @ComponentScan(basePackages = {"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.auth", "cn.luwneshacha.platform.common"},
-      excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class))
+      excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION,
+          classes = {SpringBootConfiguration.class, TestConfiguration.class}))
   @EntityScan({"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.submission"})
   @EnableJpaRepositories({"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.submission"})
   static class TestApplication {}

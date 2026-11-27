@@ -29,6 +29,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -56,7 +57,8 @@ class TeacherStatisticsIntegrationTest {
   @SpringBootConfiguration @EnableAutoConfiguration
   @ComponentScan(basePackages = {"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.auth",
       "cn.luwneshacha.platform.common", "cn.luwneshacha.platform.teacher"},
-      excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = SpringBootConfiguration.class))
+      excludeFilters = @ComponentScan.Filter(type = FilterType.ANNOTATION,
+          classes = {SpringBootConfiguration.class, TestConfiguration.class}))
   @EntityScan(basePackageClasses = {User.class, Submission.class})
   @EnableJpaRepositories({"cn.luwneshacha.platform.account", "cn.luwneshacha.platform.submission",
       "cn.luwneshacha.platform.teacher"})
